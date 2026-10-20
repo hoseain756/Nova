@@ -6,8 +6,8 @@ import 'package:nova_mobile/core/update/app_update_service.dart';
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.0',
-    'latest_build': 63,
+    'latest_version': '1.0.1',
+    'latest_build': 64,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
@@ -18,8 +18,8 @@ void main() {
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.0');
-    expect(manifest.latestBuild, 63);
+    expect(manifest.latestVersion, '1.0.1');
+    expect(manifest.latestBuild, 64);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
@@ -49,8 +49,15 @@ void main() {
     expect(optional.forceRequired, isFalse);
     expect(forced.hasUpdate, isTrue);
     expect(forced.forceRequired, isTrue);
-    expect(current.hasUpdate, isFalse);
+    expect(current.hasUpdate, isTrue);
     expect(current.forceRequired, isFalse);
+    final latest = AppUpdateStatus(
+      manifest: manifest,
+      currentVersion: '1.0.1',
+      currentBuild: 64,
+    );
+    expect(latest.hasUpdate, isFalse);
+    expect(latest.forceRequired, isFalse);
   });
 
   test('rejects invalid version metadata and non-HTTPS APK URLs', () {
@@ -71,7 +78,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 64,
+        'min_build': 65,
       }),
       throwsFormatException,
     );

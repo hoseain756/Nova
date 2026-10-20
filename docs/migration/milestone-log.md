@@ -584,3 +584,10 @@ Status: source, analysis, full tests, and Android Release build passed. Real pro
 - Centralized the version used in Simkl request metadata. Added localized Arabic and English explanations for current-version checks, connectivity and manifest failures, missing release APKs, storage and download problems, invalid APKs, and installer permission/availability/signature failures.
 - The updater now validates the downloaded APK container signature before handing it to Android. Forced-update errors display over the required-update prompt with a retry path.
 - Verification passed: focused updater/version tests (5 tests), full Flutter test suite (451 tests), and flutter analyze --no-pub (no issues, 231.9s). flutter build apk --release --no-pub produced a 142,520,135-byte APK reporting versionName 1.0.0 and versionCode 63. The configured local Android release signing key was used. No emulator was started.
+
+## Milestone 27 — Update discovery release 1.0.1+64 (20 October 2026)
+
+- Synchronized app version/build as `1.0.1+64` across Flutter metadata, the synchronous version constants, and the root public update manifest. Kept the forced-update threshold at build 60 and preserved the latest-release APK endpoint.
+- Regression tests prove that the phone's installed `1.0.0+63` build sees the published build 64 as an optional update, while build 64 is current. The public manifest is fetched from `main/version.json` with a no-cache request.
+- Focused updater/version tests: **5 passed**. Full `flutter analyze --no-pub`: **No issues found** (114.6s). Android Release APK built successfully; Gradle metadata reports versionName `1.0.1`, versionCode `64`; size **142,520,135 bytes**; SHA-256 `77B36508F708A53DD5FDFD40EF6CFC1FC294736CE39A627216C02B13F764CE58`.
+- Physical-phone update notice remains to be checked. Download/install requires the user to attach the matching-signed APK as `app-release.apk` to the v1.0.1 GitHub Release. No emulator was launched.

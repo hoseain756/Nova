@@ -1,6 +1,6 @@
 # NOVA Work Log
 
-Updated: 19 October 2026. This log groups completed work by major milestone and sub-milestone. Detailed source findings and command evidence remain in the linked audit and acceptance documents.
+Updated: 20 October 2026. This log groups completed work by major milestone and sub-milestone. Detailed source findings and command evidence remain in the linked audit and acceptance documents.
 
 ## Major Milestone 1 — Audit, identity, and design system
 
@@ -175,3 +175,10 @@ Validation: flutter test --no-pub test/app_update_service_test.dart passed 3 tes
 - The updater now reports distinct localized causes for offline/timeout checks, unavailable release metadata or APK assets, malformed manifest or APK data, storage failures, Android install permission, missing package installer, incompatible or differently signed APKs, unavailable iOS links, and unsupported platforms. Manual no-update checks clearly say NOVA is already current; startup background checks stay silent on network errors.
 - Reject non-APK download responses by checking the ZIP signature before launching the installer. Forced-update failures remain visible over the locked update screen so the user can close the message and retry.
 - Verification passed: focused updater/version tests (5 tests), full Flutter test suite (451 tests), and flutter analyze --no-pub (no issues, 231.9s). flutter build apk --release --no-pub succeeded; the APK is 142,520,135 bytes with versionName 1.0.0 and versionCode 63. Local Android release signing credentials were complete and the configured keystore was used. No emulator was launched.
+
+## Milestone 14 — Update discovery release 1.0.1+64 (20 October 2026)
+
+- Bumped the user-facing version and Android build to **1.0.1+64** consistently in `pubspec.yaml`, `lib/core/version.dart`, and root `version.json`. Retained `min_build: 60`, the Arabic message, iOS fallback, and GitHub latest-release APK URL.
+- Updated updater regression coverage: a device at **1.0.0+63** reports an optional update; **1.0.1+64** reports that it is current. Updated `AGENTS.md` release guidance to require synchronized version metadata and monotonic Android builds.
+- Verification: **5 focused tests passed** (`app_update_service_test.dart`, `version_pin_test.dart`); `flutter analyze --no-pub` found no issues (114.6s); `flutter build apk --release --no-pub` succeeded. APK: **142,520,135 bytes**, SHA-256 `77B36508F708A53DD5FDFD40EF6CFC1FC294736CE39A627216C02B13F764CE58`; Gradle APK metadata reports versionName `1.0.1`, versionCode `64`.
+- The update check fetches the public `main/version.json` with `Cache-Control: no-cache` and compares installed build numbers, so publishing this manifest makes build 63 eligible. The app download/install path still needs a signed `app-release.apk` attached to the v1.0.1 GitHub Release. Physical-phone check remains pending; no emulator was launched.

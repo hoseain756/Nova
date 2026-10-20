@@ -1,6 +1,6 @@
 # NOVA Project Plan
 
-Updated: 19 October 2026
+Updated: 20 October 2026
 Purpose: a living plan for the NOVA Flutter redesign and its remaining acceptance work. Detailed design decisions and verification evidence are linked from [`README.md`](README.md).
 
 ## Major Milestone 1 — Audit, identity, and design foundation
@@ -124,3 +124,14 @@ Preserve existing functionality and compatibility keys. Keep all user-facing cop
 - [x] Add Arabic/English copy and focused parser/long-press callback tests.
 - [x] Run 38 focused Flutter unit/widget tests covering progress rails, RTL/LTR checkmarks, episode actions, provider parsers, settings, details, and snapshot retention.
 - [ ] Complete static analysis and verify provider/device behavior on a physical device; never launch an emulator.
+
+## Major Milestone 11 — Update discovery release 1.0.1+64
+
+**Status: Source, focused regression checks, full analysis, and Android Release APK complete. Phone discovery check remains for the user.**
+
+- [x] Advance the app metadata to 1.0.1+64 in `pubspec.yaml`, `lib/core/version.dart`, and `version.json`; keep `min_build` at 60 and retain the direct latest-release APK URL.
+- [x] Cover the installed 1.0.0+63 case as an available optional update, and 1.0.1+64 as current.
+- [x] Pass focused updater/version tests, full Flutter analysis, and build a Release APK whose Gradle metadata reports versionName 1.0.1 and versionCode 64.
+- [x] Publish the updated manifest on `main` and create tag `v1.0.1` so installed clients can fetch the new metadata.
+- [ ] Verify the update notice on the physical phone running 1.0.0+63. To download/install from the app, attach the matching-signed APK as `app-release.apk` to the GitHub v1.0.1 release; no APK asset is uploaded by this task.
+- [ ] Never launch an emulator.
