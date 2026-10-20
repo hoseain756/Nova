@@ -135,3 +135,12 @@ Preserve existing functionality and compatibility keys. Keep all user-facing cop
 - [x] Publish the updated manifest on `main` and create tag `v1.0.1` so installed clients can fetch the new metadata.
 - [ ] Verify the update notice on the physical phone running 1.0.0+63. To download/install from the app, attach the matching-signed APK as `app-release.apk` to the GitHub v1.0.1 release; no APK asset is uploaded by this task.
 - [ ] Never launch an emulator.
+## Major Milestone 12 — Fix update-manifest parsing (20 October 2026)
+
+**Status: Source fix, focused regression tests, full analysis, and Release APK complete. Existing installed builds still need a one-time manual install.**
+
+- [x] Confirm the public GitHub raw endpoint serves `version.json` as `text/plain`; Dio returns its JSON body as a `String`, which the previous updater rejected because it required a `Map`.
+- [x] Decode string response bodies as JSON before validating the manifest, while preserving validation for malformed or non-map responses.
+- [x] Add a regression test with the same `text/plain; charset=utf-8` response header and verify an installed build 63 sees a newer update.
+- [x] Bump metadata to `1.0.2+65`, retain `min_build: 60`, and build a Release APK.
+- [ ] Manually install the fixed APK on the phone; builds 63/64 contain the old parser and cannot download the code fix through their own updater. No emulator.

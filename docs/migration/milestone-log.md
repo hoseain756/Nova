@@ -591,3 +591,9 @@ Status: source, analysis, full tests, and Android Release build passed. Real pro
 - Regression tests prove that the phone's installed `1.0.0+63` build sees the published build 64 as an optional update, while build 64 is current. The public manifest is fetched from `main/version.json` with a no-cache request.
 - Focused updater/version tests: **5 passed**. Full `flutter analyze --no-pub`: **No issues found** (114.6s). Android Release APK built successfully; Gradle metadata reports versionName `1.0.1`, versionCode `64`; size **142,520,135 bytes**; SHA-256 `77B36508F708A53DD5FDFD40EF6CFC1FC294736CE39A627216C02B13F764CE58`.
 - Physical-phone update notice remains to be checked. Download/install requires the user to attach the matching-signed APK as `app-release.apk` to the v1.0.1 GitHub Release. No emulator was launched.
+## Milestone 28 — GitHub update-manifest parsing fix (20 October 2026)
+
+- Confirmed `raw.githubusercontent.com` serves the JSON manifest as `text/plain; charset=utf-8`, so Dio returns a string and the prior app rejected it as an incomplete manifest. The updater now decodes text JSON before applying the existing field and URL validation.
+- Added regression coverage for the exact text/plain response. Bumped the app and manifest to `1.0.2+65`; kept `min_build` 60. Six focused updater/version tests passed and full Flutter analysis found no issues (190.9s).
+- Android Release build passed; metadata: versionName `1.0.2`, versionCode `65`; APK size **142,520,135 bytes**; SHA-256 `94292644ADE2F66F4280D70B12C605A4A1D802E8D079584767B58D4207234053`.
+- Installed builds 63 and 64 cannot parse the current server response and require one manual install of this fixed APK. The new app will check correctly; its download button requires a matching-signed `app-release.apk` asset on the v1.0.2 GitHub Release. No emulator was launched.

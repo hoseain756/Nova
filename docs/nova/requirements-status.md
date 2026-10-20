@@ -51,6 +51,7 @@ The current completion findings and preservation decisions are in [08-completion
 | Area | Required check |
 |---|---|
 | Build | Android analysis and the Release APK built with the arm64 Flutter target are verified. Run an iOS build on macOS/Xcode and perform an on-device install/launch check. |
+| Update checker | Fixed JSON text parsing for GitHub text/plain response; 6 focused tests and full analysis pass. Install the 1.0.2+65 APK manually once on devices still running the old parser; then verify later update checks on phone. |
 | Regression | The full serial suite last passed all 434 tests before the anime-canvas change; its two focused regressions pass afterward. Rerun the full suite after future broader changes. |
 | Visual | Anime catalog verified on phone portrait in Arabic/Dark. Capture Home, Details, Settings, Kids, Library, Search, Downloads and player at phone/tablet portrait/landscape in Arabic/English and Light/Dark. |
 | Providers | Exercise each supported OAuth/device/key flow, expired token, sync toggle, manual sync and disconnect with real or provider sandbox accounts. |

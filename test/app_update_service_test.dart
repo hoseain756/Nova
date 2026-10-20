@@ -1,13 +1,39 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:nova_mobile/core/update/app_update_service.dart';
+
+class _PlainTextJsonAdapter implements HttpClientAdapter {
+  _PlainTextJsonAdapter(this.body);
+
+  final String body;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async =>
+      ResponseBody.fromString(
+        body,
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['text/plain; charset=utf-8'],
+        },
+      );
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.1',
-    'latest_build': 64,
+    'latest_version': '1.0.2',
+    'latest_build': 65,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
@@ -15,11 +41,32 @@ void main() {
     'ios_url': '',
   };
 
+  test('decodes GitHub raw JSON served with a text/plain content type',
+      () async {
+    final dio = Dio()
+      ..httpClientAdapter = _PlainTextJsonAdapter(jsonEncode(manifestJson));
+    final service = AppUpdateService(
+      dio: dio,
+      packageInfoProvider: () async => PackageInfo(
+        appName: 'NOVA',
+        packageName: 'app.nova.mobile',
+        version: '1.0.0',
+        buildNumber: '63',
+      ),
+    );
+
+    final status = await service.checkForUpdates();
+
+    expect(status.manifest.latestBuild, 65);
+    expect(status.hasUpdate, isTrue);
+    expect(status.forceRequired, isFalse);
+  });
+
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.1');
-    expect(manifest.latestBuild, 64);
+    expect(manifest.latestVersion, '1.0.2');
+    expect(manifest.latestBuild, 65);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
@@ -53,8 +100,8 @@ void main() {
     expect(current.forceRequired, isFalse);
     final latest = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.0.1',
-      currentBuild: 64,
+      currentVersion: '1.0.2',
+      currentBuild: 65,
     );
     expect(latest.hasUpdate, isFalse);
     expect(latest.forceRequired, isFalse);
@@ -78,7 +125,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 65,
+        'min_build': 66,
       }),
       throwsFormatException,
     );

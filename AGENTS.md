@@ -34,7 +34,7 @@ Preserve app IDs, callbacks, secure-storage and sync keys. Internal `noor` names
 
 ## Testing and Review
 
-Name tests `*_test.dart`; cover changed behavior, including RTL/LTR and themes for UI. For releases, keep `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` aligned; advance Android build numbers monotonically and test that the previous build sees the manifest as an update. Before submitting, run relevant tests/analyzer, inspect `git diff --check`, and disclose checks needing hardware, accounts, or macOS.
+Name tests `*_test.dart`; cover changed behavior, including RTL/LTR and themes for UI. For releases, keep `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` aligned; advance Android build numbers monotonically and test that the previous build sees the manifest as an update, and verify that JSON strings returned as `text/plain` are decoded before validation. Before submitting, run relevant tests/analyzer, inspect `git diff --check`, and disclose checks needing hardware, accounts, or macOS.
 
 ## Commit and Pull Requests
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -210,12 +211,22 @@ class AppUpdateService {
         },
       ),
     );
-    final data = response.data;
-    if (data is! Map) {
+    final responseData = response.data;
+    final Object? decodedData;
+    if (responseData is String) {
+      try {
+        decodedData = jsonDecode(responseData);
+      } on FormatException catch (error) {
+        throw FormatException('Invalid update manifest JSON: ${error.message}');
+      }
+    } else {
+      decodedData = responseData;
+    }
+    if (decodedData is! Map) {
       throw const FormatException('Invalid update manifest');
     }
     final manifest = AppUpdateManifest.fromJson(
-      Map<String, dynamic>.from(data),
+      Map<String, dynamic>.from(decodedData),
     );
     return AppUpdateStatus(
       manifest: manifest,
