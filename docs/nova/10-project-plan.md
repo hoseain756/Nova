@@ -144,3 +144,12 @@ Preserve existing functionality and compatibility keys. Keep all user-facing cop
 - [x] Add a regression test with the same `text/plain; charset=utf-8` response header and verify an installed build 63 sees a newer update.
 - [x] Bump metadata to `1.0.2+65`, retain `min_build: 60`, and build a Release APK.
 - [ ] Manually install the fixed APK on the phone; builds 63/64 contain the old parser and cannot download the code fix through their own updater. No emulator.
+## Major Milestone 13 — Update discovery test release 1.0.3+66 (20 October 2026)
+
+**Status: Automated verification and APK build complete; GitHub publication and physical-phone confirmation are tracked separately.**
+
+- [x] Advance the app and public manifest to `1.0.3+66`, keeping the existing `min_build`, download URL, and other manifest values intact.
+- [x] Add regression coverage proving installed `1.0.2+65` reads the GitHub `text/plain` JSON manifest and detects build 66; prove build 66 is current.
+- [x] Pass focused updater/version tests, full Flutter analysis, and Android Release build; inspect APK metadata for versionName `1.0.3` and versionCode `66`.
+- [x] Publish the manifest on `main` and create/push tag `v1.0.3` so the installed app can discover the update.
+- [ ] Verify the update notice on the physical Android phone. The user will attach the matching-signed APK as `app-release.apk` to the v1.0.3 GitHub Release before using in-app download. Never launch an emulator.

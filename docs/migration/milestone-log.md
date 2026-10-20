@@ -597,3 +597,10 @@ Status: source, analysis, full tests, and Android Release build passed. Real pro
 - Added regression coverage for the exact text/plain response. Bumped the app and manifest to `1.0.2+65`; kept `min_build` 60. Six focused updater/version tests passed and full Flutter analysis found no issues (190.9s).
 - Android Release build passed; metadata: versionName `1.0.2`, versionCode `65`; APK size **142,520,135 bytes**; SHA-256 `94292644ADE2F66F4280D70B12C605A4A1D802E8D079584767B58D4207234053`.
 - Installed builds 63 and 64 cannot parse the current server response and require one manual install of this fixed APK. The new app will check correctly; its download button requires a matching-signed `app-release.apk` asset on the v1.0.2 GitHub Release. No emulator was launched.
+## Milestone 29 — Update discovery test release 1.0.3+66 (20 October 2026)
+
+- Advanced the app and update manifest to `1.0.3+66`, keeping `min_build: 60` and the existing update message and URLs.
+- Added coverage that installed `1.0.2+65` detects build 66 when GitHub serves the manifest as `text/plain`; build 66 is correctly considered current.
+- Focused updater/version tests passed (**7 tests**); full `flutter analyze --no-pub` found no issues (171.1s).
+- Android Release APK metadata: versionName `1.0.3`, versionCode `66`, applicationId `app.nova.mobile`. APK size **142,520,139 bytes**, SHA-256 `6610E286EA182BBBFDBE140787E119E3453282D946F259BC9E83EE9D192F6757`.
+- The manifest is published with tag `v1.0.3` for update discovery. The user attaches the matching-signed APK to the GitHub release; no APK was uploaded by this task. Phone confirmation remains pending; no emulator was launched.

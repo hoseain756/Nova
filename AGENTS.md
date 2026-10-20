@@ -12,7 +12,7 @@
 - `lib/features/media/episode_views.dart` owns detail episode list/grid presentation; long-press actions are wired from `media_detail_page.dart`, while `AppState` stores watched ranges and sends one enabled-service sync per provider.
 - `lib/features/home/widgets/continue_watching_rail.dart` renders local and linked Continue Watching cards together in one horizontal rail; `lib/features/media/episode_views.dart` presents episode progress and mark-watched actions; Anime reuses the same linked-progress rail.
 - Local Continue Watching cards can display device-only resume frames; the playback retention choice lives in `SettingsPreferencesPage` and defaults to 30 days.
-- `assets/brand/` and `assets/fonts/` hold NOVA identity and fonts; `android/` and `ios/` hold platform files; `test/` has tests; `tool/` has utilities.
+- `assets/brand/` and `assets/fonts/` hold NOVA identity and fonts; `android/` and `ios/` hold platform files; `test/` has tests, including updater manifest/build regression coverage in `app_update_service_test.dart` and version pinning in `version_pin_test.dart`; `tool/` has utilities.
 - Root configuration includes pubspec.yaml, the public update manifest version.json, analysis_options.yaml, DESIGN.md, and PRODUCT.md. .github/workflows/release.yml runs Android analysis, tests, and APK builds; docs/nova/release-signing.md records the release-signing limits.
 
 ## Build, Test, and Development
@@ -34,7 +34,7 @@ Preserve app IDs, callbacks, secure-storage and sync keys. Internal `noor` names
 
 ## Testing and Review
 
-Name tests `*_test.dart`; cover changed behavior, including RTL/LTR and themes for UI. For releases, keep `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` aligned; advance Android build numbers monotonically and test that the previous build sees the manifest as an update, and verify that JSON strings returned as `text/plain` are decoded before validation. Before submitting, run relevant tests/analyzer, inspect `git diff --check`, and disclose checks needing hardware, accounts, or macOS.
+Name tests `*_test.dart`; cover changed behavior, including RTL/LTR and themes for UI. For releases, keep `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` aligned; advance Android build numbers monotonically and test that the previous build sees the manifest as an update, and verify that JSON strings returned as `text/plain` are decoded before validation. Before submitting, run relevant tests/analyzer, inspect `git diff --check`, and disclose checks needing hardware, accounts, or macOS. Publish the updated root manifest before expecting installed clients to discover a release; attach the matching-signed APK to the corresponding GitHub Release before relying on the app download link.
 
 ## Commit and Pull Requests
 

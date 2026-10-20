@@ -1,7 +1,13 @@
 # NOVA requirements and acceptance tracker
 
-Updated: 19 October 2026. The redesign implementation and ordered design documents are in place. This records what has actually been checked; it is not a release certification.
+Updated: 20 October 2026. The redesign implementation and ordered design documents are in place. This records what has actually been checked; it is not a release certification.
 
+
+## Latest implementation update — Update discovery test release 1.0.3+66 (20 October 2026)
+
+- The app version, build constants, and public update manifest are synchronized at `1.0.3+66`; `min_build` and download metadata are preserved.
+- The exact installed baseline `1.0.2+65` passes an updater regression test against a GitHub-style `text/plain` manifest and detects build 66. Focused tests (7), full analysis, and the Release APK build passed. APK metadata is versionName 1.0.3/versionCode 66.
+- Publishing the updated `version.json` on `main` enables discovery. The user will upload the matching-signed APK to the v1.0.3 GitHub Release before using the in-app installer. Physical-phone confirmation is pending; no emulator was launched.
 ## Latest implementation update — Moved project reconciliation (19 October 2026)
 
 - Compared the confirmed C:\Users\hosea\projects\app\Nova project against the earlier working copy. Restored missing device-local resume snapshots and retention, Simkl paused playback, episode long-press actions, grouped provider sync, bilingual strings, tests, and milestone documentation while keeping the destination's anime filter and seek-step parsing.
@@ -51,7 +57,7 @@ The current completion findings and preservation decisions are in [08-completion
 | Area | Required check |
 |---|---|
 | Build | Android analysis and the Release APK built with the arm64 Flutter target are verified. Run an iOS build on macOS/Xcode and perform an on-device install/launch check. |
-| Update checker | Fixed JSON text parsing for GitHub text/plain response; 6 focused tests and full analysis pass. Install the 1.0.2+65 APK manually once on devices still running the old parser; then verify later update checks on phone. |
+| Update checker | Fixed JSON text parsing for GitHub text/plain response. The 1.0.2+65 phone baseline detects the published 1.0.3+66 manifest in automated coverage; confirm the notice on the physical phone. The user must attach the matching-signed APK to the v1.0.3 release before in-app download. |
 | Regression | The full serial suite last passed all 434 tests before the anime-canvas change; its two focused regressions pass afterward. Rerun the full suite after future broader changes. |
 | Visual | Anime catalog verified on phone portrait in Arabic/Dark. Capture Home, Details, Settings, Kids, Library, Search, Downloads and player at phone/tablet portrait/landscape in Arabic/English and Light/Dark. |
 | Providers | Exercise each supported OAuth/device/key flow, expired token, sync toggle, manual sync and disconnect with real or provider sandbox accounts. |

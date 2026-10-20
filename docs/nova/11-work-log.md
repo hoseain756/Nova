@@ -188,3 +188,10 @@ Validation: flutter test --no-pub test/app_update_service_test.dart passed 3 tes
 - Updated the updater to JSON-decode text bodies before normal manifest validation. Added an adapter-backed regression test using the exact plain-text content type; the test confirms installed build 63 sees build 65 as an optional update.
 - Bumped Flutter metadata, version constants, and the public manifest to **1.0.2+65**; kept the required-update floor at build 60. Focused updater/version tests: **6 passed**. `flutter analyze --no-pub`: **No issues found** (190.9s). Android Release build succeeded; Gradle metadata reports versionName `1.0.2`, versionCode `65`; size **142,520,135 bytes**; SHA-256 `94292644ADE2F66F4280D70B12C605A4A1D802E8D079584767B58D4207234053`.
 - Existing `1.0.0+63` and `1.0.1+64` APKs have the faulty parser and cannot self-update from this endpoint; install the fixed APK once manually. Do not use the in-app download until a matching APK named `app-release.apk` is attached to the v1.0.2 GitHub Release. No emulator was launched.
+## Milestone 16 — Update discovery test release 1.0.3+66 (20 October 2026)
+
+- Advanced `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` from `1.0.2+65` to `1.0.3+66`; kept `min_build: 60`, the existing Arabic message, iOS value, and direct GitHub latest-release APK URL.
+- Updated updater regression tests to prove the phone's fixed `1.0.2+65` build detects 66 from GitHub's `text/plain` JSON response, while 66 is current.
+- Focused updater/version tests: **7 passed**. `flutter analyze --no-pub`: **No issues found** (171.1s).
+- Android Release APK built in 259.5s. Gradle metadata reports applicationId `app.nova.mobile`, versionName `1.0.3`, and versionCode `66`. APK: **142,520,139 bytes**; SHA-256 `6610E286EA182BBBFDBE140787E119E3453282D946F259BC9E83EE9D192F6757`.
+- The updated manifest is included in the main-branch publication and tag `v1.0.3` is pushed for update discovery. The user will upload the matching-signed `app-release.apk` to that GitHub Release; this task does not upload APK assets. Physical-phone check remains pending. No emulator was launched.
