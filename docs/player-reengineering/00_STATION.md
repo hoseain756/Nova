@@ -1,7 +1,7 @@
 # Station 00 — Persistent planning bootstrap
 
 - Status: COMPLETE ✓
-- Verification status: NOT-VERIFIED (station work not yet completed)
+- Verification status: STATIC-ONLY/COMPLETE (all bootstrap checks recorded; device/source limits remain explicit)
 - Checklist: 11/11 tasks complete
 - Evidence:
 

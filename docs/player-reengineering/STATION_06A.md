@@ -43,4 +43,4 @@ No device performance evidence in this station. Render surface defaults are infe
 
 ## Commit / LKG
 
-Included in Station 07 session checkpoint. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; production code untouched.
+Station 06A documentation checkpoint: `c11dcae` (`player: station 06A Jellyfin Android investigation`). Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; production code untouched.

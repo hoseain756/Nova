@@ -51,4 +51,4 @@ Result: exit code 0; all 452 tests passed (1:19 test-run duration in Flutter out
 
 ## Commit / LKG
 
-Station 01 documentation checkpoint pending commit. Production code is unchanged; last-known-good production tree remains the initial baseline `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`.
+Station 01 documentation checkpoint: `a5f5b37` (`player: station 01 environment discovery`). Production code is unchanged; last-known-good production tree remains the initial baseline `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`.

@@ -25,3 +25,6 @@ None recorded yet.
 ## Commit / LKG
 
 Pending station completion.
+
+## Session 1 scope
+Not entered in this session. The user checkpoint ends after Station 07; this station remains PLANNED.

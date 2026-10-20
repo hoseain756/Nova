@@ -45,4 +45,4 @@ No local clone was available, and no device/runtime evidence exists. Exact-snaps
 
 ## Commit / LKG
 
-Included in Station 07 session checkpoint. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.
+Station 04 documentation checkpoint: `8349e27` (`player: station 04 Harbor investigation`). Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.

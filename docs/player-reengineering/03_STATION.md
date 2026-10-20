@@ -26,4 +26,4 @@ The handset is physically connected, so the station is NOT MEASURED, not device-
 
 ## Commit / LKG
 
-No production code change occurred. Last-known-good production commit remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`. Baseline capture is deferred until a valid stream and diagnostics path are available under an authorized implementation session.
+Station 03 documentation checkpoint: `8a56c5e` (`player: station 03 performance baseline`). No production code change occurred; last-known-good production commit remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`. Baseline capture is deferred until a valid stream and diagnostics path are available under an authorized implementation session.

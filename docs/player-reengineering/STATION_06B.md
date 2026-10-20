@@ -44,4 +44,4 @@ No Codemagic run, Mac/Xcode, or iOS device evidence. Expo native internals remai
 
 ## Commit / LKG
 
-Included in Station 07 session checkpoint. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.
+Station 06B documentation checkpoint: `1b4924d` (`player: station 06B Jellyfin iOS investigation`). Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.

@@ -45,4 +45,4 @@ No local checkout or reference researcher run was available for this repo; direc
 
 ## Commit / LKG
 
-Included in Station 07 session checkpoint. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.
+Station 05 documentation checkpoint: `6c9776d` (`player: station 05 Nuvio investigation`). Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no production code changed.

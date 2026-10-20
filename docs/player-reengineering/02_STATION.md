@@ -66,4 +66,4 @@ No runtime stream was observed during Station 02. The precise end-to-end source/
 
 ## Commit / LKG
 
-Station docs checkpoint: `a5f5b37` precedes this station update; next documentation commit is pending. Last-known-good production commit remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; production player code is untouched.
+Station 02 documentation checkpoint: `e257689` (`player: station 02 deep nova player audit`). Last-known-good production commit remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; production player code is untouched.
