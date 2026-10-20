@@ -1,8 +1,8 @@
 # Station 00 — Persistent planning bootstrap
 
-- Status: IN PROGRESS
+- Status: COMPLETE ✓
 - Verification status: NOT-VERIFIED (station work not yet completed)
-- Checklist: 10/11 tasks complete
+- Checklist: 11/11 tasks complete
 - Evidence:
 
 - [x] Verify repository resolves to the authoritative NOVA root and identify the root specification copy. Evidence: working root and full spec read/hash recorded below.
@@ -15,7 +15,7 @@
 - [x] Request/inventory available test streams and Section 49 coverage gaps. No streams were attached/provided with the request; NOVA source inventory is Station 01; missing matrix entries remain NOT MEASURED.
 - [x] Create master plan and concrete station files with task totals before investigation.
 - [x] Record untouched production-code boundary and existing user work exclusions.
-- [ ] Verify Station 00 artifacts and commit only these docs on the feature branch.
+- [x] Verify Station 00 artifacts and commit only these docs on the feature branch. Commit: `7536cf2` (`player: station 00 persistent planning bootstrap`); no production file was staged.
 
 ## Findings and evidence
 
@@ -46,6 +46,6 @@ None recorded yet.
 
 ## Commit / LKG
 
-Pending completion; initial LKG is `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5` (no production code changed).
+Station 00 documentation checkpoint: `7536cf2`. Production last-known-good baseline: `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`.
 
 

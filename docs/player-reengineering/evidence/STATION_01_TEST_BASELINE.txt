@@ -1,0 +1,459 @@
+00:00 +0: loading C:/Users/hosea/projects/app/Nova/test/anilist_credentials_test.dart
+00:00 +0: C:/Users/hosea/projects/app/Nova/test/anilist_credentials_test.dart: embedded AniList credentials (owner dashboard) default client ID is the numeric dashboard ID 53823
+00:00 +1: C:/Users/hosea/projects/app/Nova/test/anilist_credentials_test.dart: embedded AniList credentials (owner dashboard) authorize URL from the embedded ID is a clean implicit-grant URL
+00:03 +2: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:04 +3: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:04 +4: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:04 +5: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:04 +6: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:04 +7: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +8: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +9: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +10: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +11: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +12: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +13: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:05 +14: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +15: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +16: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +17: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +18: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +19: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +20: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +21: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +22: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +23: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +24: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +25: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +26: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the dark theme surface while catalog loads
+00:07 +27: C:/Users/hosea/projects/app/Nova/test/anime_page_canvas_test.dart: anime canvas stays on the light theme surface while catalog loads
+00:08 +28: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming mid-episode, unaired saved episode → badge for that episode
+00:08 +29: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming mid-episode, saved episode unaired → badge with its air time
+00:08 +30: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming finished episode → next aired+unwatched becomes the fresh dot
+00:08 +31: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming finished episode whose next is already watched → nothing
+00:08 +32: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming finished last episode → no badge and no dot
+00:08 +33: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming saved episode missing from videos → nothing (fail soft)
+00:08 +34: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: resolveCwUpcoming unseasoned specials (season 0) do not break ordering
+00:08 +35: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: cwUpcomingLabel sub-24h releases read as tomorrow — site ceil() semantics
+00:08 +36: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: cwUpcomingLabel Arabic day pluralization: يومين / أيام / يوم
+00:08 +37: C:/Users/hosea/projects/app/Nova/test/cw_upcoming_test.dart: cwUpcomingLabel past or null air time → no label
+00:10 +38: C:/Users/hosea/projects/app/Nova/test/dock_test.dart: dockTabsFor filters + orders (explicit arrays, no double flip)
+00:10 +39: C:/Users/hosea/projects/app/Nova/test/dock_test.dart: labels resolve per language
+00:10 +40: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +41: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +42: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +43: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +44: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +45: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +46: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +47: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +48: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +49: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +50: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +51: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +52: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +53: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +54: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +55: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +56: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +57: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +58: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +59: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +60: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +61: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:10 +62: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:12 +63: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:12 +64: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:12 +65: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:13 +66: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:13 +67: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: layout smoke — phone
+00:13 +68: C:/Users/hosea/projects/app/Nova/test/episode_progress_overlay_test.dart: watched episode uses an accessible check only — English LTR
+00:13 +69: C:/Users/hosea/projects/app/Nova/test/episode_progress_overlay_test.dart: watched episode uses an accessible check only — English LTR
+00:14 +70: C:/Users/hosea/projects/app/Nova/test/episode_progress_overlay_test.dart: watched episode uses an accessible check only — English LTR
+00:14 +71: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:14 +72: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:14 +73: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:14 +74: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:15 +75: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:15 +76: C:/Users/hosea/projects/app/Nova/test/detail_page_smoke_test.dart: overlay menus smoke — phone
+00:15 +77: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +78: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +79: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +80: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +81: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +82: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +83: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +84: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +85: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +86: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:15 +87: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:16 +88: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:16 +89: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic dark phone
+00:16 +90: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — English light phone
+00:17 +91: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — Arabic light tablet
+00:17 +92: C:/Users/hosea/projects/app/Nova/test/episode_view_toggle_test.dart: single episode view button toggles layout — English dark tablet
+00:17 +93: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +94: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +95: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +96: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +97: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +98: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +99: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +100: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +101: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +102: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +103: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +104: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +105: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +106: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +107: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:18 +108: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA dark palette roles
+00:19 +109: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: floating controls use NOVA light palette roles
+00:19 +110: C:/Users/hosea/projects/app/Nova/test/glass_recipe_test.dart: GlassDock uses palette-derived fill and avoids live blur
+00:20 +111: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +112: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +113: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +114: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +115: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +116: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +117: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:20 +118: C:/Users/hosea/projects/app/Nova/test/linked_progress_rail_test.dart: Home combines linked providers in one horizontal row
+00:21 +119: C:/Users/hosea/projects/app/Nova/test/navigation_bar_style_test.dart: classic dock: tabs, labels, semantics and RTL — English LTR, light, 200% text
+00:22 +120: C:/Users/hosea/projects/app/Nova/test/navigation_bar_style_test.dart: classic dock: tabs, labels, semantics and RTL — English LTR, light, 200% text
+00:22 +121: C:/Users/hosea/projects/app/Nova/test/navigation_bar_style_test.dart: classic dock: tabs, labels, semantics and RTL — English LTR, light, 200% text
+00:22 +122: C:/Users/hosea/projects/app/Nova/test/navigation_bar_style_test.dart: classic dock: tabs, labels, semantics and RTL — English LTR, light, 200% text
+00:22 +123: C:/Users/hosea/projects/app/Nova/test/navigation_bar_style_test.dart: classic dock: tabs, labels, semantics and RTL — English LTR, light, 200% text
+00:23 +124: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:23 +125: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:23 +126: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:23 +127: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:23 +128: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +129: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +130: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +131: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +132: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +133: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +134: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:24 +135: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:25 +136: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:25 +137: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:25 +138: C:/Users/hosea/projects/app/Nova/test/nova_auth_recovery_test.dart: failed browser launch returns AniList card to a retryable state
+00:26 +139: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: browse layout TextDirection.rtl Brightness.dark 320.0 at 200%
+00:26 +140: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: browse layout TextDirection.rtl Brightness.dark 320.0 at 200%
+00:27 +141: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: browse layout TextDirection.rtl Brightness.dark 320.0 at 200%
+00:27 +142: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: browse layout TextDirection.rtl Brightness.dark 320.0 at 200%
+00:28 +143: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:28 +144: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:28 +145: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +146: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +147: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +148: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +149: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +150: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +151: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +152: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +153: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:29 +154: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.dark at 200%
+00:30 +155: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: browse layout TextDirection.ltr Brightness.light 320.0 at 200%
+00:30 +156: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.light at 200%
+00:30 +157: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cinematic layout 320.0 TextDirection.rtl Brightness.light at 200%
+00:30 +158: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:30 +159: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:30 +160: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:31 +161: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:31 +162: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:31 +163: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:32 +164: C:/Users/hosea/projects/app/Nova/test/nova_completion_player_semantics_test.dart: subtitle settings shortcut is localized for en
+00:32 +165: C:/Users/hosea/projects/app/Nova/test/nova_browse_test.dart: clearing search invalidates an older network response
+00:32 +166: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:32 +167: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:32 +168: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:33 +168: C:/Users/hosea/projects/app/Nova/test/nova_completion_settings_persistence_test.dart: live settings survive construction of a fresh AppState
+NoorSync: unable to load device id: MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage)
+NoorSync: unable to load device id: MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage)
+NoorSync: unable to load device id: MissingPluginException(No implementation found for method read on channel plugins.it_nomads.com/flutter_secure_storage)
+00:33 +169: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:33 +170: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:33 +171: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:33 +172: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:33 +173: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.dark mode
+00:34 +174: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 320.0 TextDirection.ltr Brightness.dark
+00:34 +175: C:/Users/hosea/projects/app/Nova/test/nova_completion_poster_card_test.dart: poster rating badge keeps artwork-overlay contrast in Brightness.light mode
+00:34 +176: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 320.0 TextDirection.ltr Brightness.light
+00:34 +177: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 900.0 TextDirection.rtl Brightness.dark
+00:34 +178: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 900.0 TextDirection.rtl Brightness.light
+00:34 +179: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 900.0 TextDirection.ltr Brightness.dark
+00:34 +180: C:/Users/hosea/projects/app/Nova/test/nova_cinematic_layout_test.dart: cover scroll 900.0 TextDirection.ltr Brightness.light
+00:35 +181: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +182: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +183: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +184: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +185: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +186: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +187: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +188: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:35 +189: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:36 +190: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:36 +191: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:36 +192: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:36 +193: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:36 +194: C:/Users/hosea/projects/app/Nova/test/nova_completion_sources_layout_test.dart: source layout preference changes geometry but not selection English Brightness.dark
+00:38 +195: C:/Users/hosea/projects/app/Nova/test/nova_flow_acceptance_test.dart: onboarding fits English dark 320px at 200%
+00:39 +196: C:/Users/hosea/projects/app/Nova/test/nova_flow_acceptance_test.dart: onboarding fits English dark 320px at 200%
+00:40 +197: C:/Users/hosea/projects/app/Nova/test/nova_flow_acceptance_test.dart: onboarding fits English dark 320px at 200%
+00:40 +198: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +199: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +200: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +201: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +202: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +203: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +204: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +205: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +206: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +207: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:40 +208: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:41 +209: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:41 +210: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:41 +211: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:41 +212: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:41 +213: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:42 +214: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:42 +215: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:42 +216: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:42 +217: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:42 +218: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:43 +219: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:43 +220: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:43 +221: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:44 +222: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:44 +223: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:44 +224: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: Arabic and Persian PIN digits save and unlock the same PIN
+00:44 +225: C:/Users/hosea/projects/app/Nova/test/nova_flow_acceptance_test.dart: download removal cancel and confirmation preserve state
+00:44 +226: C:/Users/hosea/projects/app/Nova/test/nova_player_direction_test.dart: player settings fit 320px with 200% text TextDirection.rtl Brightness.dark
+00:45 +227: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: five wrong PINs remain locked after reopening the dialog
+00:45 +228: C:/Users/hosea/projects/app/Nova/test/nova_parental_gate_test.dart: five wrong PINs remain locked after reopening the dialog
+00:45 +229: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:45 +230: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:46 +231: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:46 +232: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:46 +233: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:46 +234: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:47 +235: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:47 +236: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +237: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +238: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +239: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +240: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +241: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:48 +242: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +243: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +244: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +245: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +246: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +247: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +248: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:49 +249: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +250: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +251: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +252: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +253: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +254: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +255: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +256: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +257: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +258: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +259: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +260: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:50 +261: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:51 +262: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:51 +263: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: search finds a setting category and language changes direction live
+00:51 +264: C:/Users/hosea/projects/app/Nova/test/nova_storage_sheet_test.dart: cache options remain reachable at 200% true Brightness.dark
+00:51 +265: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:52 +266: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:53 +267: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:54 +268: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:54 +269: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +270: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +271: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +272: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +273: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +274: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +275: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +276: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +277: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +278: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +279: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +280: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +281: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +282: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +283: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +284: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +285: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +286: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:55 +287: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:56 +288: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:56 +289: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:56 +290: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:56 +291: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark is bounded and coverable
+00:57 +292: C:/Users/hosea/projects/app/Nova/test/player_settings_panel_test.dart: Task 141: the full settings surface renders inside the panel body
+00:58 +293: C:/Users/hosea/projects/app/Nova/test/player_settings_panel_test.dart: Task 141: the full settings surface renders inside the panel body
+00:58 +294: C:/Users/hosea/projects/app/Nova/test/player_settings_panel_test.dart: Task 141: the full settings surface renders inside the panel body
+00:58 +295: C:/Users/hosea/projects/app/Nova/test/player_settings_panel_test.dart: Task 141: the full settings surface renders inside the panel body
+00:59 +296: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details phone-320x640 en dark is bounded and coverable
+00:59 +297: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details phone-320x640 en dark is bounded and coverable
+00:59 +298: C:/Users/hosea/projects/app/Nova/test/perf_chrome_test.dart: shell hidden pages are dormant (Task 136) visited pages stay alive, offstage and muted when hidden
+01:00 +299: C:/Users/hosea/projects/app/Nova/test/perf_chrome_test.dart: shell hidden pages are dormant (Task 136) visited pages stay alive, offstage and muted when hidden
+01:00 +300: C:/Users/hosea/projects/app/Nova/test/perf_chrome_test.dart: shell hidden pages are dormant (Task 136) visited pages stay alive, offstage and muted when hidden
+01:00 +301: C:/Users/hosea/projects/app/Nova/test/perf_chrome_test.dart: shell hidden pages are dormant (Task 136) visited pages stay alive, offstage and muted when hidden
+01:00 +302: C:/Users/hosea/projects/app/Nova/test/perf_chrome_test.dart: shell hidden pages are dormant (Task 136) visited pages stay alive, offstage and muted when hidden
+01:00 +303: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: settings fit Size(1200.0, 800.0) with 200% text, RTL
+01:00 +304: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: settings fit Size(1200.0, 800.0) with 200% text, RTL
+01:00 +305: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: settings fit Size(1200.0, 800.0) with 200% text, RTL
+01:00 +306: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:00 +307: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:01 +308: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:01 +309: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:01 +310: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:01 +311: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en light is bounded and coverable
+01:01 +312: C:/Users/hosea/projects/app/Nova/test/player_sheet_host_test.dart: refreshing state replaces the icon with a spinner
+01:02 +313: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: resume snapshot retention persists the selected period
+01:02 +314: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: resume snapshot retention persists the selected period
+01:02 +315: C:/Users/hosea/projects/app/Nova/test/nova_settings_test.dart: resume snapshot retention persists the selected period
+01:02 +316: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details phone-320x640 en light is bounded and coverable
+01:03 +317: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details phone-320x640 en light is bounded and coverable
+01:03 +318: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:03 +319: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:04 +320: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:04 +321: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:05 +322: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:05 +323: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:05 +324: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:06 +325: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +326: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +327: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +328: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +329: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +330: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +331: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +332: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +333: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +334: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +335: C:/Users/hosea/projects/app/Nova/test/shell_edge_to_edge_test.dart: shell edge-to-edge contract (Task 119)
+01:07 +336: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 ar light is bounded and coverable
+01:08 +337: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +338: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +339: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +340: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +341: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +342: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +343: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +344: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +345: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +346: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +347: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +348: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +349: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +350: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +351: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +352: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +353: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +354: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +355: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +356: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:08 +357: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:09 +358: C:/Users/hosea/projects/app/Nova/test/subtitle_settings_sync_test.dart: SubtitleOverlay engine swap (workstream C, Break B) swapping the engine re-subscribes the text stream
+01:09 +359: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details phone-320x640 ar light is bounded and coverable
+01:09 +360: C:/Users/hosea/projects/app/Nova/test/sources_page_test.dart: unsupported rows are disabled
+01:09 +361: C:/Users/hosea/projects/app/Nova/test/sources_page_test.dart: unsupported rows are disabled
+01:09 +362: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en dark is bounded and coverable
+01:10 +363: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en dark is bounded and coverable
+01:10 +364: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +365: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +366: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +367: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +368: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +369: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +370: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:11 +371: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en dark is bounded and coverable
+01:12 +372: C:/Users/hosea/projects/app/Nova/test/top10_rank_font_test.dart: single-digit rank renders one readable label
+01:13 +373: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +374: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +375: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +376: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +377: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +378: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +379: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +380: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +381: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +382: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +383: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +384: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +385: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +386: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +387: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +388: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:13 +389: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +390: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +391: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +392: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +393: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +394: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +395: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +396: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +397: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +398: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +399: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +400: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +401: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +402: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +403: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +404: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +405: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +406: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +407: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +408: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +409: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +410: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +411: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +412: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +413: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +414: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +415: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:14 +416: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +417: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +418: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +419: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +420: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +421: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +422: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +423: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +424: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +425: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +426: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +427: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +428: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +429: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +430: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +431: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +432: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +433: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 en light is bounded and coverable
+01:15 +434: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +435: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +436: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +437: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +438: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +439: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +440: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +441: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +442: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +443: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +444: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:15 +445: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:16 +446: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar dark is bounded and coverable
+01:16 +447: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 ar dark is bounded and coverable
+01:17 +448: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home tablet-landscape-1024x768 ar light is bounded and coverable
+01:17 +449: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Details tablet-landscape-1024x768 ar light is bounded and coverable
+01:18 +450: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 en dark at 200% text scale
+01:18 +451: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: Home phone-320x640 ar dark at 200% text scale
+01:19 +452: C:/Users/hosea/projects/app/Nova/test/nova_visual_acceptance_test.dart: (tearDownAll)
+01:19 +452: All tests passed!

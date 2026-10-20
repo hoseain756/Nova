@@ -1,0 +1,2 @@
+Flutter failed to open a file at "C:\src\flutter\bin\cache\lockfile". The flutter tool cannot access the file or directory.
+Please ensure that the SDK and/or project is installed in a location that has read/write permissions for the current user.
