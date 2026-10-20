@@ -1,0 +1,37 @@
+Initial repository state captured before branch creation / file changes.
+Initial branch: main
+Initial HEAD: c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5
+
+ D .agents/skills/frontend-design/LICENSE.txt
+ D .agents/skills/frontend-design/SKILL.md
+ D AGENTS.md was modified (M AGENTS.md)
+ D docs/1.jpg
+ D docs/10.jpg
+ D docs/11.jpg
+ D docs/5.jpg
+ D docs/6.jpg
+ D docs/7.jpg
+ D docs/8.jpg
+ D docs/9.jpg
+ D docs/fix/1.jpg
+ D docs/fix/photo_1_2026-10-13_02-41-43.jpg
+ D docs/fix/photo_2_2026-10-13_02-41-43.jpg
+ D docs/fix/photo_3_2026-10-13_02-41-43.jpg
+ M docs/migration/milestone-log.md
+ M docs/nova/04-settings-spec.md
+ M docs/nova/10-project-plan.md
+ M docs/nova/11-work-log.md
+ M docs/nova/requirements-status.md
+ M lib/features/settings/settings_data_page.dart
+ D noor-1.2.46-home.png
+ D noor-1.2.46-stream.png
+ D noor-1.2.47-home.png
+ D noor-current.png
+?? .agents/skills/frontend-design-codex/
+?? .codex/
+?? NOVA_PLAYER_PROMPT_V2_1.backup.md
+?? NOVA_PLAYER_PROMPT_V2_1.md
+?? codex-agents/
+?? docs/player-reengineering/
+
+The exact status output is preserved as observed; the leading D rows were deletions in the user's worktree, not requested deletions by this task. Nothing above was staged, restored, or committed by this task.
