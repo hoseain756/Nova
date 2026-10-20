@@ -132,21 +132,38 @@ class NovaBrowseFeature extends StatelessWidget {
       padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
       child: LayoutBuilder(builder: (context, constraints) {
         final wide = constraints.maxWidth >= 640;
+        final hasLandscapeArtwork = item.background?.trim().isNotEmpty == true;
+        final artworkUrl =
+            hasLandscapeArtwork ? item.background! : (item.poster ?? '');
         final artwork = ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: AspectRatio(
                 aspectRatio: wide ? 1.45 : 16 / 9,
-                child: NovaNetworkImage(item.background ?? item.poster ?? '',
-                    fit: BoxFit.cover,
-                    cacheWidth: imageCacheWidth(
-                        context,
-                        wide
-                            ? constraints.maxWidth * .5
-                            : constraints.maxWidth),
-                    errorBuilder: (_, __, ___) => ColoredBox(
+                child: Transform.scale(
+                  // Poster art is portrait-shaped inside this landscape
+                  // feature. A restrained zoom closes the side gutters while
+                  // keeping the full poster recognizable instead of cropping
+                  // it aggressively to 16:9.
+                  scale: hasLandscapeArtwork ? 1.03 : 1.1,
+                  child: SizedBox.expand(
+                    child: NovaNetworkImage(
+                      artworkUrl,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: hasLandscapeArtwork ? BoxFit.cover : BoxFit.contain,
+                      cacheWidth: imageCacheWidth(
+                          context,
+                          wide
+                              ? constraints.maxWidth * .5
+                              : constraints.maxWidth),
+                      errorBuilder: (_, __, ___) => ColoredBox(
                         color: theme.colorScheme.surfaceContainerHighest,
                         child: Icon(LucideIcons.film,
-                            size: 64, color: theme.colorScheme.secondary)))));
+                            size: 64, color: theme.colorScheme.secondary),
+                      ),
+                    ),
+                  ),
+                )));
         final copy = Padding(
           padding: EdgeInsetsDirectional.fromSTEB(
               wide ? 32 : 0, wide ? 8 : 20, 0, 8),

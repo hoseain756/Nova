@@ -1,5 +1,7 @@
 # NOVA redesign deliverables
 
+Project tracking: [living plan](10-project-plan.md) · [major milestone work log](11-work-log.md).
+
 The order below matches the requested deliverables. The implementation is the Flutter app in `lib/`; this folder records the rationale, page behavior, source-inspection findings and verification limits. Attachments were reviewed first: the identity guide supplies the red/ink wordmark and logo rules, the ZIP supplies the original SVG/native brand assets, and `nova_colors.dart` supplies the only brand palette. There were no additional reference-screen images in the supplied ZIP.
 
 1. **Current UI/UX and performance audit:** [01-audit.md](01-audit.md). It separates baseline source findings from changes and performance opportunities.
@@ -12,7 +14,9 @@ The order below matches the requested deliverables. The implementation is the Fl
 
 ## Verification status
 
-The live acceptance tracker is [requirements-status.md](requirements-status.md). The final full test run passed all 325 tests, full Flutter analysis found no issues, and a fresh signed Android arm64 Release APK was built and verified. On-device visual inspection, measured profile-mode frame time, accessibility hardware exploration, iOS/Xcode build and successful external OAuth/provider accounts still require their respective runtime setup.
+The live acceptance tracker is [requirements-status.md](requirements-status.md); it contains the current command results and artifact evidence. The follow-up [completion audit](08-completion-audit.md) records gaps found in the interrupted redesign and their repairs, including playback settings, startup animation, contrast and persistence coverage. On-device visual inspection, measured profile-mode frame time, accessibility hardware exploration, iOS/Xcode build and successful external OAuth/provider accounts still require their respective runtime setup.
+
+The subsequent [acceptance hardening](09-acceptance-hardening.md) records reproducible parental-gate, storage, authorization-recovery and layout fixes, with headless Home/Details captures and focused flow regressions.
 
 ## Compatibility note
 

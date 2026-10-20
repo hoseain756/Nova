@@ -291,6 +291,7 @@ List<Widget> buildEpisodeSlivers({
   required bool ratingsEnabled,
   required ValueChanged<String> onViewChange,
   required ValueChanged<Map<String, dynamic>> onPlay,
+  required ValueChanged<Map<String, dynamic>> onLongPress,
 }) {
   final item = controller.item;
   final videos = controller.sortedVideos;
@@ -430,6 +431,8 @@ List<Widget> buildEpisodeSlivers({
                           backdropUrl: item.background,
                           blurred: blurred(items[index * cols + k]),
                           onTap: () => onPlay(items[index * cols + k].video),
+                          onLongPress: () =>
+                              onLongPress(items[index * cols + k].video),
                         )
                       : const SizedBox.shrink(),
                 ),
@@ -449,6 +452,7 @@ List<Widget> buildEpisodeSlivers({
           backdropUrl: item.background,
           blurred: blurred(items[index]),
           onTap: () => onPlay(items[index].video),
+          onLongPress: () => onLongPress(items[index].video),
         ),
       ),
   ];
@@ -739,6 +743,7 @@ class _EpisodeRow extends StatelessWidget {
     required this.backdropUrl,
     required this.blurred,
     required this.onTap,
+    required this.onLongPress,
   });
 
   final EpisodeViewData item;
@@ -748,6 +753,7 @@ class _EpisodeRow extends StatelessWidget {
   final String? backdropUrl;
   final bool blurred;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -760,7 +766,7 @@ class _EpisodeRow extends StatelessWidget {
       progress: item.progress,
       rating: item.rating,
       blurred: blurred,
-      watchedLabel: NovaStrings.lookup(english, 'message98'),
+      watchedSemanticLabel: NovaStrings.lookup(english, 'message98'),
     );
     return Padding(
         padding: const EdgeInsetsDirectional.only(bottom: 16),
@@ -770,6 +776,7 @@ class _EpisodeRow extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
               onTap: item.upcoming ? null : onTap,
+              onLongPress: item.upcoming ? null : onLongPress,
               child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: LayoutBuilder(builder: (context, constraints) {
@@ -795,12 +802,6 @@ class _EpisodeRow extends StatelessWidget {
                               child: thumbnail),
                           const SizedBox(width: 16),
                           Expanded(child: text),
-                          if (isWide && !item.upcoming)
-                            Padding(
-                                padding:
-                                    const EdgeInsetsDirectional.only(start: 16),
-                                child: Icon(LucideIcons.play,
-                                    color: scheme.primary))
                         ]);
                   }))),
         ));
@@ -817,6 +818,7 @@ class _EpisodeCard extends StatelessWidget {
     required this.backdropUrl,
     required this.blurred,
     required this.onTap,
+    required this.onLongPress,
   });
 
   final EpisodeViewData item;
@@ -825,6 +827,7 @@ class _EpisodeCard extends StatelessWidget {
   final String? backdropUrl;
   final bool blurred;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -842,7 +845,7 @@ class _EpisodeCard extends StatelessWidget {
           progress: item.progress,
           rating: item.rating,
           blurred: blurred,
-          watchedLabel: NovaStrings.lookup(english, 'message98'),
+          watchedSemanticLabel: NovaStrings.lookup(english, 'message98'),
         ),
         const SizedBox(height: 8),
         Padding(
@@ -868,6 +871,7 @@ class _EpisodeCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Padding(padding: const EdgeInsets.all(12), child: content)),
     );
   }
@@ -1005,7 +1009,7 @@ class EpisodeThumbnail extends StatefulWidget {
     required this.episodeNumber,
     required this.watched,
     required this.progress,
-    required this.watchedLabel,
+    required this.watchedSemanticLabel,
     this.rating,
     this.blurred = false,
   });
@@ -1016,7 +1020,7 @@ class EpisodeThumbnail extends StatefulWidget {
   final int episodeNumber;
   final bool watched;
   final double progress;
-  final String watchedLabel;
+  final String watchedSemanticLabel;
   final double? rating;
   final bool blurred;
 
@@ -1171,22 +1175,10 @@ class _EpisodeThumbnailState extends State<EpisodeThumbnail> {
                 bottom: 6,
                 start: 6,
                 child: _OverlayPill(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(LucideIcons.check,
-                          size: 12, color: _kWatchedGreen),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.watchedLabel,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          height: 1.2,
-                          color: NovaColors.white,
-                        ),
-                      ),
-                    ],
+                  child: Semantics(
+                    label: widget.watchedSemanticLabel,
+                    child: const Icon(LucideIcons.check,
+                        size: 14, color: _kWatchedGreen),
                   ),
                 ),
               ),

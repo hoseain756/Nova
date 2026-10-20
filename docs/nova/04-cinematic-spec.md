@@ -26,11 +26,11 @@ Kids detail routes carry a kidsMode flag into similar-title navigation. Similar 
 
 ## Components, states and motion
 
-CinematicCoverScroll translates only the hero against scroll offset. Later opaque slivers cover it. A RepaintBoundary isolates artwork from scroll content. Reduced motion disables the 2.5% scale and 18% fade; the stationary cover behavior remains. No backdrop blur is added.
+CinematicCoverScroll paints the fixed hero as the bottom child of an ordered layer host, outside the scroll view. The top scroll view starts with a transparent hero-height spacer, followed by an opaque theme surface with rounded top corners. This avoids pinned-sliver paint order placing artwork above content. Hero copy fades as content approaches, and hero controls stop receiving pointers as soon as scrolling begins. A RepaintBoundary isolates artwork from scroll content. Reduced motion disables decorative scale/fade; the stationary cover behavior remains. No blur, ShaderMask or opacity is applied to the content surface.
 
 Featured transitions: 380ms easeOutCubic; artwork fade 320ms; carousel interval 6 seconds; interaction pauses autoplay for 8 seconds. Autoplay pauses for app inactivity, inactive tabs, and reduced motion. Explicit previous/next buttons and watchlist/play controls have at least 48px targets. One upcoming image is precached at its actual decode width.
 
-Sources: immediate row skeletons; retained previous results during refresh; retry action for failed loaders; distinct no-source and no-filter-match states. Sorting, addon, quality and kind filters remain. Production image failures use a Lucide clapperboard; people image failures use initials; metadata absence removes its row.
+Sources: immediate row skeletons; retained previous results during refresh; retry action for failed loaders; distinct no-source and no-filter-match states. Sorting, addon, quality and kind filters remain. The saved source-picker layout switches between spacious and condensed rows immediately; condensed rows reduce padding and gaps while retaining source facts and allowing two title lines at large text scale. Production image failures use a Lucide clapperboard; people image failures use initials; metadata absence removes its row.
 
 ## Data and performance
 

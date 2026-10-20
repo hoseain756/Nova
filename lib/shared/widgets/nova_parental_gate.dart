@@ -12,24 +12,40 @@ import '../../l10n/nova_strings.dart';
 abstract final class NovaParentalGate {
   static const _storage = FlutterSecureStorage();
   static const _key = 'nova.parent-pin.v1';
+
+  static Future<({bool available, String? value})> _readCredential(
+      BuildContext context) async {
+    try {
+      return (available: true, value: await _storage.read(key: _key));
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(content: Text(NovaStrings.of(context).text('errorBody'))));
+      }
+      return (available: false, value: null);
+    }
+  }
+
   static Future<bool> ensureConfigured(BuildContext context) async {
-    final value = await _storage.read(key: _key);
-    if (value != null) return true;
-    if (!context.mounted) return false;
+    final credential = await _readCredential(context);
+    if (!context.mounted || !credential.available) return false;
+    if (credential.value != null) return true;
     return await _show(context, create: true);
   }
 
   static Future<bool> verify(BuildContext context) async {
-    final value = await _storage.read(key: _key);
+    final credential = await _readCredential(context);
     // An unconfigured gate never silently unlocks an already active Kids session.
-    if (value == null || !context.mounted) return false;
+    if (!context.mounted || !credential.available || credential.value == null) {
+      return false;
+    }
     return _show(context, create: false);
   }
 
   static Future<bool> change(BuildContext context) async {
-    final value = await _storage.read(key: _key);
-    if (!context.mounted) return false;
-    if (value != null && !await verify(context)) return false;
+    final credential = await _readCredential(context);
+    if (!context.mounted || !credential.available) return false;
+    if (credential.value != null && !await verify(context)) return false;
     if (!context.mounted) return false;
     return _show(context, create: true);
   }
@@ -73,6 +89,7 @@ class _PinDialogState extends State<_PinDialog> {
   }
 
   Future<void> _submit() async {
+    if (_busy) return;
     final strings = NovaStrings.of(context);
     final value = _pin.text.trim();
     if (!RegExp(r'^\d{4,8}$').hasMatch(value) ||
@@ -102,7 +119,10 @@ class _PinDialogState extends State<_PinDialog> {
       } else {
         final raw =
             await NovaParentalGate._storage.read(key: NovaParentalGate._key);
-        if (raw == null) return;
+        if (raw == null) {
+          if (mounted) setState(() => _error = strings.text('errorBody'));
+          return;
+        }
         final record = jsonDecode(raw) as Map;
         if (!NovaParentalGate._equal(
             NovaParentalGate._digest(record['salt'] as String, value),
@@ -125,6 +145,7 @@ class _PinDialogState extends State<_PinDialog> {
         }
       }
       await prefs.remove('nova.parent-pin.attempts');
+      await prefs.remove('nova.parent-pin.lock-until');
       if (mounted) Navigator.of(context).pop(true);
     } catch (_) {
       if (mounted) setState(() => _error = strings.text('errorBody'));
@@ -137,13 +158,13 @@ class _PinDialogState extends State<_PinDialog> {
   Widget build(BuildContext context) {
     final s = NovaStrings.of(context);
     return AlertDialog(
+      scrollable: true,
       icon: Icon(LucideIcons.shieldCheck,
           color: Theme.of(context).colorScheme.secondary, size: 32),
       title: Text(s.text(widget.create ? 'createPin' : 'parentGate')),
       content: SizedBox(
           width: 400,
-          child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
             Text(s.text(widget.create ? 'createPinBody' : 'parentExplain')),
             const SizedBox(height: 24),
             TextField(
@@ -152,7 +173,7 @@ class _PinDialogState extends State<_PinDialog> {
                 obscureText: true,
                 keyboardType: TextInputType.number,
                 maxLength: 8,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: _pinFormatters,
                 textDirection: TextDirection.ltr,
                 decoration:
                     InputDecoration(labelText: s.text('pin'), counterText: ''),
@@ -166,7 +187,7 @@ class _PinDialogState extends State<_PinDialog> {
                   obscureText: true,
                   maxLength: 8,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: _pinFormatters,
                   textDirection: TextDirection.ltr,
                   decoration: InputDecoration(
                       labelText: s.text('confirmPin'), counterText: ''),
@@ -180,7 +201,7 @@ class _PinDialogState extends State<_PinDialog> {
                       child: Text(_error!,
                           style: TextStyle(
                               color: Theme.of(context).colorScheme.error)))),
-          ]))),
+          ])),
       actions: [
         TextButton(
             onPressed: _busy ? null : () => Navigator.pop(context, false),
@@ -192,3 +213,17 @@ class _PinDialogState extends State<_PinDialog> {
     );
   }
 }
+
+// Arabic keyboards can emit either digit alphabet. Normalize before filtering
+// so the same PIN works across app language and keyboard changes.
+final _pinFormatters = <TextInputFormatter>[
+  TextInputFormatter.withFunction((oldValue, newValue) {
+    final normalized = String.fromCharCodes(newValue.text.runes.map((digit) {
+      if (digit >= 0x0660 && digit <= 0x0669) return digit - 0x0660 + 0x30;
+      if (digit >= 0x06f0 && digit <= 0x06f9) return digit - 0x06f0 + 0x30;
+      return digit;
+    }));
+    return newValue.copyWith(text: normalized);
+  }),
+  FilteringTextInputFormatter.digitsOnly,
+];

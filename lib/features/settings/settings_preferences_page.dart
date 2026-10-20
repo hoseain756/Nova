@@ -27,6 +27,8 @@ class _Preference {
     this.max = 100,
     this.step = 1,
     this.suffix = '',
+    this.descriptionArabic,
+    this.descriptionEnglish,
   });
 
   final String key;
@@ -38,6 +40,8 @@ class _Preference {
   final double max;
   final double step;
   final String suffix;
+  final String? descriptionArabic;
+  final String? descriptionEnglish;
 }
 
 final _playerPreferences = <_Preference>[
@@ -58,6 +62,25 @@ final _playerPreferences = <_Preference>[
       arabic: NovaStrings.lookup(false, 'message730'),
       english: NovaStrings.lookup(true, 'message730'),
       control: _Control.toggle),
+  _Preference(
+      key: 'resumeSnapshotRetentionDays',
+      arabic: NovaStrings.lookup(false, 'resumeSnapshotRetention'),
+      english: NovaStrings.lookup(true, 'resumeSnapshotRetention'),
+      descriptionArabic:
+          NovaStrings.lookup(false, 'resumeSnapshotRetentionDescription'),
+      descriptionEnglish:
+          NovaStrings.lookup(true, 'resumeSnapshotRetentionDescription'),
+      control: _Control.select,
+      options: [
+        _Option('30', NovaStrings.lookup(false, 'resumeSnapshotDays30'),
+            NovaStrings.lookup(true, 'resumeSnapshotDays30')),
+        _Option('20', NovaStrings.lookup(false, 'resumeSnapshotDays20'),
+            NovaStrings.lookup(true, 'resumeSnapshotDays20')),
+        _Option('10', NovaStrings.lookup(false, 'resumeSnapshotDays10'),
+            NovaStrings.lookup(true, 'resumeSnapshotDays10')),
+        _Option('7', NovaStrings.lookup(false, 'resumeSnapshotDays7'),
+            NovaStrings.lookup(true, 'resumeSnapshotDays7')),
+      ]),
   _Preference(
       key: 'playerConfirmLeave',
       arabic: NovaStrings.lookup(false, 'message731'),
@@ -337,6 +360,7 @@ class SettingsPreferencesPage extends StatelessWidget {
               'autoPlayNextEpisode',
               'resumePlayback',
               'resumePrompt',
+              'resumeSnapshotRetentionDays',
               'playerConfirmLeave'
             ],
             app.tr('message500'): [
@@ -438,6 +462,19 @@ class _PreferenceTile extends StatelessWidget {
                     Text(_formatValue(item, value, english),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Theme.of(context).colorScheme.secondary)),
+                  if (item.descriptionArabic != null ||
+                      item.descriptionEnglish != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      english
+                          ? item.descriptionEnglish ?? ''
+                          : item.descriptionArabic ?? '',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
                 ])),
             if (item.control == _Control.color) trailing,
             const SizedBox(width: 16),
@@ -646,7 +683,12 @@ String _shownNumber(double value, _Preference item) {
 }
 
 dynamic _typedValue(String key, String raw) => switch (key) {
-      'seekBackStepSec' || 'seekForwardStepSec' => int.parse(raw),
+      'seekBackStepSec' ||
+      'seekForwardStepSec' ||
+      'seekBackStepSec' ||
+      'seekForwardStepSec' ||
+      'resumeSnapshotRetentionDays' =>
+        int.parse(raw),
       _ => raw,
     };
 

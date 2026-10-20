@@ -21,8 +21,10 @@ class OnboardingPage extends StatelessWidget {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const NovaBrand(width: 160),
         const SizedBox(height: 48),
-        Text(s.text('welcomeTitle'),
-            style: Theme.of(context).textTheme.displaySmall),
+        Semantics(
+            header: true,
+            child: Text(s.text('welcomeTitle'),
+                style: Theme.of(context).textTheme.displaySmall)),
         const SizedBox(height: 24),
         Text(s.text('welcomeBody'),
             style: Theme.of(context)
@@ -48,7 +50,10 @@ class OnboardingPage extends StatelessWidget {
       ]);
       final choices =
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(s.text('language'), style: Theme.of(context).textTheme.titleLarge),
+        Semantics(
+            header: true,
+            child: Text(s.text('language'),
+                style: Theme.of(context).textTheme.titleLarge)),
         const SizedBox(height: 16),
         SegmentedButton<bool>(segments: [
           ButtonSegment(value: false, label: Text(s.text('arabicLanguage'))),
@@ -57,8 +62,10 @@ class OnboardingPage extends StatelessWidget {
           app.english
         }, onSelectionChanged: (value) => app.setLanguage(value.first)),
         const SizedBox(height: 32),
-        Text(s.text('appearance'),
-            style: Theme.of(context).textTheme.titleLarge),
+        Semantics(
+            header: true,
+            child: Text(s.text('appearance'),
+                style: Theme.of(context).textTheme.titleLarge)),
         const SizedBox(height: 16),
         Wrap(spacing: 8, runSpacing: 8, children: [
           for (final mode in ['dark', 'light', 'system'])

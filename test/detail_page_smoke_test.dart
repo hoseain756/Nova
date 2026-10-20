@@ -83,6 +83,7 @@ void main() {
                 ratingsEnabled: true,
                 onViewChange: (_) {},
                 onPlay: (_) {},
+                onLongPress: (_) {},
               ),
               SliverToBoxAdapter(
                 child: Padding(

@@ -58,5 +58,5 @@ The mobile app uses the configured Horse deployment by default. For a separate
 Horse server, provide its base URL at build time:
 
 ```sh
-flutter build apk --dart-define=HORSE_API_BASE_URL=https://your-horse.example
+flutter build apk
 ```

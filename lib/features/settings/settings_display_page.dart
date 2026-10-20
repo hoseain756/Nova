@@ -151,7 +151,8 @@ class _RadiusSliderState extends State<_RadiusSlider> {
         min: 0,
         max: 28,
         divisions: 14,
-        label: '${_value.round()} px',
+        label: NovaStrings.of(context)
+            .text('logicalPixelValue', {'value': _value.round()}),
         onChanged: (value) => setState(() => _value = value),
         onChangeEnd: widget.onChangeEnd,
       );

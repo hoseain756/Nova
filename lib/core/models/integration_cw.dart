@@ -105,6 +105,57 @@ class IntegrationCwEntry {
     return null;
   }
 
+  /// Simkl paused playback from `GET /sync/playback`. Simkl reports progress
+  /// as a percentage and keeps movie and episode sessions in separate lists.
+  static IntegrationCwEntry? fromSimklPlayback(Object? raw) {
+    final entry = _asMap(raw);
+    if (entry == null) return null;
+    final percent = (entry['progress'] as num?)?.toDouble() ?? 0;
+    if (percent < 1 || percent >= 95) return null;
+    final movie = _asMap(entry['movie']);
+    if (movie != null) {
+      final ids = _asMap(movie['ids']);
+      final imdb = ids?['imdb']?.toString();
+      final title = movie['title']?.toString();
+      if (imdb == null || imdb.isEmpty || title == null || title.isEmpty) {
+        return null;
+      }
+      return IntegrationCwEntry(
+        source: 'simkl',
+        progress: (percent / 100).clamp(0.0, 1.0),
+        watchedAt:
+            _epochToMillis(entry['paused_at'] ?? entry['last_watched_at']),
+        item: MediaItem(
+          id: imdb,
+          type: 'movie',
+          name: title,
+          releaseInfo: movie['year']?.toString(),
+        ),
+      );
+    }
+    final show = _asMap(entry['show']) ?? _asMap(entry['anime']);
+    final episodeRow = _asMap(entry['episode']);
+    final imdb = _asMap(show?['ids'])?['imdb']?.toString();
+    final title = show?['title']?.toString();
+    if (imdb == null || imdb.isEmpty || title == null || title.isEmpty) {
+      return null;
+    }
+    return IntegrationCwEntry(
+      source: 'simkl',
+      progress: (percent / 100).clamp(0.0, 1.0),
+      season: (episodeRow?['season'] as num?)?.toInt(),
+      episode: (episodeRow?['number'] as num?)?.toInt() ??
+          (episodeRow?['episode'] as num?)?.toInt(),
+      watchedAt: _epochToMillis(entry['paused_at'] ?? entry['last_watched_at']),
+      item: MediaItem(
+        id: imdb,
+        type: 'series',
+        name: title,
+        releaseInfo: show?['year']?.toString(),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // AniList — raw MediaListCollection entry
   // `{status, progress, updatedAt, media: {id, idMal, title{}, coverImage{},
@@ -177,12 +228,17 @@ class IntegrationCwEntry {
     final isMovie = node?['media_type']?.toString().toLowerCase() == 'movie';
     final status = _asMap(node?['list_status']);
     final watched = (status?['num_episodes_watched'] as num?)?.toInt() ?? 0;
+    final total = (node?['num_episodes'] as num?)?.toInt();
     final poster = _asMap(node?['main_picture'])?['large']?.toString();
     final updatedAt =
         DateTime.tryParse(status?['updated_at']?.toString() ?? '');
     return IntegrationCwEntry(
       source: 'mal',
+      progress: total != null && total > 0 && watched > 0
+          ? (watched / total).clamp(0.0, 1.0)
+          : 0,
       episodesWatched: watched,
+      episodesTotal: total,
       watchedAt: updatedAt?.millisecondsSinceEpoch ?? 0,
       item: MediaItem(
         id: 'mal:$malId',
@@ -241,7 +297,12 @@ class IntegrationCwEntry {
   /// Accepts epoch seconds or milliseconds (AniList `updatedAt` and Trakt
   /// `paused_at` are seconds; app timestamps are milliseconds).
   static int _epochToMillis(Object? value) {
-    final number = (value as num?)?.toInt() ?? 0;
+    final number = value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString() ?? '') ??
+            DateTime.tryParse(value?.toString() ?? '')
+                ?.millisecondsSinceEpoch ??
+            0;
     if (number <= 0) return 0;
     return number < 100000000000 ? number * 1000 : number;
   }

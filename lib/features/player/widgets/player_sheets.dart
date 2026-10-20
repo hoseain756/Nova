@@ -623,7 +623,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
               label: Text(
                 NovaStrings.lookup(english, 'message59'),
                 style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Theme.of(context).colorScheme.secondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
@@ -705,8 +705,8 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
           Expanded(
               child: Text(_offsetLabel(_v['subtitleOffsetMs'] as int),
                   textAlign: TextAlign.center,
-                  style:
-                      TextStyle(color: Theme.of(context).colorScheme.primary))),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.secondary))),
           _DelayButton(
               english: widget.english,
               icon: LucideIcons.plus,

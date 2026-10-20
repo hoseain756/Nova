@@ -9,6 +9,7 @@ import '../trakt/trakt_pkce.dart';
 import '../trakt/trakt_tokens.dart';
 import '../track/track_link.dart';
 import '../data/catalog_response_cache.dart';
+import '../version.dart';
 
 /// Website-free API layer for Noor.
 ///
@@ -48,7 +49,9 @@ import '../data/catalog_response_cache.dart';
 ///  - secure `noor.debrid.<service>`     → debrid API key
 ///  - secure 'noor.iptv.playlists'       → IPTV playlist JSON
 class NoorApi {
-  NoorApi({SharedPreferences? preferences}) : _preferences = preferences;
+  NoorApi({SharedPreferences? preferences, Dio? dio})
+      : _preferences = preferences,
+        _dio = dio;
 
   // --------------------------------------------------------------------------
   // Embedded operator keys (user-overridable where noted)
@@ -1304,6 +1307,27 @@ class NoorApi {
         if (detail.contains('pending') || detail.contains('slow_down')) {
           return <String, dynamic>{'status': 'pending'};
         }
+      }
+      // A device grant remains valid when a single poll cannot reach Simkl.
+      // Keep the UI polling through brief connection loss, timeouts, and
+      // temporary provider failures instead of turning them into a terminal
+      // authorization error that forces the user to generate a new code.
+      final retryableTransport = switch (error.type) {
+        DioExceptionType.connectionTimeout ||
+        DioExceptionType.sendTimeout ||
+        DioExceptionType.receiveTimeout ||
+        DioExceptionType.connectionError =>
+          true,
+        DioExceptionType.unknown => error.response == null,
+        _ => false,
+      };
+      final retryableResponse =
+          status == 408 || status == 425 || (status != null && status >= 500);
+      if (retryableTransport || retryableResponse) {
+        return <String, dynamic>{
+          'status': 'pending',
+          'reason': 'transient_network',
+        };
       }
       return <String, dynamic>{'status': 'error'};
     } catch (_) {
@@ -2888,6 +2912,77 @@ query ($userId: Int) {
     }
   }
 
+  /// Adds watched episodes in one batch to the selected linked tracker.
+  /// [episodes] contains `{season, episode}` pairs and is pre-deduplicated by
+  /// AppState, so marking a range does not burst one API request per episode.
+  Future<void> pushLinkedEpisodeHistory(
+    String service, {
+    required String imdb,
+    required List<Map<String, int>> episodes,
+  }) async {
+    if (imdb.isEmpty || episodes.isEmpty) return;
+    final bySeason = <int, Set<int>>{};
+    for (final episode in episodes) {
+      final season = episode['season'];
+      final number = episode['episode'];
+      if (season == null || number == null || number <= 0) continue;
+      bySeason.putIfAbsent(season, () => <int>{}).add(number);
+    }
+    if (bySeason.isEmpty) return;
+    final show = <String, dynamic>{
+      'ids': <String, dynamic>{'imdb': imdb},
+      'seasons': [
+        for (final season in bySeason.keys.toList()..sort())
+          <String, dynamic>{
+            'number': season,
+            'episodes': [
+              for (final number in bySeason[season]!.toList()..sort())
+                <String, int>{'number': number},
+            ],
+          },
+      ],
+    };
+    try {
+      if (service == 'trakt') {
+        final token = await _validTraktAccessToken();
+        if (token == null) return;
+        await _client.post<dynamic>(
+          '$traktBaseUrl/sync/history',
+          data: <String, dynamic>{
+            'shows': <dynamic>[show]
+          },
+          options: Options(headers: <String, String>{
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+            'trakt-api-version': '2',
+            'trakt-api-key': defaultTraktClientId,
+          }),
+        );
+      } else if (service == 'simkl') {
+        final token = _serviceTokens['simkl'];
+        if (token == null || token.isEmpty) return;
+        await _client.post<dynamic>(
+          Uri.parse('$simklBaseUrl/sync/history').replace(queryParameters: {
+            'client_id': defaultSimklClientId,
+            'app-name': 'nova',
+            'app-version': noorVersion,
+          }).toString(),
+          data: <String, dynamic>{
+            'shows': <dynamic>[show]
+          },
+          options: Options(headers: <String, String>{
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+            'simkl-api-key': defaultSimklClientId,
+            'User-Agent': 'nova/$noorVersion',
+          }),
+        );
+      }
+    } catch (_) {
+      // Remote history sync must never block local watched state.
+    }
+  }
+
   /// Fetches the watchlist or history of a linked service, normalized to
   /// `{type: 'movie'|'series', imdb, title, year}` maps (history entries also
   /// carry `watchedAt` epoch milliseconds when the provider exposes it).
@@ -2910,6 +3005,35 @@ query ($userId: Int) {
         default:
           return const <dynamic>[];
       }
+    } catch (_) {
+      return const <dynamic>[];
+    }
+  }
+
+  /// Returns paused Simkl playback sessions used by Continue Watching.
+  Future<List<dynamic>> simklPlayback() async {
+    final token = _serviceTokens['simkl'];
+    if (token == null || token.isEmpty) return const <dynamic>[];
+    try {
+      final response = await _client.get<dynamic>(
+        Uri.parse('$simklBaseUrl/sync/playback').replace(queryParameters: {
+          'client_id': defaultSimklClientId,
+          'app-name': 'nova',
+          'app-version': noorVersion,
+        }).toString(),
+        options: Options(headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'simkl-api-key': defaultSimklClientId,
+          'User-Agent': 'nova/$noorVersion',
+        }),
+      );
+      final payload = _asMap(response.data);
+      if (payload == null) return const <dynamic>[];
+      return <dynamic>[
+        for (final kind in const ['movies', 'episodes'])
+          if (payload[kind] is List) ...(payload[kind] as List),
+      ];
     } catch (_) {
       return const <dynamic>[];
     }
@@ -3144,7 +3268,7 @@ query ($userId: Int) {
           'limit': '50',
           'nsfw': 'true',
           'fields': 'id,title,main_picture{large},start_season{year},'
-              'media_type,list_status{num_episodes_watched,updated_at}',
+              'media_type,num_episodes,list_status{num_episodes_watched,updated_at}',
         },
         options: Options(headers: await _malBearer(token)),
       );

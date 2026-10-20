@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import '../shell/nova_catalog_refresh.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import '../shell/nova_browse_widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../shell/noor_dock_tabs.dart';
 import '../media/media_detail_page.dart';
+import '../home/widgets/continue_watching_rail.dart';
 import 'anime_search_sheet.dart';
 
 class AnimePage extends StatefulWidget {
@@ -33,7 +36,9 @@ class _AnimePageState extends State<AnimePage>
   @override
   void initState() {
     super.initState();
-    _items = context.read<AppState>().catalogs.anime();
+    final app = context.read<AppState>();
+    _items = app.catalogs.anime();
+    unawaited(app.refreshLinkedContent());
   }
 
   void _retry() {
@@ -51,168 +56,191 @@ class _AnimePageState extends State<AnimePage>
         app.linkedCatalogItems['anilist-watching'] ?? const <MediaItem>[];
     final planning = app.linkedCatalogItems['anilist'] ?? const <MediaItem>[];
     final anilistLinked = app.linkedServices['anilist']?['linked'] == true;
-    return FutureBuilder<List<MediaItem>>(
-      future: _items,
-      builder: (context, snapshot) {
-        final items = snapshot.data ?? const <MediaItem>[];
-        final series = items.where((item) => item.type == 'series').toList();
-        final movies = items.where((item) => item.type == 'movie').toList();
-        return CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-                child: NovaBrowseHeader(
-              eyebrow: app.tr('message521'),
-              title: app.tr('message522'),
-              subtitle: app.tr('message523'),
-              actions: [
-                FilledButton.tonalIcon(
-                    onPressed: () => showAnimeSearchSheet(context),
-                    icon: const Icon(LucideIcons.search),
-                    label: Text(app.tr('message524')))
-              ],
-            )),
-            SliverToBoxAdapter(
-                child: Padding(
-                    padding:
-                        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
-                    child: Wrap(spacing: 8, runSpacing: 8, children: [
-                      for (final entry in [
-                        ('all', app.tr('message525')),
-                        ('series', app.tr('message107')),
-                        ('movie', app.tr('message526')),
-                      ])
-                        ChoiceChip(
-                            label: Text(entry.$2),
-                            selected: _filter == entry.$1,
-                            onSelected: (_) =>
-                                setState(() => _filter = entry.$1))
-                    ]))),
-            if (items.isNotEmpty)
+    final watchingProgress = app.linkedContinueWatching
+        .where((entry) => entry.item.type == 'series')
+        .toList(growable: false);
+    // Keep the canvas painted across loading, catalog refreshes, and scrolling.
+    // The surrounding shell is edge-to-edge and the slivers are transparent;
+    // without an explicit page surface, Android can expose its black window
+    // background while this tab transitions between catalog states.
+    return ColoredBox(
+      key: const ValueKey('anime-catalog-canvas'),
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: FutureBuilder<List<MediaItem>>(
+        future: _items,
+        builder: (context, snapshot) {
+          final items = snapshot.data ?? const <MediaItem>[];
+          final series = items.where((item) => item.type == 'series').toList();
+          final movies = items.where((item) => item.type == 'movie').toList();
+          return CustomScrollView(
+            slivers: [
               SliverToBoxAdapter(
-                  child: NovaBrowseFeature(
-                item: (_filter == 'series' && series.isNotEmpty)
-                    ? series.first
-                    : (_filter == 'movie' && movies.isNotEmpty)
-                        ? movies.first
-                        : items.first,
-                label: app.tr('message130'),
-                actionLabel: app.tr('message527'),
-                onOpen: () => _open((_filter == 'series' && series.isNotEmpty)
-                    ? series.first
-                    : (_filter == 'movie' && movies.isNotEmpty)
-                        ? movies.first
-                        : items.first),
+                  child: NovaBrowseHeader(
+                eyebrow: app.tr('message521'),
+                title: app.tr('message522'),
+                subtitle: app.tr('message523'),
+                actions: [
+                  FilledButton.tonalIcon(
+                      onPressed: () => showAnimeSearchSheet(context),
+                      icon: const Icon(LucideIcons.search),
+                      label: Text(app.tr('message524')))
+                ],
               )),
-            // Personal AniList rails — rendered above the public catalogs
-            // so the linked account's own lists lead the tab. `anilist:`
-            // identities resolve through _open like every other card.
-            if (_filter == 'all' && anilistLinked && watching.isNotEmpty)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsetsDirectional.only(
-                    bottom: MediaRail.sectionSpacing(context),
-                  ),
-                  child: MediaRail(
-                    title: NovaStrings.lookup(english, 'message528'),
-                    items: watching,
-                    onTap: _open,
-                  ),
-                ),
-              ),
-            if (_filter == 'all' && anilistLinked && planning.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsetsDirectional.only(
-                    bottom: MediaRail.sectionSpacing(context),
-                  ),
-                  child: MediaRail(
-                    title: NovaStrings.lookup(english, 'message529'),
-                    items: planning,
-                    onTap: _open,
-                  ),
-                ),
-              ),
-            if (_filter == 'all' && !anilistLinked)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsetsDirectional.fromSTEB(20, 0, 20, 18),
-                  child: _AniListLinkPrompt(),
-                ),
-              ),
-            if (snapshot.connectionState == ConnectionState.waiting &&
-                items.isEmpty)
-              const SliverToBoxAdapter(
-                  child: SizedBox(height: 440, child: NovaBrowseSkeleton()))
-            else if (snapshot.hasError)
-              SliverToBoxAdapter(
-                child: _CatalogState(
-                  icon: LucideIcons.cloudOff,
-                  message: NovaStrings.lookup(english, 'message530'),
-                  actionLabel: NovaStrings.lookup(english, 'message120'),
-                  onRetry: _retry,
-                ),
-              )
-            else if (items.isEmpty)
-              SliverToBoxAdapter(
-                child: _CatalogState(
-                  icon: LucideIcons.searchX,
-                  message: NovaStrings.lookup(english, 'message531'),
-                  actionLabel: NovaStrings.lookup(english, 'message68'),
-                  onRetry: _retry,
-                ),
-              )
-            else ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsetsDirectional.only(
-                    bottom: MediaRail.sectionSpacing(context),
-                  ),
-                  child: MediaRail(
-                    title: NovaStrings.lookup(english, 'message113'),
-                    items: items
-                        .where(
-                            (item) => _filter == 'all' || item.type == _filter)
-                        .take(14)
-                        .toList(),
-                    onTap: _open,
+                  child: Padding(
+                      padding:
+                          const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
+                      child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        for (final entry in [
+                          ('all', app.tr('message525')),
+                          ('series', app.tr('message107')),
+                          ('movie', app.tr('message526')),
+                        ])
+                          ChoiceChip(
+                              label: Text(entry.$2),
+                              selected: _filter == entry.$1,
+                              onSelected: (_) =>
+                                  setState(() => _filter = entry.$1))
+                      ]))),
+              if (items.isNotEmpty)
+                SliverToBoxAdapter(
+                    child: NovaBrowseFeature(
+                  item: (_filter == 'series' && series.isNotEmpty)
+                      ? series.first
+                      : (_filter == 'movie' && movies.isNotEmpty)
+                          ? movies.first
+                          : items.first,
+                  label: app.tr('message130'),
+                  actionLabel: app.tr('message527'),
+                  onOpen: () => _open((_filter == 'series' && series.isNotEmpty)
+                      ? series.first
+                      : (_filter == 'movie' && movies.isNotEmpty)
+                          ? movies.first
+                          : items.first),
+                )),
+              // Personal AniList rails — rendered above the public catalogs
+              // so the linked account's own lists lead the tab. `anilist:`
+              // identities resolve through _open like every other card.
+              if (_filter == 'all' && watchingProgress.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsetsDirectional.only(
+                      bottom: MediaRail.sectionSpacing(context),
+                    ),
+                    child: IntegrationContinueWatchingRail(
+                      entries: watchingProgress,
+                      english: english,
+                    ),
                   ),
                 ),
-              ),
-              if (_filter != 'movie' && series.isNotEmpty)
+              if (_filter == 'all' && anilistLinked && watching.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsetsDirectional.only(
                       bottom: MediaRail.sectionSpacing(context),
                     ),
                     child: MediaRail(
-                      title: NovaStrings.lookup(english, 'message532'),
-                      items: series,
+                      title: NovaStrings.lookup(english, 'message528'),
+                      items: watching,
                       onTap: _open,
                     ),
                   ),
                 ),
-              if (_filter != 'series' && movies.isNotEmpty)
+              if (_filter == 'all' && anilistLinked && planning.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsetsDirectional.only(
                       bottom: MediaRail.sectionSpacing(context),
                     ),
                     child: MediaRail(
-                      title: NovaStrings.lookup(english, 'message114'),
-                      items: movies,
+                      title: NovaStrings.lookup(english, 'message529'),
+                      items: planning,
                       onTap: _open,
                     ),
                   ),
                 ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: glassDockContentClearance(context),
+              if (_filter == 'all' && !anilistLinked)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsetsDirectional.fromSTEB(20, 0, 20, 18),
+                    child: _AniListLinkPrompt(),
+                  ),
                 ),
-              ),
+              if (snapshot.connectionState == ConnectionState.waiting &&
+                  items.isEmpty)
+                const SliverToBoxAdapter(
+                    child: SizedBox(height: 440, child: NovaBrowseSkeleton()))
+              else if (snapshot.hasError)
+                SliverToBoxAdapter(
+                  child: _CatalogState(
+                    icon: LucideIcons.cloudOff,
+                    message: NovaStrings.lookup(english, 'message530'),
+                    actionLabel: NovaStrings.lookup(english, 'message120'),
+                    onRetry: _retry,
+                  ),
+                )
+              else if (items.isEmpty)
+                SliverToBoxAdapter(
+                  child: _CatalogState(
+                    icon: LucideIcons.searchX,
+                    message: NovaStrings.lookup(english, 'message531'),
+                    actionLabel: NovaStrings.lookup(english, 'message68'),
+                    onRetry: _retry,
+                  ),
+                )
+              else ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsetsDirectional.only(
+                      bottom: MediaRail.sectionSpacing(context),
+                    ),
+                    child: MediaRail(
+                      title: NovaStrings.lookup(english, 'message113'),
+                      items: items
+                          .where((item) =>
+                              _filter == 'all' || item.type == _filter)
+                          .take(14)
+                          .toList(),
+                      onTap: _open,
+                    ),
+                  ),
+                ),
+                if (_filter != 'movie' && series.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.only(
+                        bottom: MediaRail.sectionSpacing(context),
+                      ),
+                      child: MediaRail(
+                        title: NovaStrings.lookup(english, 'message532'),
+                        items: series,
+                        onTap: _open,
+                      ),
+                    ),
+                  ),
+                if (_filter != 'series' && movies.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.only(
+                        bottom: MediaRail.sectionSpacing(context),
+                      ),
+                      child: MediaRail(
+                        title: NovaStrings.lookup(english, 'message114'),
+                        items: movies,
+                        onTap: _open,
+                      ),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: glassDockContentClearance(context),
+                  ),
+                ),
+              ],
             ],
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

@@ -8,13 +8,39 @@ import '../../shared/widgets/noor_toast.dart';
 import '../player/video_player_page.dart';
 
 class DownloadsPage extends StatefulWidget {
-  const DownloadsPage({super.key});
+  const DownloadsPage({super.key, this.manager});
+
+  @visibleForTesting
+  final DownloadManager? manager;
+
   @override
   State<DownloadsPage> createState() => _DownloadsPageState();
 }
 
+class _AccessibleDownloadAction extends StatelessWidget {
+  const _AccessibleDownloadAction({
+    required this.label,
+    required this.onPressed,
+    required this.child,
+  });
+
+  final String label;
+  final VoidCallback onPressed;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: label,
+        button: true,
+        onTap: onPressed,
+        excludeSemantics: true,
+        child: ExcludeSemantics(child: child),
+      );
+}
+
 class _DownloadsPageState extends State<DownloadsPage> {
-  final _manager = DownloadManager.instance;
+  late final DownloadManager _manager =
+      widget.manager ?? DownloadManager.instance;
   @override
   void initState() {
     super.initState();
@@ -100,10 +126,12 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 Icon(LucideIcons.download,
                                     size: 32, color: scheme.secondary),
                                 const SizedBox(height: 16),
-                                Text(s.text('downloadIntro'),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium),
+                                Semantics(
+                                    header: true,
+                                    child: Text(s.text('downloadIntro'),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium)),
                                 const SizedBox(height: 12),
                                 Text(s.text('downloadForeground'),
                                     style:
@@ -135,6 +163,27 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                     'cancelled' => 'downloadCancelled',
                                     _ => 'downloadFailed'
                                   };
+                                  void playOffline() => Navigator.of(context)
+                                          .push(MaterialPageRoute<void>(
+                                        builder: (_) => VideoPlayerPage(
+                                            item: MediaItem(
+                                                id: 'local:${job.id}',
+                                                name: job.title,
+                                                type: 'movie'),
+                                            url: job.path,
+                                            streamName: job.title,
+                                            videoId: job.id,
+                                            recordProgress: false),
+                                      ));
+
+                                  void cancelDownload() =>
+                                      _action(() => _manager.cancel(job));
+                                  void retryDownload() =>
+                                      _action(() => _manager.retry(job));
+                                  void removeDownload() => _remove(job);
+                                  String actionLabel(String label) =>
+                                      '$label: ${job.title}';
+
                                   return Padding(
                                       padding: const EdgeInsetsDirectional.only(
                                           bottom: 24),
@@ -206,33 +255,44 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                                 runSpacing: 8,
                                                 children: [
                                                   if (job.status == 'complete')
-                                                    FilledButton.icon(
-                                                        icon: const Icon(
-                                                            LucideIcons.play),
-                                                        label: Text(s.text(
-                                                            'playOffline')),
-                                                        onPressed: () => Navigator.of(context).push(MaterialPageRoute<
-                                                                void>(
-                                                            builder: (_) => VideoPlayerPage(
-                                                                item: MediaItem(
-                                                                    id: 'local:${job.id}',
-                                                                    name: job.title,
-                                                                    type: 'movie'),
-                                                                url: job.path,
-                                                                streamName: job.title,
-                                                                videoId: job.id,
-                                                                recordProgress: false))))
-                                                  else if (job.status == 'downloading' || job.status == 'queued')
-                                                    TextButton(onPressed: () => _action(() => _manager.cancel(job)), child: Text(s.text('cancel')))
+                                                    _AccessibleDownloadAction(
+                                                        label: actionLabel(
+                                                            s.text(
+                                                                'playOffline')),
+                                                        onPressed: playOffline,
+                                                        child: FilledButton.icon(
+                                                            icon: const Icon(
+                                                                LucideIcons
+                                                                    .play),
+                                                            label: Text(s.text(
+                                                                'playOffline')),
+                                                            onPressed:
+                                                                playOffline))
+                                                  else if (job.status ==
+                                                          'downloading' ||
+                                                      job.status == 'queued')
+                                                    _AccessibleDownloadAction(
+                                                        label: actionLabel(
+                                                            s.text('cancel')),
+                                                        onPressed:
+                                                            cancelDownload,
+                                                        child: TextButton(
+                                                            onPressed: cancelDownload,
+                                                            child: Text(s.text('cancel'))))
                                                   else
-                                                    OutlinedButton.icon(onPressed: () => _action(() => _manager.retry(job)), icon: const Icon(LucideIcons.rotateCw), label: Text(s.text('retry'))),
-                                                  TextButton.icon(
-                                                      onPressed: () =>
-                                                          _remove(job),
-                                                      icon: const Icon(
-                                                          LucideIcons.trash2),
-                                                      label: Text(
-                                                          s.text('remove'))),
+                                                    _AccessibleDownloadAction(label: actionLabel(s.text('retry')), onPressed: retryDownload, child: OutlinedButton.icon(onPressed: retryDownload, icon: const Icon(LucideIcons.rotateCw), label: Text(s.text('retry')))),
+                                                  _AccessibleDownloadAction(
+                                                      label: actionLabel(
+                                                          s.text('remove')),
+                                                      onPressed: removeDownload,
+                                                      child: TextButton.icon(
+                                                          onPressed:
+                                                              removeDownload,
+                                                          icon: const Icon(
+                                                              LucideIcons
+                                                                  .trash2),
+                                                          label: Text(s.text(
+                                                              'remove')))),
                                                 ]),
                                             const SizedBox(height: 16),
                                             Divider(

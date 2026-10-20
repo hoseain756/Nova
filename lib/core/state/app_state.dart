@@ -15,6 +15,7 @@ import '../models/integration_cw.dart';
 import '../models/media_item.dart';
 import '../oauth/oauth_redirect.dart';
 import '../sync/noor_sync.dart';
+import '../storage/resume_snapshot_store.dart';
 import '../track/track_link.dart';
 
 class AppState extends ChangeNotifier {
@@ -45,6 +46,7 @@ class AppState extends ChangeNotifier {
     'blurEpisodeThumbnails': false, 'instantPlay': true,
     'autoPlayNextEpisode': true, 'resumePlayback': true,
     'resumePrompt': false, 'playerConfirmLeave': true,
+    'resumeSnapshotRetentionDays': 30,
     'seekBackStepSec': 10, 'seekForwardStepSec': 10, 'subFontSize': 28,
     'subFontColor': '#FFFFFF', 'subBorderColor': '#000000',
     'subBorderSize': 0, 'subBackgroundOpacity': 0.35,
@@ -87,6 +89,8 @@ class AppState extends ChangeNotifier {
   final CatalogRepository catalogs;
   final NoorSyncService sync = NoorSyncService.instance;
   SharedPreferences? _preferences;
+  ResumeSnapshotStore? _resumeSnapshotStore;
+  Map<String, ResumeSnapshot> resumeSnapshots = {};
   bool initialized = false;
   bool english = PlatformDispatcher.instance.locale.languageCode != 'ar';
   bool kidsSession = false;
@@ -190,6 +194,7 @@ class AppState extends ChangeNotifier {
   Future<void> initialize() async {
     await api.initialize();
     _preferences = await SharedPreferences.getInstance();
+    _resumeSnapshotStore = ResumeSnapshotStore(_preferences!);
     kidsSession = _preferences!.getBool('nova.kids.active') ?? false;
     final savedEnglish = _preferences!.getBool('horse.mobile.english');
     english =
@@ -262,6 +267,14 @@ class AppState extends ChangeNotifier {
       _preferences!.getString('horse.mobile.history'),
       WatchHistoryEntry.fromJson,
     );
+    try {
+      resumeSnapshots = await _resumeSnapshotStore!.load(
+        retentionDays: _resumeSnapshotRetentionDays,
+      );
+    } catch (error) {
+      debugPrint('[NOVA] resume snapshot cleanup skipped: $error');
+      resumeSnapshots = {};
+    }
     _continueWatching.addAll(
       _decodeMap(_preferences!.getString('horse.mobile.cw')),
     );
@@ -321,6 +334,53 @@ class AppState extends ChangeNotifier {
     if (playlists != null) unawaited(api.saveIptvPlaylists(playlists));
     unawaited(_persistSettings());
     _schedulePush(NoorSyncService.bucketSettings);
+    if (key == 'resumeSnapshotRetentionDays') {
+      unawaited(_pruneResumeSnapshots());
+    }
+  }
+
+  int get _resumeSnapshotRetentionDays =>
+      (webSettings['resumeSnapshotRetentionDays'] as num?)?.toInt() ?? 30;
+
+  String? resumeSnapshotFor(String itemId) => resumeSnapshots[itemId]?.path;
+
+  Future<void> saveResumeSnapshot(String itemId, Uint8List frame) async {
+    final store = _resumeSnapshotStore;
+    if (store == null) return;
+    final snapshot = await store.save(
+      itemId: itemId,
+      frame: frame,
+      retentionDays: _resumeSnapshotRetentionDays,
+    );
+    if (snapshot == null) return;
+    resumeSnapshots = {...resumeSnapshots, itemId: snapshot};
+    notifyListeners();
+  }
+
+  Future<void> removeResumeSnapshot(String itemId) async {
+    final store = _resumeSnapshotStore;
+    if (store == null || !resumeSnapshots.containsKey(itemId)) return;
+    resumeSnapshots = await store.remove(itemId);
+    notifyListeners();
+  }
+
+  Future<void> _pruneResumeSnapshots() async {
+    final store = _resumeSnapshotStore;
+    if (store == null) return;
+    try {
+      resumeSnapshots = await store.load(
+        retentionDays: _resumeSnapshotRetentionDays,
+      );
+      notifyListeners();
+    } catch (error) {
+      debugPrint('[NOVA] resume snapshot cleanup skipped: $error');
+    }
+  }
+
+  Future<void> _clearResumeSnapshots() async {
+    final store = _resumeSnapshotStore;
+    if (store == null) return;
+    resumeSnapshots = await store.clear();
   }
 
   Future<void> _persistSettings() async {
@@ -443,6 +503,50 @@ class AppState extends ChangeNotifier {
   /// additive presentation state.
   final Map<String, List<MediaItem>> linkedCatalogItems = {};
 
+  /// Active progress returned by linked tracking services. Kept separate from
+  /// local playback history so provider rows never overwrite local resume data.
+  List<IntegrationCwEntry> linkedContinueWatching = const [];
+
+  /// Joins provider episode counts and paused episode points to the same
+  /// progress model used by detail episode cards. Local rows remain newest
+  /// wins and take precedence when they exist.
+  List<WatchHistoryEntry> historyForTitle(MediaItem item) {
+    final matches = linkedContinueWatching.where((entry) {
+      final linked = entry.item;
+      return linked.id == item.id ||
+          (item.anilistId != null && linked.anilistId == item.anilistId) ||
+          (item.idMal != null && linked.idMal == item.idMal);
+    });
+    final remote = <WatchHistoryEntry>[];
+    for (final entry in matches) {
+      if (entry.season != null && entry.episode != null) {
+        remote.add(WatchHistoryEntry(
+          item: item,
+          watchedAt: entry.watchedAt,
+          positionMs: (entry.progress * 1000).round(),
+          durationMs: 1000,
+          season: entry.season,
+          episode: entry.episode,
+        ));
+      } else if (entry.episodesWatched > 0) {
+        for (var episode = 1; episode <= entry.episodesWatched; episode++) {
+          remote.add(WatchHistoryEntry(
+            item: item,
+            watchedAt: entry.watchedAt,
+            positionMs: 1000,
+            durationMs: 1000,
+            season: 1,
+            episode: episode,
+          ));
+        }
+      }
+    }
+    return [
+      ...history.where((entry) => entry.item.id == item.id),
+      ...remote,
+    ];
+  }
+
   static const Duration _linkedContentTtl = Duration(minutes: 5);
   DateTime? _linkedContentAt;
   bool _linkedContentLoading = false;
@@ -476,8 +580,9 @@ class AppState extends ChangeNotifier {
     }
     final linked = linkedServices;
     if (linked.isEmpty) {
-      if (linkedCatalogItems.isNotEmpty) {
+      if (linkedCatalogItems.isNotEmpty || linkedContinueWatching.isNotEmpty) {
         linkedCatalogItems.clear();
+        linkedContinueWatching = const [];
         _linkedContentAt = DateTime.now();
         notifyListeners();
       }
@@ -489,16 +594,27 @@ class AppState extends ChangeNotifier {
       final jobs = <String, Future<List<dynamic>>>{
         if (linked['trakt']?['linked'] == true)
           'trakt-watchlist': api.syncLinkedService('trakt', 'watchlist'),
+        if (linked['trakt']?['linked'] == true)
+          'trakt-playback': api.traktPlayback(),
         if (linked['simkl']?['linked'] == true)
           'simkl-watchlist': api.syncLinkedService('simkl', 'watchlist'),
+        if (linked['simkl']?['linked'] == true &&
+            webSettings['simklScrobbling'] != false)
+          'simkl-playback': api.simklPlayback(),
         if (linked['anilist']?['linked'] == true)
           'anilist-entries': api.aniListEntries(),
         if (linked['mal']?['linked'] == true)
           'mal-planning': api.malList(status: 'plan_to_watch'),
+        if (linked['mal']?['linked'] == true)
+          'mal-watching': api.malList(status: 'watching'),
       };
       if (jobs.isEmpty) {
+        final hadEntries =
+            linkedCatalogItems.isNotEmpty || linkedContinueWatching.isNotEmpty;
         linkedCatalogItems.clear();
+        linkedContinueWatching = const [];
         _linkedContentAt = DateTime.now();
+        if (hadEntries) notifyListeners();
         return;
       }
       final keys = jobs.keys.toList(growable: false);
@@ -510,6 +626,27 @@ class AppState extends ChangeNotifier {
       );
 
       final anilistRows = rowsByKey['anilist-entries'] ?? const <dynamic>[];
+
+      final serviceProgress = <IntegrationCwEntry>[
+        for (final row in rowsByKey['trakt-playback'] ?? const <dynamic>[])
+          if (IntegrationCwEntry.fromTraktPlayback(row) case final entry?)
+            entry,
+        for (final row in rowsByKey['simkl-playback'] ?? const <dynamic>[])
+          if (IntegrationCwEntry.fromSimklPlayback(row) case final entry?)
+            entry,
+        for (final row in anilistRows)
+          if (IntegrationCwEntry.fromAniListRow(
+            row,
+            statusFilter: 'CURRENT',
+          )
+              case final entry?)
+            entry,
+        for (final row in rowsByKey['mal-watching'] ?? const <dynamic>[])
+          if (IntegrationCwEntry.fromMalRow(row) case final entry?) entry,
+      ].where((entry) => entry.isContinueable).toList(growable: false);
+      linkedContinueWatching = await _enrichLinkedProgress(
+        IntegrationCwEntry.merge([serviceProgress]),
+      );
 
       // Catalog rails. Trakt/Simkl watchlist rows carry only identities, so
       // the first cards get their artwork resolved through the meta add-ons
@@ -592,6 +729,50 @@ class AppState extends ChangeNotifier {
       if (items.isNotEmpty) rails['mal'] = items;
     }
     return rails;
+  }
+
+  Future<List<IntegrationCwEntry>> _enrichLinkedProgress(
+    List<IntegrationCwEntry> entries,
+  ) async {
+    final pending = entries
+        .where((entry) =>
+            entry.item.poster == null &&
+            RegExp(r'^tt\d+$').hasMatch(entry.item.id))
+        .take(8)
+        .toList(growable: false);
+    if (pending.isEmpty) return entries;
+    final details = await Future.wait(pending.map((entry) async {
+      try {
+        return await catalogs
+            .detail(entry.item.type, entry.item.id, addons)
+            .timeout(const Duration(seconds: 8), onTimeout: () => null);
+      } catch (_) {
+        return null;
+      }
+    }));
+    final artwork = <String, MediaItem>{
+      for (final item in details)
+        if (item != null) item.id: item,
+    };
+    return [
+      for (final entry in entries)
+        if (artwork[entry.item.id] case final detail?)
+          IntegrationCwEntry(
+            item: entry.item.withArtwork(
+              poster: detail.poster,
+              background: detail.background,
+            ),
+            source: entry.source,
+            progress: entry.progress,
+            season: entry.season,
+            episode: entry.episode,
+            episodesWatched: entry.episodesWatched,
+            episodesTotal: entry.episodesTotal,
+            watchedAt: entry.watchedAt,
+          )
+        else
+          entry,
+    ];
   }
 
   /// Watchlist rows carry only identities (no artwork). Resolve posters for
@@ -969,9 +1150,15 @@ class AppState extends ChangeNotifier {
       season: season,
       episode: episode,
     );
+    final isEpisode =
+        item.type == 'series' && season != null && episode != null;
     history = [
       entry,
-      ...history.where((h) => h.item.id != item.id),
+      ...history.where((h) {
+        if (h.item.id != item.id) return true;
+        if (!isEpisode) return false;
+        return h.season != season || h.episode != episode;
+      }),
     ].take(200).toList();
     if (durationMs > 0 && positionMs < durationMs - 120000) {
       _continueWatching[item.id] = {
@@ -994,7 +1181,146 @@ class AppState extends ChangeNotifier {
       NoorSyncService.bucketHistory,
       NoorSyncService.bucketLibrary,
     });
-    _mirrorAnimeProgress(item, positionMs, durationMs, episode);
+    if (durationMs > 0 && positionMs >= durationMs - 120000) {
+      await removeResumeSnapshot(item.id);
+    }
+    _mirrorAnimeProgress(
+      item,
+      positionMs,
+      durationMs,
+      isEpisode && durationMs > 0 && positionMs >= durationMs - 120000
+          ? _watchedEpisodeCount(item)
+          : episode,
+    );
+    if (durationMs > 0 &&
+        positionMs >= durationMs - 120000 &&
+        season != null &&
+        episode != null) {
+      _mirrorEpisodeHistory(item, [
+        {'season': season, 'episode': episode},
+      ]);
+    }
+  }
+
+  /// Marks one episode as fully watched locally and mirrors the new episode
+  /// count to linked anime trackers through the existing progress sync path.
+  Future<void> markEpisodeWatched(
+    MediaItem item,
+    Map<String, dynamic> video, {
+    required int durationMs,
+  }) =>
+      recordPlayback(
+        item,
+        positionMs: durationMs,
+        durationMs: durationMs,
+        videoId: video['id']?.toString(),
+        season: (video['season'] as num?)?.toInt(),
+        episode: (video['episode'] as num?)?.toInt(),
+      );
+
+  /// Marks the selected episode and every earlier released episode as watched
+  /// in one local history write, then sends the resulting counter once to
+  /// linked anime trackers whose progress-sync switch is enabled.
+  Future<void> markEpisodesWatchedThrough(
+    MediaItem item,
+    List<Map<String, dynamic>> videos,
+    Map<String, dynamic> selected,
+  ) async {
+    final selectedSeason = (selected['season'] as num?)?.toInt() ?? 1;
+    final selectedEpisode = (selected['episode'] as num?)?.toInt() ?? 0;
+    if (selectedEpisode <= 0) return;
+    final included = videos.where((video) {
+      final season = (video['season'] as num?)?.toInt() ?? 1;
+      final episode = (video['episode'] as num?)?.toInt() ?? 0;
+      final released = DateTime.tryParse(
+        (video['released'] ?? video['firstAired'] ?? '').toString(),
+      );
+      return episode > 0 &&
+          (released == null || !released.isAfter(DateTime.now())) &&
+          (season < selectedSeason ||
+              (season == selectedSeason && episode <= selectedEpisode));
+    }).toList()
+      ..sort((a, b) {
+        final seasonOrder = ((a['season'] as num?)?.toInt() ?? 1)
+            .compareTo((b['season'] as num?)?.toInt() ?? 1);
+        return seasonOrder != 0
+            ? seasonOrder
+            : ((a['episode'] as num?)?.toInt() ?? 0)
+                .compareTo((b['episode'] as num?)?.toInt() ?? 0);
+      });
+    if (included.isEmpty) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final watchedEntries = included.map((video) {
+      final durationMs = _episodeDurationMs(video['duration']);
+      return WatchHistoryEntry(
+        item: item,
+        watchedAt: now,
+        positionMs: durationMs,
+        durationMs: durationMs,
+        videoId: video['id']?.toString(),
+        season: (video['season'] as num?)?.toInt(),
+        episode: (video['episode'] as num?)?.toInt(),
+      );
+    }).toList();
+    final watchedIds = watchedEntries
+        .map((entry) => '${entry.season}:${entry.episode}:${entry.videoId}')
+        .toSet();
+    history = [
+      ...watchedEntries.reversed,
+      ...history.where((entry) =>
+          entry.item.id != item.id ||
+          !watchedIds
+              .contains('${entry.season}:${entry.episode}:${entry.videoId}')),
+    ].take(200).toList();
+    await _persistAndSync(const {
+      NoorSyncService.bucketHistory,
+      NoorSyncService.bucketLibrary,
+    });
+    _mirrorEpisodeHistory(
+      item,
+      watchedEntries
+          .where((entry) => entry.season != null && entry.episode != null)
+          .map((entry) => {
+                'season': entry.season!,
+                'episode': entry.episode!,
+              })
+          .toList(growable: false),
+    );
+    _mirrorAnimeProgress(
+      item,
+      watchedEntries.last.durationMs,
+      watchedEntries.last.durationMs,
+      _watchedEpisodeCount(item),
+    );
+  }
+
+  int _watchedEpisodeCount(MediaItem item) => history
+      .where((entry) =>
+          entry.item.id == item.id &&
+          entry.season != null &&
+          entry.episode != null &&
+          entry.durationMs > 0 &&
+          entry.positionMs >= entry.durationMs - 120000)
+      .map((entry) => '${entry.season}:${entry.episode}')
+      .toSet()
+      .length;
+
+  void _mirrorEpisodeHistory(
+    MediaItem item,
+    List<Map<String, int>> episodes,
+  ) {
+    if (!RegExp(r'^tt\d+$').hasMatch(item.id)) return;
+    for (final service in const ['trakt', 'simkl']) {
+      if (linkedServices[service]?['linked'] == true &&
+          webSettings['${service}Scrobbling'] != false) {
+        unawaited(api.pushLinkedEpisodeHistory(
+          service,
+          imdb: item.id,
+          episodes: episodes,
+        ));
+      }
+    }
   }
 
   /// Harbor-web "Remove from Continue Watching" (home CW long-press menu):
@@ -1008,6 +1334,7 @@ class AppState extends ChangeNotifier {
       return;
     }
     _continueWatching.remove(itemId);
+    await removeResumeSnapshot(itemId);
     await _persistAndSync(const {
       NoorSyncService.bucketHistory,
       NoorSyncService.bucketLibrary,
@@ -1085,6 +1412,7 @@ class AppState extends ChangeNotifier {
   Future<void> clearHistory() async {
     history = [];
     _continueWatching.clear();
+    await _clearResumeSnapshots();
     await _persistAndSync(const {
       NoorSyncService.bucketHistory,
       NoorSyncService.bucketLibrary,
@@ -1095,6 +1423,7 @@ class AppState extends ChangeNotifier {
     watchlist = [];
     history = [];
     _continueWatching.clear();
+    await _clearResumeSnapshots();
     await _persistAndSync(const {
       NoorSyncService.bucketWatchlist,
       NoorSyncService.bucketHistory,
@@ -1808,4 +2137,28 @@ class AppState extends ChangeNotifier {
     }
     return outcomes;
   }
+}
+
+int _episodeDurationMs(Object? raw) {
+  if (raw is num) {
+    final value = raw.round();
+    return value > 10000 ? value : value * 60000;
+  }
+  final text = raw?.toString().trim().toLowerCase() ?? '';
+  final clock = text.split(':').map(int.tryParse).toList();
+  if (clock.length == 3 && clock.every((part) => part != null)) {
+    return ((clock[0]! * 60 + clock[1]!) * 60 + clock[2]!) * 1000;
+  }
+  if (clock.length == 2 && clock.every((part) => part != null)) {
+    return (clock[0]! * 60 + clock[1]!) * 60000;
+  }
+  final hours = RegExp(r'(\d+)\s*h').firstMatch(text)?.group(1);
+  final minutes = RegExp(r'(\d+)\s*m').firstMatch(text)?.group(1);
+  if (hours != null || minutes != null) {
+    return ((int.tryParse(hours ?? '') ?? 0) * 60 +
+            (int.tryParse(minutes ?? '') ?? 0)) *
+        60000;
+  }
+  final number = int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
+  return (number ?? 24) * 60000;
 }

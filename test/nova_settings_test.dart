@@ -179,4 +179,31 @@ void main() {
     expect(app.addons.last.enabled, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('resume snapshot retention persists the selected period',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final app = _SettingsApp(NoorApi());
+
+    await tester.pumpWidget(
+      _harness(app, const SettingsPreferencesPage(subtitles: false)),
+    );
+    await tester.ensureVisible(find.text('Resume screenshot retention'));
+    await tester.tap(find.text('Resume screenshot retention'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('10 days'));
+    await tester.pumpAndSettle();
+
+    expect(app.webSettings['resumeSnapshotRetentionDays'], 10);
+    expect(
+      find.text(
+        'Pause-frame previews stay on this device and are deleted after the selected period.',
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

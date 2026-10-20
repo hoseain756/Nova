@@ -36,6 +36,7 @@ void main() {
       );
       addTearDown(controller.dispose);
       final isWide = size.width >= 700;
+      Map<String, dynamic>? longPressedEpisode;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -57,6 +58,7 @@ void main() {
                       ratingsEnabled: true,
                       onViewChange: controller.setView,
                       onPlay: (_) {},
+                      onLongPress: (video) => longPressedEpisode = video,
                     ),
                   ),
                 ),
@@ -86,6 +88,9 @@ void main() {
         find.descendant(of: toggle, matching: find.byIcon(iconFor(activeView))),
         findsOneWidget,
       );
+
+      await tester.longPress(find.text('First episode'));
+      expect(longPressedEpisode?['episode'], 1);
 
       for (var i = 0; i < 2; i++) {
         await tester.tap(find.byKey(const ValueKey('episode-view-toggle')));

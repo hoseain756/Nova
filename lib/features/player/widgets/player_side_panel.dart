@@ -177,7 +177,7 @@ class PanelSettingsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
-        label: 'Subtitle style & timing',
+        label: NovaStrings.of(context).text('subtitleStyleAndTiming'),
         child: InkWell(
           customBorder: CircleBorder(),
           onTap: onTap,
@@ -891,6 +891,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
     super.key,
     required this.english,
     required this.speed,
+    this.speeds = const <double>[0.5, 0.75, 1.0, 1.25, 1.5, 2.0],
     required this.fit,
     required this.audioLabel,
     required this.subtitleLabel,
@@ -904,6 +905,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
 
   final bool english;
   final double speed;
+  final List<double> speeds;
   final BoxFit fit;
   final String audioLabel;
   final String subtitleLabel;
@@ -913,8 +915,6 @@ class PlayerSettingsPanelBody extends StatelessWidget {
   final VoidCallback onOpenAudio;
   final VoidCallback onOpenSubtitles;
   final VoidCallback onOpenEpisodes;
-
-  static const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
   @override
   Widget build(BuildContext context) {
@@ -944,7 +944,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
           childAspectRatio: 1.6,
           padding: EdgeInsets.zero,
           children: [
-            for (final value in _speeds)
+            for (final value in speeds)
               SheetSelectChip(
                 label: '${value == 1.0 ? '1' : value}×',
                 selected: (speed - value).abs() < .01,
@@ -1012,7 +1012,9 @@ class PlayerSettingsPanelBody extends StatelessWidget {
                 fontSize: 12),
           ),
           trailing: Icon(
-            LucideIcons.chevronRight,
+            Directionality.of(context) == TextDirection.rtl
+                ? LucideIcons.chevronLeft
+                : LucideIcons.chevronRight,
             size: 20,
             color: Theme.of(context).colorScheme.outline,
           ),
@@ -1036,7 +1038,9 @@ class PlayerSettingsPanelBody extends StatelessWidget {
                 fontSize: 12),
           ),
           trailing: Icon(
-            LucideIcons.chevronRight,
+            Directionality.of(context) == TextDirection.rtl
+                ? LucideIcons.chevronLeft
+                : LucideIcons.chevronRight,
             size: 20,
             color: Theme.of(context).colorScheme.outline,
           ),
@@ -1056,7 +1060,9 @@ class PlayerSettingsPanelBody extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
             ),
             trailing: Icon(
-              LucideIcons.chevronRight,
+              Directionality.of(context) == TextDirection.rtl
+                  ? LucideIcons.chevronLeft
+                  : LucideIcons.chevronRight,
               size: 20,
               color: Theme.of(context).colorScheme.outline,
             ),

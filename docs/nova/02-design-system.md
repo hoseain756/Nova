@@ -30,6 +30,8 @@ The Flutter source of truth is [`nova_theme.dart`](../../lib/core/theme/nova_the
 
 No additional opaque UI color literals are used outside the token definitions and user-selected subtitle colors. Image legibility scrims derive from NOVA ink; low-transparency variants are confined to overlays and decoration.
 
+The highest container blends the supplied divider at 80% over ink (Dark) or white (Light). Raw divider backgrounds missed AA for small accent text (4.38:1 / 4.44:1); the derived surface preserves the palette while making both foreground roles pass. Poster rating badges intentionally keep white text and the supplied rating gold on a dark ink scrim in either theme. Source/detail captions and rank text use the readable secondary accent instead of primary button red. Automated checks in `test/nova_theme_contrast_test.dart` cover normal-text semantic roles on all standard surface levels, plus the poster badge over a worst-case white image.
+
 ## Contrast check
 
 Contrast ratios were calculated from the supplied sRGB values with the WCAG relative-luminance formula. These foreground/background roles pass the 4.5:1 AA threshold for normal text:

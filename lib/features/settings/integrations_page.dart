@@ -459,33 +459,46 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
     if (code.isEmpty || _submittingCode) return;
     setState(() => _submittingCode = true);
     final app = context.read<AppState>();
-    final Map<String, dynamic> result;
-    switch (widget.service) {
-      case 'trakt':
-        result = await app.completeTraktWithCode(code);
-      case 'anilist':
-        result = await app.completeAniListWithCode(code);
-      case 'mal':
-        result = await app.completeMalWithCode(code);
-      default:
-        result = <String, dynamic>{'status': 'error', 'reason': 'unsupported'};
-    }
-    if (!mounted) return;
-    setState(() => _submittingCode = false);
-    final english = app.english;
-    if (result['status']?.toString() == 'success') {
-      _codeCtrl.clear();
-      setState(() => _flow = null);
-      if (widget.service == 'anilist' || widget.service == 'mal') {
-        unawaited(app.refreshTrackerProfile(widget.service));
+    try {
+      final Map<String, dynamic> result;
+      switch (widget.service) {
+        case 'trakt':
+          result = await app.completeTraktWithCode(code);
+        case 'anilist':
+          result = await app.completeAniListWithCode(code);
+        case 'mal':
+          result = await app.completeMalWithCode(code);
+        default:
+          result = <String, dynamic>{
+            'status': 'error',
+            'reason': 'unsupported',
+          };
       }
-      NoorToast.show(context, NovaStrings.lookup(english, 'message296'));
-    } else {
+      if (!mounted) return;
+      final english = app.english;
+      if (result['status']?.toString() == 'success') {
+        _codeCtrl.clear();
+        setState(() => _flow = null);
+        if (widget.service == 'anilist' || widget.service == 'mal') {
+          unawaited(app.refreshTrackerProfile(widget.service));
+        }
+        NoorToast.show(context, NovaStrings.lookup(english, 'message296'));
+      } else {
+        NoorToast.show(
+          context,
+          _oauthFailureText(english, result['reason']?.toString()),
+          error: true,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
       NoorToast.show(
         context,
-        _oauthFailureText(app.english, result['reason']?.toString()),
+        _oauthFailureText(app.english, null),
         error: true,
       );
+    } finally {
+      if (mounted) setState(() => _submittingCode = false);
     }
   }
 
@@ -529,10 +542,13 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         setState(() {
           _flow = {'status': 'waiting', 'kind': 'browser'};
         });
-        await launchUrl(
+        final launched = await launchUrl(
           Uri.parse(authorizeUrl),
           mode: LaunchMode.externalApplication,
         );
+        if (!launched) {
+          throw FormatException(NovaStrings.lookup(english, 'message301'));
+        }
         return;
       }
       if (widget.service == 'trakt') {
@@ -553,6 +569,13 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         setState(() {
           _flow = {'status': 'waiting', 'kind': 'pkce'};
         });
+        final launched = await launchUrl(
+          Uri.parse(authorizeUrl),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched) {
+          throw FormatException(NovaStrings.lookup(english, 'message302'));
+        }
         if (_traktMethod == 'relay') {
           // Relay leg only: the browser lands on the NOVA companion which
           // stores the code — this watcher fetches it and finishes the
@@ -560,10 +583,6 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
           // via the noor:// deep link instead; there is nothing to poll.
           app.beginTraktRelayWatch();
         }
-        await launchUrl(
-          Uri.parse(authorizeUrl),
-          mode: LaunchMode.externalApplication,
-        );
         return;
       }
       final result = await app.api.startLinkedService(widget.service);
@@ -599,13 +618,19 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
           'kind': 'device',
         };
       });
-      await launchUrl(
+      final launched = await launchUrl(
         Uri.parse(verificationUrl),
         mode: LaunchMode.externalApplication,
       );
+      if (!launched) {
+        throw FormatException(NovaStrings.lookup(english, 'message303'));
+      }
       _schedulePoll(Duration(seconds: interval));
     } catch (error) {
-      if (mounted) NoorToast.show(context, _friendlyError(error), error: true);
+      if (mounted) {
+        setState(() => _flow = null);
+        NoorToast.show(context, _friendlyError(error), error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

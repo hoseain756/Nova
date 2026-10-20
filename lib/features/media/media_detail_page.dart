@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/featured_artwork.dart';
+import '../../core/models/integration_cw.dart';
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
@@ -46,6 +47,10 @@ class MediaDetailPage extends StatefulWidget {
     required this.item,
     this.resumeVideoId,
     this.resumePositionMs,
+    this.resumeSeason,
+    this.resumeEpisode,
+    this.resumeProgress,
+    this.resumeAtPausePoint = true,
     this.kidsMode = false,
   });
   final MediaItem item;
@@ -55,6 +60,10 @@ class MediaDetailPage extends StatefulWidget {
   /// the movie's own id) and the playback position in milliseconds.
   final String? resumeVideoId;
   final int? resumePositionMs;
+  final int? resumeSeason;
+  final int? resumeEpisode;
+  final double? resumeProgress;
+  final bool resumeAtPausePoint;
 
   @override
   State<MediaDetailPage> createState() => _MediaDetailPageState();
@@ -76,6 +85,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   void initState() {
     super.initState();
     final app = context.read<AppState>();
+    unawaited(app.refreshLinkedContent());
     _detail = _loadDetail(app);
     _loadFeaturedArtwork(app);
   }
@@ -213,6 +223,12 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final defaultVideo = _defaultVideo(videos);
     final backdrop = _art?.landscape ?? item.background;
     final logo = _art?.logo ?? item.logo;
+    final linkedProgress = app.linkedContinueWatching.where((entry) {
+      final linked = entry.item;
+      return linked.id == item.id ||
+          (item.anilistId != null && linked.anilistId == item.anilistId) ||
+          (item.idMal != null && linked.idMal == item.idMal);
+    }).toList(growable: false);
 
     // Episodes controller sync (Task 118): created lazily on the first
     // populated build, refreshed with the freshest item/entries/settings on
@@ -221,9 +237,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     // swallow drags at its edge and strand the page).
     List<Widget> episodeSlivers = const [];
     if (item.type == 'series' && item.videos.isNotEmpty) {
-      final entries = app.history
-          .where((entry) => entry.item.id == item.id)
-          .toList(growable: false);
+      final entries = app.historyForTitle(item);
       final savedView = app.webSettings['episodesView']?.toString() ?? 'auto';
       if (_episodes == null) {
         _episodes = EpisodesController(
@@ -248,6 +262,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           unawaited(app.setSetting('episodesView', view));
         },
         onPlay: (video) => _play(item, video: video),
+        onLongPress: (video) =>
+            unawaited(_showEpisodeActions(app, item, video, english)),
       );
     }
 
@@ -282,6 +298,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
               const SizedBox(height: 16),
             ],
             DetailMetaRow(item: item, isWide: true),
+            if (linkedProgress.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _LinkedProvidersProgress(
+                english: english,
+                entries: linkedProgress,
+              ),
+            ],
             const SizedBox(height: 20),
             DetailActionRow(
               english: english,
@@ -390,6 +413,72 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     }
   }
 
+  Future<void> _showEpisodeActions(
+    AppState app,
+    MediaItem item,
+    Map<String, dynamic> video,
+    bool english,
+  ) async {
+    final videoSeason = (video['season'] as num?)?.toInt() ?? 1;
+    final videoEpisode = (video['episode'] as num?)?.toInt() ?? 0;
+    final episodeTitle = video['name']?.toString() ??
+        NovaStrings.lookup(english, 'message44', {'p0': videoEpisode});
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                NovaStrings.lookup(english, 'message918', {
+                  'p0': videoSeason,
+                  'p1': videoEpisode,
+                }),
+                style: Theme.of(sheetContext).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              if (!widget.kidsMode)
+                _EpisodeActionTile(
+                  icon: LucideIcons.download,
+                  title: NovaStrings.lookup(english, 'message919'),
+                  onTap: () => Navigator.pop(sheetContext, 'download'),
+                ),
+              _EpisodeActionTile(
+                icon: LucideIcons.circleCheck,
+                title: NovaStrings.lookup(english, 'message99'),
+                onTap: () => Navigator.pop(sheetContext, 'watched'),
+              ),
+              _EpisodeActionTile(
+                icon: LucideIcons.listChecks,
+                title: NovaStrings.lookup(english, 'message920'),
+                subtitle: episodeTitle,
+                onTap: () => Navigator.pop(sheetContext, 'through'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'download') {
+      await _download(item, video: video);
+      return;
+    } else if (action == 'watched') {
+      final minutes = parseRuntimeMinutes(video['duration']?.toString()) ?? 24;
+      await app.markEpisodeWatched(item, video, durationMs: minutes * 60000);
+    } else if (action == 'through') {
+      await app.markEpisodesWatchedThrough(item, item.videos, video);
+    }
+    if (mounted) {
+      NoorToast.show(context, NovaStrings.lookup(english, 'message94'));
+    }
+  }
+
   /// Resolves the primary CTA's resume target from the constructor hand-off
   /// (continue-watching) and this title's newest history entry.
   _ResumePlan _resolveResume(
@@ -397,7 +486,10 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     MediaItem item,
     List<Map<String, dynamic>> videos,
   ) {
-    final entry = app.history.where((h) => h.item.id == item.id).firstOrNull;
+    final entry = app
+        .historyForTitle(item)
+        .where((h) => h.positionMs < h.durationMs || h.durationMs <= 0)
+        .firstOrNull;
     final progress = entry != null && entry.durationMs > 0
         ? entry.positionMs / entry.durationMs
         : 0.0;
@@ -405,11 +497,34 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     if (item.type == 'series') {
       Map<String, dynamic>? video;
       int? position;
+      if (widget.resumeSeason != null && widget.resumeEpisode != null) {
+        video = videos
+            .where((v) =>
+                (v['season'] as num?)?.toInt() == widget.resumeSeason &&
+                (v['episode'] as num?)?.toInt() == widget.resumeEpisode)
+            .firstOrNull;
+        if (video != null &&
+            widget.resumeAtPausePoint &&
+            (widget.resumeProgress ?? 0) > 0) {
+          final minutes = parseRuntimeMinutes(video['duration']?.toString());
+          if (minutes != null) {
+            position = (minutes * 60000 * widget.resumeProgress!).round();
+          }
+        }
+      }
       if (widget.resumeVideoId != null) {
         video = videos
             .where((v) => v['id']?.toString() == widget.resumeVideoId)
             .firstOrNull;
         if (video != null) position = widget.resumePositionMs;
+      }
+      if (video != null &&
+          widget.resumeAtPausePoint &&
+          (widget.resumeProgress ?? 0) > 0) {
+        final minutes = parseRuntimeMinutes(video['duration']?.toString());
+        position ??= minutes == null
+            ? null
+            : (minutes * 60000 * widget.resumeProgress!).round();
       }
       if (video == null &&
           entry != null &&
@@ -438,10 +553,15 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     // Movie: the CW hand-off or an in-progress history entry resumes.
     final cwResume =
         widget.resumeVideoId != null && (widget.resumePositionMs ?? 0) > 0;
+    final linkedResume = (widget.resumeProgress ?? 0) > 0;
     final historyResume =
         entry != null && entry.positionMs > 0 && progress < 0.92;
-    if (cwResume || historyResume) {
-      final position = widget.resumePositionMs ?? entry?.positionMs ?? 0;
+    if (cwResume || historyResume || linkedResume) {
+      final runtime = parseRuntimeMinutes(item.runtime);
+      final position = widget.resumePositionMs ??
+          (linkedResume && runtime != null
+              ? (runtime * 60000 * widget.resumeProgress!).round()
+              : entry?.positionMs ?? 0);
       return _ResumePlan(
           positionMs: position > 0 ? position : null, isResume: true);
     }
@@ -1191,4 +1311,125 @@ double? _parseRating(Object? value) {
     return double.tryParse(cleaned);
   }
   return null;
+}
+
+class _LinkedProvidersProgress extends StatelessWidget {
+  const _LinkedProvidersProgress({
+    required this.english,
+    required this.entries,
+  });
+
+  final bool english;
+  final List<IntegrationCwEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    final sorted = [...entries]..sort((a, b) => a.source.compareTo(b.source));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          NovaStrings.lookup(english, 'linkedProgress'),
+          style: Theme.of(context).textTheme.labelLarge,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 90,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: sorted.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final entry = sorted[index];
+              final name = switch (entry.source) {
+                'trakt' => 'Trakt',
+                'simkl' => 'Simkl',
+                'anilist' => 'AniList',
+                'mal' => 'MyAnimeList',
+                _ => entry.source,
+              };
+              final details = entry.season != null && entry.episode != null
+                  ? 'S${entry.season} E${entry.episode}'
+                  : entry.episodesWatched > 0
+                      ? '${entry.episodesWatched}/${entry.episodesTotal ?? '—'}'
+                      : null;
+              final progress = entry.progress.clamp(0.0, 1.0);
+              return Container(
+                width: 156,
+                padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 9),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outlineVariant
+                        .withValues(alpha: .55),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelLarge),
+                        ),
+                        Text('${(progress * 100).round()}%',
+                            style: Theme.of(context).textTheme.labelMedium),
+                      ],
+                    ),
+                    if (details != null)
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(details,
+                            style: Theme.of(context).textTheme.labelSmall),
+                      ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 4,
+                        color: color,
+                        backgroundColor: color.withValues(alpha: .18),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EpisodeActionTile extends StatelessWidget {
+  const _EpisodeActionTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        minTileHeight: 56,
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: subtitle == null ? null : Text(subtitle!),
+        onTap: onTap,
+      );
 }

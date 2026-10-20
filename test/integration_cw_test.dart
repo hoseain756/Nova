@@ -15,6 +15,17 @@ Map<String, dynamic> _traktMovie(
       },
     };
 
+Map<String, dynamic> _simklEpisode() => <String, dynamic>{
+      'progress': 42.5,
+      'paused_at': '2026-10-18T12:00:00Z',
+      'episode': <String, dynamic>{'season': 2, 'number': 4},
+      'show': <String, dynamic>{
+        'title': 'Example Series',
+        'year': 2024,
+        'ids': <String, dynamic>{'imdb': 'tt1234567'},
+      },
+    };
+
 Map<String, dynamic> _traktEpisode() => <String, dynamic>{
       'id': 2,
       'progress': 66,
@@ -60,6 +71,7 @@ Map<String, dynamic> _anilistEntry({
 
 Map<String, dynamic> _malRow({
   int watched = 4,
+  int total = 12,
   String mediaType = 'TV',
   String updatedAt = '2024-05-01T12:00:00+09:00',
 }) =>
@@ -71,6 +83,7 @@ Map<String, dynamic> _malRow({
       },
       'start_season': <String, dynamic>{'year': 2022},
       'media_type': mediaType,
+      'num_episodes': total,
       'list_status': <String, dynamic>{
         'status': 'watching',
         'num_episodes_watched': watched,
@@ -79,6 +92,29 @@ Map<String, dynamic> _malRow({
     };
 
 void main() {
+  group('IntegrationCwEntry.fromSimklPlayback', () {
+    test('maps paused episode sessions to shared progress cards', () {
+      final entry = IntegrationCwEntry.fromSimklPlayback(_simklEpisode());
+      expect(entry, isNotNull);
+      expect(entry!.source, 'simkl');
+      expect(entry.item.id, 'tt1234567');
+      expect(entry.season, 2);
+      expect(entry.episode, 4);
+      expect(entry.progress, closeTo(.425, .001));
+      expect(entry.isContinueable, isTrue);
+    });
+
+    test('ignores malformed and effectively completed sessions', () {
+      expect(IntegrationCwEntry.fromSimklPlayback({}), isNull);
+      expect(
+        IntegrationCwEntry.fromSimklPlayback({
+          ..._simklEpisode(),
+          'progress': 98,
+        }),
+        isNull,
+      );
+    });
+  });
   group('IntegrationCwEntry.fromTraktPlayback', () {
     test('movie row maps to an imdb item with pause progress', () {
       final entry = IntegrationCwEntry.fromTraktPlayback(_traktMovie());
@@ -206,6 +242,8 @@ void main() {
       expect(entry.item.type, 'series');
       expect(entry.item.idMal, 41);
       expect(entry.episodesWatched, 4);
+      expect(entry.episodesTotal, 12);
+      expect(entry.progress, closeTo(4 / 12, 0.0001));
       expect(entry.nextEpisode, 5);
       expect(entry.watchedAt,
           DateTime.parse('2024-05-01T12:00:00+09:00').millisecondsSinceEpoch);

@@ -107,7 +107,7 @@ class _AddonsPageState extends State<AddonsPage> {
                         onSubmitted: (_) => _install(),
                         decoration: InputDecoration(
                             labelText: app.tr('message224'),
-                            hintText: 'https://addon.example/manifest.json',
+                            hintText: app.tr('addonUrlHint'),
                             prefixIcon: const Icon(LucideIcons.link))),
                     const SizedBox(height: 12),
                     FilledButton.icon(

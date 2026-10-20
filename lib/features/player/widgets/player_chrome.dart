@@ -12,11 +12,11 @@ import '../../../core/theme/horse_theme.dart';
 ///  · top bar — exit at the directional END, title at the START, with a
 ///    zero-padded `S01E12` tag underneath for series;
 ///  · progress row (current · timeline · total) sits ABOVE every control and
-///    is NEVER mirrored (always LTR fill);
+///    follows the locale's logical start/end seek direction;
 ///  · bottom row: fullscreen+volume at the directional END, source /
 ///    subtitles / audio at the START; the [rewind][play][forward] trio is
-///    dead CENTER and NEVER mirrored (rewind always left);
-///  · gestures are side-fixed: left = brightness, right = volume.
+///    dead CENTER;
+///  · gesture and rail placement follows the player's directional helpers.
 /// Mirroring follows the inherited Directionality (Arabic RTL / English LTR).
 class PlayerPalette {
   static const Color gradientStart = NovaColors.red;
@@ -57,6 +57,9 @@ class PlayerTopBar extends StatelessWidget {
     required this.title,
     required this.episodeTag,
     required this.onClose,
+    this.streamInfo,
+    this.streamInfoSemanticLabel,
+    this.statusInfo,
     this.wide = false,
   });
 
@@ -64,6 +67,9 @@ class PlayerTopBar extends StatelessWidget {
 
   /// Empty for movies; `S01E12` for series (rendered under the title).
   final String episodeTag;
+  final String? streamInfo;
+  final String? streamInfoSemanticLabel;
+  final Widget? statusInfo;
   final VoidCallback onClose;
 
   /// Tablet sizing (larger title font).
@@ -107,39 +113,91 @@ class PlayerTopBar extends StatelessWidget {
                           shadows: PlayerPalette.iconShadow,
                         ),
                       ),
-                      if (episodeTag.isNotEmpty)
+                      if (episodeTag.isNotEmpty ||
+                          streamInfo?.isNotEmpty == true ||
+                          statusInfo != null)
                         Padding(
-                          padding: const EdgeInsetsDirectional.only(top: 3),
-                          child: Directionality(
-                            // Mixed-script mandate: the tag is always LTR.
-                            textDirection: TextDirection.ltr,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: NovaColors.ink.withValues(alpha: .35),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                    color: NovaColors.white
-                                        .withValues(alpha: .24)),
-                              ),
-                              child: Text(
-                                episodeTag,
-                                style: TextStyle(
-                                  color:
-                                      NovaColors.white.withValues(alpha: .92),
-                                  fontSize: wide ? 12 : 11,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: .8,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures(),
-                                  ],
-                                  shadows: PlayerPalette.iconShadow,
+                          padding: const EdgeInsetsDirectional.only(top: 5),
+                          child: Row(
+                            children: [
+                              if (episodeTag.isNotEmpty)
+                                Directionality(
+                                  // Mixed-script mandate: the tag is always LTR.
+                                  textDirection: TextDirection.ltr,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 7,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color:
+                                          NovaColors.ink.withValues(alpha: .84),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: NovaColors.white
+                                            .withValues(alpha: .24),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      episodeTag,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        color: NovaColors.white,
+                                        fontSize: wide ? 12 : 11,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: .8,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                              if (episodeTag.isNotEmpty &&
+                                  (streamInfo?.isNotEmpty == true ||
+                                      statusInfo != null))
+                                const SizedBox(width: 6),
+                              if (streamInfo?.isNotEmpty == true)
+                                Flexible(
+                                  flex: statusInfo == null ? 1 : 2,
+                                  child: Semantics(
+                                    label:
+                                        streamInfoSemanticLabel ?? streamInfo,
+                                    excludeSemantics: true,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: NovaColors.ink
+                                            .withValues(alpha: .84),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: NovaColors.white
+                                              .withValues(alpha: .24),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        streamInfo!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: NovaColors.white,
+                                          fontSize: 11.5,
+                                          height: 1.2,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (streamInfo?.isNotEmpty == true &&
+                                  statusInfo != null)
+                                const SizedBox(width: 6),
+                              if (statusInfo != null)
+                                Flexible(flex: 3, child: statusInfo!),
+                            ],
                           ),
                         ),
                     ],
@@ -255,7 +313,8 @@ class PlayerCenterTransport extends StatelessWidget {
               SizedBox(width: 20 * scale),
               Semantics(
                 button: true,
-                label: isPlaying ? 'Pause' : 'Play',
+                label: NovaStrings.of(context)
+                    .text(isPlaying ? 'playerPause' : 'message714'),
                 child: GestureDetector(
                   onTap: onPlayPause,
                   child: Container(
@@ -319,24 +378,31 @@ class PlayerSpeedPill extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(9),
           onTap: onTap,
-          child: Container(
+          child: SizedBox(
             width: 52,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: NovaColors.ink.withValues(alpha: .30),
-              borderRadius: BorderRadius.circular(9),
-              border:
-                  Border.all(color: NovaColors.white.withValues(alpha: .85)),
-            ),
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: NovaColors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                letterSpacing: .4,
-                fontFeatures: [FontFeature.tabularFigures()],
+            height: 44,
+            child: Center(
+              child: Container(
+                width: 52,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: NovaColors.ink.withValues(alpha: .30),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(
+                    color: NovaColors.white.withValues(alpha: .85),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: NovaColors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .4,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
             ),
           ),
@@ -791,7 +857,10 @@ class PlayerBottomCluster extends StatelessWidget {
           ),
           _RaillessControl(
             icon: fullscreen ? LucideIcons.maximize : LucideIcons.minimize,
-            semanticLabel: fullscreen ? 'Exit fullscreen' : 'Fullscreen',
+            semanticLabel: NovaStrings.lookup(
+              english,
+              fullscreen ? 'playerExitFullscreen' : 'message37',
+            ),
             label: wide ? (NovaStrings.lookup(english, 'message37')) : null,
             scale: scale,
             onTap: onToggleFullscreen,
@@ -808,28 +877,29 @@ class PlayerBottomCluster extends StatelessWidget {
           if (canPrev)
             _RaillessControl(
               icon: LucideIcons.skipBack,
-              semanticLabel: 'Previous episode',
+              semanticLabel:
+                  NovaStrings.lookup(english, 'playerPreviousEpisode'),
               scale: scale,
               iconSize: 28,
               onTap: onPrev,
             ),
           _RaillessControl(
             icon: LucideIcons.arrowLeftRight,
-            semanticLabel: 'Change source',
+            semanticLabel: NovaStrings.lookup(english, 'playerChangeSource'),
             label: wide ? (NovaStrings.lookup(english, 'message38')) : null,
             scale: scale,
             onTap: onOpenStreams,
           ),
           _RaillessControl(
             icon: LucideIcons.captions,
-            semanticLabel: 'Subtitles',
+            semanticLabel: NovaStrings.lookup(english, 'message7'),
             label: wide ? (NovaStrings.lookup(english, 'message39')) : null,
             scale: scale,
             onTap: onOpenSubtitles,
           ),
           _RaillessControl(
             icon: LucideIcons.audioLines,
-            semanticLabel: 'Audio track / dub',
+            semanticLabel: NovaStrings.lookup(english, 'message87'),
             label: wide ? (NovaStrings.lookup(english, 'message40')) : null,
             scale: scale,
             onTap: onOpenAudio,
@@ -837,7 +907,7 @@ class PlayerBottomCluster extends StatelessWidget {
           if (canNext)
             _RaillessControl(
               icon: LucideIcons.skipForward,
-              semanticLabel: 'Next episode',
+              semanticLabel: NovaStrings.lookup(english, 'message23'),
               scale: scale,
               iconSize: 28,
               onTap: onNext,

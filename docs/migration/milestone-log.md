@@ -1,6 +1,10 @@
-# Flutter migration milestone log
+# NOVA and Flutter migration milestone log
 
-Updated: 2026-10-13
+Updated: 2026-10-19
+
+## Scope and history
+
+Milestones 1–14 are retained historical records from the earlier Horse monorepo migration; paths, branches, and remotes inside those entries describe that past workspace. Milestones 15 onward document the NOVA app in the current repository. For the concise project-focused chronology, see [`docs/nova/11-work-log.md`](../nova/11-work-log.md).
 
 Completed milestones and their evidence are recorded here as work progresses.
 The log records repository state separately from implementation and verification
@@ -416,3 +420,167 @@ accessibility-hardware and profile-mode acceptance remain open.
   no emulator was launched.
 - Device screenshots, real provider authorization, accessibility hardware
   checks and profile-mode performance traces remain pending.
+
+## Milestone 16 — Animated NOVA startup splash
+
+Status: complete in source and headless widget validation.
+
+- Replaced the static launch loading mark with a one-shot Flutter animation
+  derived from the supplied NOVA splash reference. It uses the supplied red
+  icon SVG and the exact four supplied wordmark vector paths: the symbol fades
+  and scales in, slides left, and the letters draw in sequence over a restrained
+  brand-red glow.
+- Startup initialization still begins immediately in `_LaunchGate.initState`.
+  The 3.4-second visible intro and initialization run in parallel; handoff
+  occurs when both have completed. Slow initialization holds the final lockup,
+  while reduced motion snaps to that final lockup and releases the intro gate
+  without a decorative delay. Theme, locale and settings rebuilds do not replay
+  the controller.
+- Dark mode uses NOVA Ink with the white wordmark. Light mode uses the supplied
+  light background with the Ink wordmark. The artwork has fixed LTR geometry in
+  Arabic so the universal brand is never mirrored. Compact landscape and small
+  portrait layouts scale from available space, and the whole launch surface can
+  scroll when a 200% text-scale error footer needs more height.
+- Existing localized loading, retry and startup-error behavior remains in the
+  gate. The Material app title and splash semantics now resolve the existing
+  localized `appName` string.
+- `flutter test test/nova_splash_test.dart`: **4 tests passed**. Coverage checks
+  one-shot completion and rebuild stability, reduced motion with no remaining
+  ticker, light/dark and RTL geometry, compact portrait/landscape bounds, and a
+  scrollable Arabic 200% text-scale error state.
+- Targeted `flutter analyze --no-pub` for the launch gate, splash widget and
+  splash tests passed with `No issues found`. Headless end-state review frames
+  were rendered at `build/nova-review/nova-splash-dark.png` and
+  `build/nova-review/nova-splash-light.png`. No emulator or physical device was
+  launched; native transition timing and on-device visual review remain
+  unverified.
+
+
+## Milestone 17 — Completion audit and functional preference repair (18 October 2026)
+
+- Audited the current implementation against the interrupted NOVA redesign rather than treating its progress messages as completion evidence. Used an Astra architecture review, Sol builders and an independent Sol reviewer (Terra was unavailable).
+- Connected saved resume/prompt/exit confirmation, initial video fit, audio/subtitle preferences, custom speeds, source information and source density to actual consumers. Protected saved history while a resume decision is pending; bounded seeks for short/unknown durations and kept failed saves from blocking exit.
+- Moved active torrent metadata into the player header flow; preserved pre-ready feedback. Localized player semantics, isolated mixed-direction torrent metrics and enlarged the speed hit target to 52 by 44 dp. Composed controls pass non-overlap checks at 844 by 390 dp, 200% text, LTR and RTL.
+- Corrected Light-mode poster badge contrast and small accent text/surface combinations using only derivatives of supplied palette colors. Added AA text-pair and ARB key/placeholder parity checks.
+- Added real SharedPreferences restoration coverage for language, navigation style and source density, plus source-selection and splash lifecycle/layout regressions.
+- Full serial suite: **384 passed**. Full analysis: **No issues found** (76.7s). After the final bidi text isolation, the focused player/direction/contrast suite passed **25 tests**. APK evidence and the final scoped analysis are recorded in `docs/nova/requirements-status.md`.
+- Visually reviewed headless splash end states with the real English/Arabic fonts and a composed Arabic player at 200% text with the Lucide font. No emulator, physical-device installation, native media playback, external provider authorization or performance trace was performed.
+- Updated design/player/settings/navigation specifications and added `docs/nova/08-completion-audit.md`; the acceptance tracker distinguishes implementation and automated evidence from remaining device/provider/iOS checks.
+
+## Milestone 18 — Plan, repository map, and milestone documentation (19 October 2026)
+
+Status: documentation changes complete. No application source or runtime behavior changed.
+
+### 18.1 Living project plan
+
+- Added `docs/nova/10-project-plan.md` with completed design, implementation, and automated verification stages, plus the remaining physical-device, provider, performance, accessibility, and iOS acceptance work.
+- Kept unperformed checks explicitly pending; the plan prohibits emulator use in line with the user instruction.
+
+### 18.2 Contributor guide and source map
+
+- Updated root `AGENTS.md` to reflect the actual `lib/core`, `lib/features`, `lib/shared`, localization, asset, platform, test, tool, and documentation layout.
+- Added an explicit final requirement to keep `AGENTS.md` current when project structure, architecture, commands, or development practices change.
+
+### 18.3 Milestone structure and history
+
+- Added `docs/nova/11-work-log.md` with major headings and nested sub-milestones documenting completed work and verification evidence.
+- Clarified that milestones 1–14 in this file refer to the historical Horse monorepo; milestones 15 onward record NOVA work.
+- Linked the plan and work log from `docs/nova/README.md`.
+
+- Validation: checked the documentation links and heading hierarchy against the repository tree. No Flutter test, build, or emulator was run because this milestone only changes Markdown documentation.
+
+## Milestone 19 — Stable anime catalog background (19 October 2026)
+
+Status: complete. The source fix, automated regression checks, updated Release APK, and physical-phone visual check all passed.
+
+### 19.1 Canvas behavior
+
+- The Anime tab now paints a full-page canvas from the active theme's scaffold surface while its catalog loads and while its slivers scroll.
+- This prevents transparent scroll content from exposing the platform window's pure-black fallback between catalog states. Light and dark themes retain their own palette surfaces.
+
+### 19.2 Verification
+
+- Added a deferred-catalog widget test for both light and dark themes; the test verifies the page canvas before and after the catalog resolves.
+- Focused tests: **2 passed**. Focused Dart analysis: **No issues found**.
+- Release APK build completed in 170 seconds (132.2 MB); SHA-256: `6DACBD1222E854E078D03D411380CA0D40DFB4F74C6D48C602CDE992EED6A4A3`.
+- Installed the updated build on the physical Android phone. In Arabic/Dark, sampled canvas pixels stayed at RGB `(20, 20, 23)` before and during scrolling; no Flutter, fatal, or overflow errors appeared in the device log. No emulator was launched.
+
+## Milestone 20 — Poster frame fill and gentle zoom (19 October 2026)
+
+Status: complete in source, focused regression checks, Release build, and physical-phone visual review.
+
+### 20.1 Image sizing
+
+- Animated poster images now receive explicit full-frame constraints in poster cards, so the `BoxFit.cover` crop uses the card's actual bounds instead of the image's intrinsic dimensions.
+- The Anime feature distinguishes portrait poster art from landscape backdrop art. Poster fallbacks use contain-fit plus a centered **1.10×** scale to gently reduce side space without aggressively cropping the source; actual landscape artwork remains cover-fit with a subtle **1.03×** crop.
+
+### 20.2 Verification
+
+- Poster-card contrast and anime canvas Light/Dark focused tests: **4 passed**. Focused analysis and formatting passed.
+- Built and installed a new Release APK on the physical Android phone; inspected the Arabic/Dark Anime feature and poster rails. No emulator was launched.
+- APK SHA-256: `F7909C9498D7C10D083B5C8CC945EEA375768593AB1E64A0A10013E0F4CBF46C`.
+
+## Milestone 21 — Linked viewing progress on Home, Details, and Anime (19 October 2026)
+
+Status: source, analysis, full tests, and Android Release build passed. Real provider accounts and physical-device acceptance remain pending.
+
+### 21.1 Provider progress
+
+- Fetch Trakt paused playback, AniList CURRENT entries, and MyAnimeList watching entries through the existing linked-content refresh path; retain provider records separately from local watch history.
+- Reuse Continue Watching artwork cards with source label, episode/count context, and progress percentage. Resolve missing Trakt poster/backdrop art from installed catalogs where possible.
+- Show linked progress on Home and Anime. Open paused Trakt episodes at their provider percentage when runtime metadata is available; open tracker anime at its next known episode.
+
+### 21.2 Details and episode state
+
+- Combine linked and local episode progress on Details, display linked completion, and add an accessible mark-watched action to each episode.
+- Mark-watched stores local history and mirrors episode progress through the existing AniList/MyAnimeList sync preferences.
+- Add regression coverage for provider progress conversion and linked Anime episode-state merging.
+
+### 21.3 Verification and limits
+
+- Final focused Flutter analysis after Home deduplication and Anime-provider filtering: **No issues found** (84.4s). The final serial suite passed **437 tests**; focused integration/detail suites previously passed **22 tests**.
+- Final Android arm64 Release APK built in **121s**, size **138,756,467 bytes**, SHA-256 `C5C224249A5733CD6E5B79E73E6A8A6664184187E4E5B3FEC27D232EE46EBE46`.
+- `adb.exe` was unavailable in the moved-project session; physical install and linked-account checks were not possible. No emulator was launched.
+- Linked providers do not return a paused source-video frame; cards use available artwork and progress. AniList/MAL provide watched episode counts rather than a paused timestamp.
+
+## Milestone 22 — Local resume-frame previews and expiry (19 October 2026)
+
+- Use MediaKit's decoded video-frame screenshot API on pause, player exit, and app background; keep frame files and metadata in app-local storage, separate from cloud-synced history.
+- Compress frames off the UI thread to at most 960 pixels wide, cap the cache at 120 entries, show local frames on local Home Continue Watching cards, and retain catalog artwork for linked-service cards.
+- Add Playback retention options of 30, 20, 10 days, and one week (30-day default), with pruning on startup and when the option changes.
+- 9 focused storage/retention and settings tests passed; changed-file Flutter analysis reported **No issues found**; Android arm64 Release built in **146.3s**, size **142,361,459 bytes**, SHA-256 `039F89AFCF2435FF2D6AA884C2A03291E72175E8B99938EBC12FF60A29F870DB`.
+- Physical-phone frame capture/render verification remains pending because `adb.exe` is unavailable. Never launch an emulator.
+
+## Milestone 23 — Episode progress actions and unified linked rows (19 October 2026)
+
+- Added long-press episode actions for download, mark watched, and mark through the selected episode. Kept playback progress over each thumbnail; watched state is a checkmark only, at logical `start` (Arabic bottom-right, English bottom-left).
+- Range completion persists prior released episodes locally in one write and batches Trakt/Simkl history when their existing sync toggles are enabled. AniList/MyAnimeList counters follow their existing progress-sync preferences. Playing another episode preserves earlier watched episode records.
+- Added Simkl paused-playback loading alongside Trakt, AniList, and MyAnimeList. Home keeps linked integrations in one horizontal rail, and Details shows matching integrations in one horizontal row.
+- Added Arabic/English strings and regression-test cases. Dart analysis reported **No issues found** but exited nonzero on a sandbox telemetry permission error. Flutter widget/unit tests could not run because the moved checkout cannot open the Flutter SDK cache lock. No emulator was launched; real-service and physical-device checks remain pending.
+
+## Milestone 24 — Reconcile the moved NOVA project (19 October 2026)
+
+- Verified the project at C:\Users\hosea\projects\app\Nova against the previous working copy. Restored missing resume snapshots and expiry, Simkl paused playback, episode actions, provider history sync, localization, tests, and milestone records; retained destination-specific Anime filtering and setting parsing.
+- Home now uses one horizontal Continue Watching rail for local playback and all connected providers. Details shows matching provider progress in one horizontal row. Episode thumbnails keep their own progress bars and show only an accessible directional checkmark when watched.
+- **38 focused Flutter tests passed** for episode overlays/actions, Home progress layout, provider parsing, Details, Settings, and resume snapshots. Scoped Dart analysis on all changed source and test files reported no issues; full Flutter analysis did not return a final result. No emulator was launched; physical-device and linked-account acceptance remains pending.
+
+## Milestone 25 — In-app Android APK updates (20 October 2026)
+
+- Added root version.json metadata using the checked-in app version/build (1.2.56+60); set android_url to the GitHub latest-release APK endpoint and min_build to the current build because no prior update manifest existed.
+- Added an About-screen update check with Arabic/English status, a download-progress dialog, cache cleanup before download, and OpenFilex installer launch. An asynchronous startup check routes builds below min_build to a non-dismissible required-update screen/dialog. iOS retains an ios_url fallback through url_launcher.
+- Added open_filex and direct package_info_plus dependencies; existing dio, path_provider, and url_launcher dependencies were reused. Configured the app-scoped Android FileProvider for cache files and retained the existing signing configuration. Added ignore rules for key.properties and *.jks.
+- Verification: update-manifest tests 3 passed; flutter analyze --no-pub reported No issues found; local release APK built successfully at build/app/outputs/flutter-apk/app-release.apk (135.9 MB). No emulator or physical-device install was used. The initial Kotlin daemon connection warning required the in-process compiler retry.
+
+## Milestone 26 — Android release scaffolding (20 October 2026)
+
+- Added .github/workflows/release.yml for Android analysis, tests, release APK build, and artifact retention on v* tags or manual dispatch.
+- Added optional local upload-key signing in Gradle, a blank signing template, and an ignored local properties file that points to the user-provided keystore. No alias, password, or key bytes were written.
+- The workflow has no keystore and does not publish release assets; its artifact remains debug-signed until secure CI signing is configured. It must not replace a published update signed with another certificate.
+- Added docs/nova/release-signing.md and updated the repository map. Validation: flutter analyze --no-pub found no issues; flutter build apk --release --no-pub succeeded; PyYAML parsed the workflow file. The workflow itself and full test suite were not rerun.
+
+## Milestone 13 — Version 1.0.0 and updater error handling (20 October 2026)
+
+- Updated the app display version and release manifest to 1.0.0; advanced build number to 63 to preserve Android upgrade compatibility with build 62. Kept the minimum required build at 60 and the existing direct release APK endpoint.
+- Centralized the version used in Simkl request metadata. Added localized Arabic and English explanations for current-version checks, connectivity and manifest failures, missing release APKs, storage and download problems, invalid APKs, and installer permission/availability/signature failures.
+- The updater now validates the downloaded APK container signature before handing it to Android. Forced-update errors display over the required-update prompt with a retry path.
+- Verification passed: focused updater/version tests (5 tests), full Flutter test suite (451 tests), and flutter analyze --no-pub (no issues, 231.9s). flutter build apk --release --no-pub produced a 142,520,135-byte APK reporting versionName 1.0.0 and versionCode 63. The configured local Android release signing key was used. No emulator was started.

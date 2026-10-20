@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -7,6 +8,93 @@ import 'package:path_provider/path_provider.dart';
 
 const String novaUpdateManifestUrl =
     'https://raw.githubusercontent.com/hoseain756/Nova/main/version.json';
+
+enum AppUpdateOperation { check, download, install }
+
+enum AppUpdateFailure {
+  checkFailed,
+  connectionUnavailable,
+  manifestUnavailable,
+  invalidManifest,
+  invalidUrl,
+  storageUnavailable,
+  apkUnavailable,
+  downloadFailed,
+  invalidApk,
+  missingApk,
+  installerPermission,
+  installerUnavailable,
+  installerFailed,
+  iosUnavailable,
+  iosOpenFailed,
+  unsupportedPlatform,
+}
+
+String appUpdateMessageKey(AppUpdateFailure failure) => switch (failure) {
+      AppUpdateFailure.checkFailed => 'updateCheckFailed',
+      AppUpdateFailure.connectionUnavailable => 'updateConnectionFailed',
+      AppUpdateFailure.manifestUnavailable => 'updateServiceUnavailable',
+      AppUpdateFailure.invalidManifest => 'updateManifestInvalid',
+      AppUpdateFailure.invalidUrl => 'updateLinkInvalid',
+      AppUpdateFailure.storageUnavailable => 'updateStorageFailed',
+      AppUpdateFailure.apkUnavailable => 'updateApkUnavailable',
+      AppUpdateFailure.downloadFailed => 'updateDownloadFailed',
+      AppUpdateFailure.invalidApk => 'updateApkInvalid',
+      AppUpdateFailure.missingApk => 'updateApkMissing',
+      AppUpdateFailure.installerPermission => 'updateInstallerPermission',
+      AppUpdateFailure.installerUnavailable => 'updateInstallerUnavailable',
+      AppUpdateFailure.installerFailed => 'updateInstallerFailed',
+      AppUpdateFailure.iosUnavailable => 'updateIosUnavailable',
+      AppUpdateFailure.iosOpenFailed => 'updateIosOpenFailed',
+      AppUpdateFailure.unsupportedPlatform => 'updateUnsupportedPlatform',
+    };
+
+AppUpdateFailure classifyAppUpdateFailure(
+  Object error, {
+  required AppUpdateOperation operation,
+}) {
+  if (error is AppUpdateException) return error.failure;
+  if (error is FormatException) return AppUpdateFailure.invalidManifest;
+  if (error is FileSystemException) return AppUpdateFailure.storageUnavailable;
+  if (error is SocketException ||
+      error is HandshakeException ||
+      error is TimeoutException) {
+    return AppUpdateFailure.connectionUnavailable;
+  }
+  if (error is DioException) {
+    final cause = error.error;
+    if (cause is SocketException ||
+        cause is HandshakeException ||
+        cause is TimeoutException) {
+      return AppUpdateFailure.connectionUnavailable;
+    }
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.transformTimeout:
+      case DioExceptionType.connectionError:
+      case DioExceptionType.badCertificate:
+        return AppUpdateFailure.connectionUnavailable;
+      case DioExceptionType.badResponse:
+        if (operation == AppUpdateOperation.check) {
+          return AppUpdateFailure.manifestUnavailable;
+        }
+        if (error.response?.statusCode == HttpStatus.notFound) {
+          return AppUpdateFailure.apkUnavailable;
+        }
+        return AppUpdateFailure.downloadFailed;
+      case DioExceptionType.cancel:
+      case DioExceptionType.unknown:
+        break;
+    }
+  }
+  return switch (operation) {
+    AppUpdateOperation.check => AppUpdateFailure.checkFailed,
+    AppUpdateOperation.download => AppUpdateFailure.downloadFailed,
+    AppUpdateOperation.install => AppUpdateFailure.installerFailed,
+  };
+}
 
 class AppUpdateManifest {
   const AppUpdateManifest({
@@ -24,7 +112,7 @@ class AppUpdateManifest {
       if (value is! String) {
         throw FormatException('Missing update field: $key');
       }
-      return value;
+      return value.trim();
     }
 
     int intValue(String key) {
@@ -44,6 +132,11 @@ class AppUpdateManifest {
       androidUrl: stringValue('android_url'),
       iosUrl: stringValue('ios_url'),
     );
+    if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(manifest.latestVersion) ||
+        manifest.latestBuild == 0 ||
+        manifest.minBuild > manifest.latestBuild) {
+      throw const FormatException('Invalid update version metadata');
+    }
     final androidUri = Uri.tryParse(manifest.androidUrl);
     if (androidUri == null ||
         androidUri.scheme != 'https' ||
@@ -77,11 +170,10 @@ class AppUpdateStatus {
 }
 
 class AppUpdateException implements Exception {
-  const AppUpdateException(this.message);
-  final String message;
+  const AppUpdateException(this.failure, [this.cause]);
 
-  @override
-  String toString() => message;
+  final AppUpdateFailure failure;
+  final Object? cause;
 }
 
 class AppUpdateService {
@@ -89,14 +181,21 @@ class AppUpdateService {
     Dio? dio,
     Future<Directory> Function()? temporaryDirectoryProvider,
     Future<PackageInfo> Function()? packageInfoProvider,
+    Future<OpenResult> Function(String path)? apkOpener,
   })  : _dio = dio ?? Dio(),
         _temporaryDirectoryProvider =
             temporaryDirectoryProvider ?? getTemporaryDirectory,
-        _packageInfoProvider = packageInfoProvider ?? PackageInfo.fromPlatform;
+        _packageInfoProvider = packageInfoProvider ?? PackageInfo.fromPlatform,
+        _apkOpener = apkOpener ??
+            ((path) => OpenFilex.open(
+                  path,
+                  type: 'application/vnd.android.package-archive',
+                ));
 
   final Dio _dio;
   final Future<Directory> Function() _temporaryDirectoryProvider;
   final Future<PackageInfo> Function() _packageInfoProvider;
+  final Future<OpenResult> Function(String path) _apkOpener;
 
   Future<AppUpdateStatus> checkForUpdates() async {
     final packageInfo = await _packageInfoProvider();
@@ -105,7 +204,10 @@ class AppUpdateService {
       options: Options(
         receiveTimeout: const Duration(seconds: 15),
         sendTimeout: const Duration(seconds: 15),
-        headers: const {'Accept': 'application/json'},
+        headers: const {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        },
       ),
     );
     final data = response.data;
@@ -128,33 +230,74 @@ class AppUpdateService {
   }) async {
     final uri = Uri.tryParse(url);
     if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-      throw const AppUpdateException('Invalid Android update URL');
+      throw const AppUpdateException(AppUpdateFailure.invalidUrl);
     }
-    final directory = await _temporaryDirectoryProvider();
-    final file = File(
-      '${directory.path}${Platform.pathSeparator}app-release.apk',
-    );
-    if (await file.exists()) await file.delete();
-    await _dio.download(
-      uri.toString(),
-      file.path,
-      onReceiveProgress: onProgress,
-      deleteOnError: true,
-      options: Options(
-        receiveTimeout: const Duration(minutes: 5),
-        sendTimeout: const Duration(seconds: 30),
-      ),
-    );
-    if (!await file.exists() || await file.length() == 0) {
-      throw const AppUpdateException('The downloaded APK is empty');
+
+    late final File file;
+    try {
+      final directory = await _temporaryDirectoryProvider();
+      await directory.create(recursive: true);
+      file = File(
+        '${directory.path}${Platform.pathSeparator}app-release.apk',
+      );
+      if (await file.exists()) await file.delete();
+    } on FileSystemException catch (error) {
+      throw AppUpdateException(AppUpdateFailure.storageUnavailable, error);
+    } catch (error) {
+      throw AppUpdateException(AppUpdateFailure.storageUnavailable, error);
     }
-    return file;
+
+    try {
+      await _dio.download(
+        uri.toString(),
+        file.path,
+        onReceiveProgress: onProgress,
+        deleteOnError: true,
+        options: Options(
+          receiveTimeout: const Duration(minutes: 5),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
+      if (!await file.exists() || await file.length() == 0) {
+        throw const AppUpdateException(AppUpdateFailure.invalidApk);
+      }
+      final handle = await file.open(mode: FileMode.read);
+      final signature = await handle.read(4);
+      await handle.close();
+      if (signature.length < 4 ||
+          signature[0] != 0x50 ||
+          signature[1] != 0x4b) {
+        await file.delete();
+        throw const AppUpdateException(AppUpdateFailure.invalidApk);
+      }
+      return file;
+    } on AppUpdateException {
+      rethrow;
+    } on FileSystemException catch (error) {
+      throw AppUpdateException(AppUpdateFailure.storageUnavailable, error);
+    }
   }
 
   Future<void> installAndroidApk(String filePath) async {
-    final result = await OpenFilex.open(filePath);
-    if (result.type != ResultType.done) {
-      throw AppUpdateException(result.message);
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw const AppUpdateException(AppUpdateFailure.missingApk);
+    }
+    if (await file.length() == 0) {
+      throw const AppUpdateException(AppUpdateFailure.invalidApk);
+    }
+    final result = await _apkOpener(filePath);
+    switch (result.type) {
+      case ResultType.done:
+        return;
+      case ResultType.fileNotFound:
+        throw const AppUpdateException(AppUpdateFailure.missingApk);
+      case ResultType.noAppToOpen:
+        throw const AppUpdateException(AppUpdateFailure.installerUnavailable);
+      case ResultType.permissionDenied:
+        throw const AppUpdateException(AppUpdateFailure.installerPermission);
+      case ResultType.error:
+        throw const AppUpdateException(AppUpdateFailure.installerFailed);
     }
   }
 }

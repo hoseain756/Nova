@@ -1,10 +1,13 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/core/update/app_update_service.dart';
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.2.57',
-    'latest_build': 61,
+    'latest_version': '1.0.0',
+    'latest_build': 63,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
@@ -12,11 +15,11 @@ void main() {
     'ios_url': '',
   };
 
-  test('parses the release metadata and direct APK URL', () {
+  test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.2.57');
-    expect(manifest.latestBuild, 61);
+    expect(manifest.latestVersion, '1.0.0');
+    expect(manifest.latestBuild, 63);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
@@ -24,26 +27,54 @@ void main() {
     );
   });
 
-  test('distinguishes available and forced updates by build number', () {
+  test('uses the build number as the source of update truth', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
     final optional = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.2.56',
-      currentBuild: 60,
+      currentVersion: '1.2.58',
+      currentBuild: 62,
     );
     final forced = AppUpdateStatus(
       manifest: manifest,
       currentVersion: '1.2.55',
       currentBuild: 59,
     );
+    final current = AppUpdateStatus(
+      manifest: manifest,
+      currentVersion: '1.0.0',
+      currentBuild: 63,
+    );
 
     expect(optional.hasUpdate, isTrue);
     expect(optional.forceRequired, isFalse);
     expect(forced.hasUpdate, isTrue);
     expect(forced.forceRequired, isTrue);
+    expect(current.hasUpdate, isFalse);
+    expect(current.forceRequired, isFalse);
   });
 
-  test('rejects invalid or non-HTTPS APK URLs', () {
+  test('rejects invalid version metadata and non-HTTPS APK URLs', () {
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'latest_version': '1.0',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'latest_build': 0,
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'min_build': 64,
+      }),
+      throwsFormatException,
+    );
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
@@ -51,12 +82,44 @@ void main() {
       }),
       throwsFormatException,
     );
+  });
+
+  test('maps connection, unavailable release, and malformed manifest errors',
+      () {
+    final timeout = DioException(
+      requestOptions: RequestOptions(path: '/version.json'),
+      type: DioExceptionType.connectionTimeout,
+    );
+    final notFound = DioException(
+      requestOptions: RequestOptions(path: '/app-release.apk'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/app-release.apk'),
+        statusCode: HttpStatus.notFound,
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
     expect(
-      () => AppUpdateManifest.fromJson({
-        ...manifestJson,
-        'latest_build': -1,
-      }),
-      throwsFormatException,
+      classifyAppUpdateFailure(timeout, operation: AppUpdateOperation.check),
+      AppUpdateFailure.connectionUnavailable,
+    );
+    expect(
+      classifyAppUpdateFailure(
+        notFound,
+        operation: AppUpdateOperation.download,
+      ),
+      AppUpdateFailure.apkUnavailable,
+    );
+    expect(
+      classifyAppUpdateFailure(
+        const FormatException('bad manifest'),
+        operation: AppUpdateOperation.check,
+      ),
+      AppUpdateFailure.invalidManifest,
+    );
+    expect(
+      appUpdateMessageKey(AppUpdateFailure.installerPermission),
+      'updateInstallerPermission',
     );
   });
 }

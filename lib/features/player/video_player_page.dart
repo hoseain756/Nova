@@ -18,6 +18,7 @@ import '../media/sources_page.dart';
 import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
 import 'gesture_math.dart';
+import 'playback_preferences.dart';
 import 'segments/playback_segments.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
@@ -84,7 +85,8 @@ class VideoPlayerPage extends StatefulWidget {
 
 enum _GestureMode { none, seek, brightness, volume, zoom }
 
-class _VideoPlayerPageState extends State<VideoPlayerPage> {
+class _VideoPlayerPageState extends State<VideoPlayerPage>
+    with WidgetsBindingObserver {
   MediaKitEngine? _engine;
   late final AppState _app = context.read<AppState>();
   Timer? _hideTimer;
@@ -116,9 +118,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool _showRemaining = false;
   bool _fullscreen = true;
 
+  // Persisted playback preferences are applied once after mpv exposes its
+  // embedded tracks. Manual picker choices permanently win for this page.
+  final PlaybackPreferenceSession _preferenceSession =
+      PlaybackPreferenceSession();
+
+  // All page exits pass through the same progress-saving confirmation flow.
+  bool _allowRoutePop = false;
+  bool _leaveDialogOpen = false;
+  bool _closing = false;
+  bool _capturingResumeFrame = false;
+
   // Resume flow.
   bool _resuming = false;
   int? _resumePositionMs;
+  bool _resumePromptPaused = false;
+  bool _resumeTransitioning = false;
   // Task 127: engine-construction failure (e.g. missing native libs) — must
   // surface through the in-page error panel instead of the release grey box.
   String? _engineInitError;
@@ -188,9 +203,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _streamIndex = widget.streamIndex ?? 0;
-    _resumePositionMs = widget.initialPositionMs;
-    _resuming = (_resumePositionMs ?? 0) > 30000;
+    final resumeAction = NovaPlaybackPreferences.resumeAction(
+      _app.webSettings,
+      widget.initialPositionMs,
+    );
+    _resumePositionMs = resumeAction == ResumePlaybackAction.startOver
+        ? 0
+        : widget.initialPositionMs;
+    _resuming = resumeAction == ResumePlaybackAction.prompt;
+    _fit = NovaPlaybackPreferences.videoFit(_app.webSettings['videoFill']);
     SystemChrome.setPreferredOrientations(const [
       // Spec §0-ب: landscape-only player — portrait rotation is locked out.
       DeviceOrientation.landscapeLeft,
@@ -295,6 +318,56 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
   }
 
+  void _applyPreferredTracks(MediaKitEngine engine) {
+    final settings = _app.webSettings;
+    if (_preferenceSession.canApplyAudio) {
+      final preference = settings['defaultAudioLanguage'];
+      final automatic = NovaPlaybackPreferences.canonicalLanguage(preference);
+      if (automatic == null ||
+          automatic == 'source' ||
+          automatic == 'original' ||
+          automatic == 'auto') {
+        _preferenceSession.markAudioPreferenceApplied();
+      } else if (engine.audioTracks.isNotEmpty) {
+        final index = NovaPlaybackPreferences.preferredAudioTrack(
+          engine.audioTracks
+              .map((track) => PlaybackTrackLanguage(
+                    language: track.language,
+                    title: track.title,
+                  ))
+              .toList(),
+          preference,
+        );
+        if (index != null) {
+          _preferenceSession.markAudioPreferenceApplied();
+          unawaited(engine.selectAudio(engine.audioTracks[index]));
+        }
+      }
+    }
+
+    if (_preferenceSession.canApplySubtitle) {
+      if (NovaPlaybackPreferences.subtitlesDisabled(settings)) {
+        _preferenceSession.markSubtitlePreferenceApplied();
+        unawaited(engine.selectSubtitle(SubtitleTrack.no()));
+      } else if (engine.subtitleTracks.isNotEmpty) {
+        final index = NovaPlaybackPreferences.preferredSubtitleTrack(
+          engine.subtitleTracks
+              .map((track) => PlaybackTrackLanguage(
+                    language: track.language,
+                    title: track.title,
+                  ))
+              .toList(),
+          explicitLanguage: settings['subtitleTranslationLanguage'],
+          rankedLanguages: settings['preferredSubLangs'],
+        );
+        if (index != null) {
+          _preferenceSession.markSubtitlePreferenceApplied();
+          unawaited(engine.selectSubtitle(engine.subtitleTracks[index]));
+        }
+      }
+    }
+  }
+
   /// Configurable skip steps (spec: "preset seconds in the settings").
   int get _backStepSec =>
       (context.read<AppState>().webSettings['seekBackStepSec'] as num?)
@@ -311,6 +384,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     _stuck = false;
     _openedAt = DateTime.now();
     _readyAt = null;
+    _resumePromptPaused = false;
+    _preferenceSession.resetForEngine();
     final MediaKitEngine engine;
     try {
       engine = MediaKitEngine(hardwareAcceleration: !softwareDecoding);
@@ -392,6 +467,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         _isVideoCodecError(engine.errorMessage)) {
       _scheduleSoftwareDecodeRetry(engine);
       return;
+    }
+    _applyPreferredTracks(engine);
+    if (_resuming && engine.playing && !_resumePromptPaused) {
+      _resumePromptPaused = true;
+      unawaited(engine.pause());
     }
     if (engine.failed &&
         widget.torrent != null &&
@@ -573,6 +653,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     if (engine.playing) {
       await engine.pause();
       _scrobble('pause');
+      await _saveProgress();
+      await _captureResumeSnapshot();
       _hideTimer?.cancel();
       if (mounted) setState(() => _controlsVisible = true);
     } else {
@@ -626,7 +708,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   bool get _rippleVisible => _rippleTimer?.isActive ?? false;
 
   Future<void> _saveProgress() async {
-    if (!widget.recordProgress) return;
+    if (!widget.recordProgress ||
+        !NovaPlaybackPreferences.canRecordProgress(
+          awaitingResumeChoice: _resuming || _resumeTransitioning,
+        )) {
+      return;
+    }
     final engine = _engine;
     if (engine == null || !engine.ready) return;
     await context.read<AppState>().recordPlayback(
@@ -639,7 +726,63 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         );
   }
 
+  Future<void> _captureResumeSnapshot() async {
+    if (_capturingResumeFrame ||
+        !widget.recordProgress ||
+        !NovaPlaybackPreferences.canRecordProgress(
+          awaitingResumeChoice: _resuming || _resumeTransitioning,
+        )) {
+      return;
+    }
+    final engine = _engine;
+    if (engine is! MediaKitEngine || !engine.ready) return;
+    final positionMs = engine.position.inMilliseconds;
+    final durationMs = engine.duration.inMilliseconds;
+    if (positionMs <= 0 ||
+        durationMs <= 0 ||
+        positionMs >= durationMs - 120000) {
+      return;
+    }
+    _capturingResumeFrame = true;
+    try {
+      final frame = await engine.captureFrame();
+      if (frame != null && frame.isNotEmpty) {
+        await _app.saveResumeSnapshot(widget.item.id, frame);
+      }
+    } catch (error) {
+      debugPrint('[NOVA] resume frame capture failed: $error');
+    } finally {
+      _capturingResumeFrame = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(_pauseAndSaveResumeFrame());
+    }
+  }
+
+  Future<void> _pauseAndSaveResumeFrame() async {
+    final engine = _engine;
+    if (engine == null || !engine.ready) return;
+    if (engine.playing) {
+      await engine.pause();
+      _scrobble('pause');
+    }
+    await _saveProgress();
+    await _captureResumeSnapshot();
+  }
+
   void _scrobble(String action) {
+    if (!NovaPlaybackPreferences.canRecordProgress(
+      awaitingResumeChoice: _resuming || _resumeTransitioning,
+    )) {
+      return;
+    }
     final app = context.read<AppState>();
     final engine = _engine;
     final duration = engine?.duration.inMilliseconds ?? 0;
@@ -667,24 +810,121 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     }
   }
 
-  Future<void> _close() async {
-    _scrobble('stop');
-    _stopScrobbled = true;
-    await _saveProgress();
+  Future<void> _performClose() async {
+    if (_closing || _allowRoutePop) return;
+    _closing = true;
+    try {
+      final engine = _engine;
+      if (engine?.playing == true) await engine!.pause();
+      _scrobble('stop');
+      _stopScrobbled = true;
+      await _captureResumeSnapshot();
+      await _saveProgress();
+    } catch (error) {
+      debugPrint(
+          '[NoorPlayback] failed to save progress while leaving: $error');
+    }
+    if (!mounted) return;
+    setState(() => _allowRoutePop = true);
+    await WidgetsBinding.instance.endOfFrame;
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _requestClose() async {
+    if (_panel != null) {
+      _closePanel();
+      return;
+    }
+    if (_leaveDialogOpen || _closing || _allowRoutePop) return;
+    if (_app.webSettings['playerConfirmLeave'] != true) {
+      await _performClose();
+      return;
+    }
+
+    _leaveDialogOpen = true;
+    final engine = _engine;
+    final wasPlaying = engine?.playing ?? false;
+    if (wasPlaying) await engine!.pause();
+    if (!mounted) return;
+    final leave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            scrollable: true,
+            title: Text(
+              NovaStrings.lookup(english, 'playerLeaveTitle'),
+            ),
+            content: Text(
+              NovaStrings.lookup(english, 'playerLeaveBody'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(NovaStrings.lookup(english, 'cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(
+                  NovaStrings.lookup(english, 'playerLeaveAction'),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    _leaveDialogOpen = false;
+    if (!mounted) return;
+    if (leave) {
+      await _performClose();
+    } else if (wasPlaying && identical(_engine, engine)) {
+      await engine!.play();
+      _bumpControls();
+    }
   }
 
   Future<void> _resumeFromSaved() async {
     final engine = _engine;
     if (engine == null || !engine.ready) return;
-    final end = engine.duration.inMilliseconds;
-    await engine.seekTo(
-      Duration(
-        milliseconds: (_resumePositionMs ?? 0).clamp(0, end - 5000).toInt(),
-      ),
-    );
+    _resumeTransitioning = true;
+    if (mounted) {
+      setState(() {
+        _resuming = false;
+        _resumePromptPaused = false;
+      });
+    }
+    try {
+      await engine.seekTo(
+        Duration(
+          milliseconds: NovaPlaybackPreferences.safeResumePositionMs(
+            _resumePositionMs,
+            engine.duration.inMilliseconds,
+          ),
+        ),
+      );
+    } finally {
+      _resumeTransitioning = false;
+    }
     await engine.play();
-    if (mounted) setState(() => _resuming = false);
+    _scrobble('start');
+    _bumpControls();
+  }
+
+  Future<void> _startOverFromPrompt() async {
+    _resumeTransitioning = true;
+    if (mounted) {
+      setState(() {
+        _resuming = false;
+        _resumePositionMs = 0;
+        _resumePromptPaused = false;
+      });
+    }
+    try {
+      await _engine?.seekTo(Duration.zero);
+    } finally {
+      _resumeTransitioning = false;
+    }
+    await _engine?.play();
+    _scrobble('start');
     _bumpControls();
   }
 
@@ -853,7 +1093,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             english: english,
             tracks: engine?.audioTracks ?? const [],
             selected: engine?.selectedAudio ?? const AudioTrack('', null, null),
-            onPick: (track) => unawaited(engine?.selectAudio(track)),
+            onPick: (track) {
+              _preferenceSession.markAudioSelectedManually();
+              unawaited(engine?.selectAudio(track));
+            },
             delayMs: (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0,
             onDelayChanged: (ms) async {
               await engine?.setAudioDelayMs(ms);
@@ -876,6 +1119,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
             embedded: engine?.subtitleTracks ?? const [],
             selected: engine?.selectedSubtitle ?? SubtitleTrack.no(),
             onPick: (track) {
+              _preferenceSession.markSubtitleSelectedManually();
               if (track.uri && track.id.isNotEmpty) {
                 unawaited(engine?.setSubtitleUri(track.id, title: track.title));
               } else {
@@ -916,6 +1160,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
           child: PlayerSettingsPanelBody(
             english: english,
             speed: _engine?.rate ?? 1.0,
+            speeds: NovaPlaybackPreferences.playbackSpeeds(
+              _app.webSettings['customPlaybackSpeeds'],
+              _engine?.rate ?? 1.0,
+            ),
             fit: _fit,
             audioLabel: _audioLabel,
             subtitleLabel: _subtitleLabel,
@@ -1502,6 +1750,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _app.removeListener(_onAppSettingsChanged);
     _hideTimer?.cancel();
     _progressTimer?.cancel();
@@ -1571,15 +1820,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     // Spec §0-ب: phone (~844×390) vs tablet (~1180×820) sizing.
     final wide = width >= 900;
     final scale = wide ? 1.28 : 1.0;
-    final railTopInset = 108.0 * scale;
+    final showStreamInfo = _app.webSettings['showQualityInfo'] == true &&
+        widget.streamName.trim().isNotEmpty;
+    final scaledBodyText = MediaQuery.textScalerOf(context).scale(16);
+    final hasTorrentInfo = widget.torrent != null && _torrentStatus != null;
+    final hasHeaderMetadata = showStreamInfo || hasTorrentInfo;
+    final metadataInset =
+        120.0 + (scaledBodyText - 16).clamp(0.0, 32.0).toDouble() * 3;
+    final railTopInset = (hasHeaderMetadata ? metadataInset : 108.0) * scale;
 
     return PopScope(
+      canPop: _allowRoutePop,
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop && !_stopScrobbled) {
-          _scrobble('stop');
-          _stopScrobbled = true;
-          unawaited(_saveProgress());
-        }
+        if (!didPop) unawaited(_requestClose());
       },
       child: Scaffold(
         backgroundColor: NovaColors.ink,
@@ -1644,9 +1897,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                   ),
                 ),
 
-              // Keep torrent details alongside the normal player chrome;
-              // completed downloads no longer need a permanent status badge.
-              if (widget.torrent != null && _torrentStatus != null)
+              // Before the ready chrome exists, keep torrent connection
+              // feedback in its standalone position. Once ready, the same
+              // HUD joins PlayerTopBar's flow so it cannot cover the title.
+              if (hasTorrentInfo && (!ready || failed))
                 PositionedDirectional(
                   top: MediaQuery.paddingOf(context).top + 8,
                   start: 12,
@@ -1694,7 +1948,29 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                           episodeTag: widget.item.type == 'series'
                               ? seasonEpisodeTag(widget.season, widget.episode)
                               : '',
-                          onClose: _close,
+                          streamInfo:
+                              showStreamInfo ? widget.streamName.trim() : null,
+                          streamInfoSemanticLabel: showStreamInfo
+                              ? '${NovaStrings.lookup(english, 'message189')}: '
+                                  '${widget.streamName.trim()}'
+                              : null,
+                          statusInfo: hasTorrentInfo
+                              ? AnimatedOpacity(
+                                  opacity: _showTorrentHud ? 1 : 0,
+                                  duration:
+                                      MediaQuery.disableAnimationsOf(context)
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 280),
+                                  child: IgnorePointer(
+                                    ignoring: !_showTorrentHud,
+                                    child: _TorrentHud(
+                                      status: _torrentStatus!,
+                                      english: english,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          onClose: () => unawaited(_requestClose()),
                           wide: wide,
                         ),
                         PlayerSideRail(
@@ -1706,12 +1982,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                             // entries moved into the settings sheet.
                             PlayerRailButton(
                               icon: LucideIcons.lockKeyhole,
-                              semanticLabel: 'Lock controls',
+                              semanticLabel: NovaStrings.lookup(
+                                english,
+                                'playerLockControls',
+                              ),
                               onTap: _lock,
                             ),
                             PlayerSpeedPill(
                               label: _speedLabel,
-                              semanticLabel: 'Playback speed',
+                              semanticLabel: NovaStrings.lookup(
+                                english,
+                                'playerPlaybackSpeed',
+                              ),
                               onTap: _openSettingsPanel,
                             ),
                           ],
@@ -1937,7 +2219,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                             icon: LucideIcons.history,
                             label: NovaStrings.lookup(english, 'message18'),
                             trailing: InkWell(
-                              onTap: () => setState(() => _resuming = false),
+                              onTap: () => unawaited(_startOverFromPrompt()),
                               child: Icon(LucideIcons.x,
                                   size: 17,
                                   color:
@@ -1972,14 +2254,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                                 child: PlayerSecondaryAction(
                                   label:
                                       NovaStrings.lookup(english, 'message21'),
-                                  onPressed: () async {
-                                    setState(() {
-                                      _resuming = false;
-                                      _resumePositionMs = 0;
-                                    });
-                                    await _engine?.seekTo(Duration.zero);
-                                    await _engine?.play();
-                                  },
+                                  onPressed: () =>
+                                      unawaited(_startOverFromPrompt()),
                                 ),
                               ),
                             ],
@@ -2320,13 +2596,17 @@ class _TorrentHud extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '$state · ↓ ${_speed(status.downloadRate)}'
-            ' · P:${status.numPeers} S:${status.numSeeds} · $pct%',
-            style: const TextStyle(
-              color: NovaColors.white,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              '$state · \u2066↓ ${_speed(status.downloadRate)}'
+              ' · P:${status.numPeers} S:${status.numSeeds} · $pct%\u2069',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: NovaColors.white,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

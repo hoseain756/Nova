@@ -1,8 +1,29 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val localSigningFile = rootProject.file("key.properties")
+val localSigningProperties = Properties()
+if (localSigningFile.isFile) {
+    localSigningFile.inputStream().use { localSigningProperties.load(it) }
+}
+val localKeystorePath = localSigningProperties.getProperty("storeFile")?.trim().orEmpty()
+val localSigningFields = listOf("storePassword", "keyPassword", "keyAlias")
+val hasLocalSigningCredentials =
+    localSigningFields.all { !localSigningProperties.getProperty(it).isNullOrBlank() } &&
+        localKeystorePath.isNotBlank()
+val localKeystoreFile = if (localKeystorePath.isNotBlank()) {
+    rootProject.file(localKeystorePath)
+} else {
+    null
+}
+if (hasLocalSigningCredentials && localKeystoreFile?.isFile != true) {
+    throw GradleException("The release signing keystore configured in android/key.properties was not found.")
 }
 
 android {
@@ -20,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.noor.mobile"
+        applicationId = "app.nova.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -29,11 +50,23 @@ android {
         versionName = flutter.versionName
     }
 
+    if (hasLocalSigningCredentials) {
+        signingConfigs.create("upload") {
+            keyAlias = localSigningProperties.getProperty("keyAlias")
+            keyPassword = localSigningProperties.getProperty("keyPassword")
+            storeFile = requireNotNull(localKeystoreFile)
+            storePassword = localSigningProperties.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Use the existing debug fallback until a complete local upload-key config exists.
+            signingConfig = if (hasLocalSigningCredentials) {
+                signingConfigs.getByName("upload")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // Task 127: R8 minification (Flutter 3.47+ enables it for release by
             // default) obfuscates the jlibtorrent/SWIG wrappers — torrents then die
             // with unreadable errors like `TorrentException(torrent_error): g0.d`

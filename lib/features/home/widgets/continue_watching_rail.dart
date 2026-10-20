@@ -1,4 +1,5 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
+import 'dart:io';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
@@ -8,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/media_item.dart';
+import '../../../core/models/integration_cw.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/horse_theme.dart';
 import '../../../shared/widgets/image_decode.dart';
@@ -54,14 +56,26 @@ class ContinueWatchingRail extends StatefulWidget {
   const ContinueWatchingRail({
     super.key,
     required this.entries,
+    this.linkedEntries = const [],
     required this.english,
   });
 
   final List<WatchHistoryEntry> entries;
+  final List<IntegrationCwEntry> linkedEntries;
   final bool english;
 
   @override
   State<ContinueWatchingRail> createState() => _ContinueRailState();
+}
+
+class _ContinueRailItem {
+  const _ContinueRailItem.local(this.local) : linked = null;
+  const _ContinueRailItem.linked(this.linked) : local = null;
+
+  final WatchHistoryEntry? local;
+  final IntegrationCwEntry? linked;
+
+  int get watchedAt => local?.watchedAt ?? linked!.watchedAt;
 }
 
 class _ContinueRailState extends State<ContinueWatchingRail> {
@@ -142,13 +156,148 @@ class _ContinueRailState extends State<ContinueWatchingRail> {
     return NovaStrings.lookup(english, 'message124', {'p0': parts.join(' ')});
   }
 
+  Widget _localCard(
+    BuildContext context,
+    AppState app,
+    WatchHistoryEntry entry,
+    _CwRailMetrics metrics,
+  ) {
+    final item = entry.item;
+    final isSeries =
+        item.type == 'series' && entry.season != null && entry.episode != null;
+    final enrichment = _enrichment[item.id];
+    final episodeName = enrichment?.episodeName;
+    return ContinueCard(
+      data: CwCardData(
+        id: '${item.id}:${entry.watchedAt}',
+        item: item,
+        progress: entry.durationMs > 0
+            ? (entry.positionMs / entry.durationMs).clamp(0.0, 1.0)
+            : 0.0,
+        epTag: isSeries ? 'S${entry.season} E${entry.episode}' : null,
+        subtitle: isSeries
+            ? (episodeName != null && episodeName.isNotEmpty
+                ? episodeName
+                : NovaStrings.lookup(
+                    widget.english, 'message44', {'p0': entry.episode}))
+            : _remainingLabel(entry, widget.english),
+        localSnapshotPath: app.resumeSnapshotFor(item.id),
+        badge: cwUpcomingLabel(
+            enrichment?.nextAirMs, widget.english, DateTime.now()),
+        fresh: enrichment?.fresh ?? false,
+      ),
+      english: widget.english,
+      width: metrics.cardWidth,
+      height: metrics.cardHeight,
+      onOpen: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => MediaDetailPage(
+            item: item,
+            resumeVideoId: entry.videoId,
+            resumePositionMs: entry.positionMs,
+          ),
+        ),
+      ),
+      onMarkWatched: () {
+        unawaited(
+          context
+              .read<AppState>()
+              .markContinueWatchingWatched(item.id)
+              .then((_) {
+            if (context.mounted) {
+              NoorToast.show(
+                context,
+                NovaStrings.lookup(widget.english, 'message94'),
+              );
+            }
+          }),
+        );
+      },
+      onRemove: () => unawaited(
+        context.read<AppState>().removeContinueWatchingEntry(item.id),
+      ),
+    );
+  }
+
+  Widget _linkedCard(
+    BuildContext context,
+    IntegrationCwEntry entry,
+    _CwRailMetrics metrics,
+  ) {
+    final item = entry.item;
+    final source = switch (entry.source) {
+      'trakt' => 'Trakt',
+      'simkl' => 'Simkl',
+      'anilist' => 'AniList',
+      'mal' => 'MyAnimeList',
+      _ => entry.source,
+    };
+    final isEpisode = entry.season != null && entry.episode != null;
+    final details = isEpisode ? 'S${entry.season} E${entry.episode}' : null;
+    final subtitle = details ??
+        (entry.episodesWatched > 0
+            ? "${NovaStrings.lookup(widget.english, 'message558')} · ${entry.episodesWatched}"
+            : null);
+    return ContinueCard(
+      data: CwCardData(
+        id: '${entry.source}:${item.id}',
+        item: item,
+        progress: entry.progress,
+        epTag: details,
+        subtitle: subtitle,
+        sourceLabel: source,
+      ),
+      english: widget.english,
+      width: metrics.cardWidth,
+      height: metrics.cardHeight,
+      onOpen: () => unawaited(_openLinkedEntry(context, entry)),
+    );
+  }
+
+  Future<void> _openLinkedEntry(
+    BuildContext context,
+    IntegrationCwEntry entry,
+  ) async {
+    final item = entry.item;
+    final trackerAnime = entry.source == 'anilist' || entry.source == 'mal';
+    final needsResolve =
+        item.id.startsWith('anilist:') || item.id.startsWith('mal:');
+    if (!needsResolve) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => MediaDetailPage(
+          item: item,
+          resumeSeason: entry.season ?? (trackerAnime ? 1 : null),
+          resumeEpisode: entry.episode ?? entry.nextEpisode,
+          resumeProgress: entry.progress,
+          resumeAtPausePoint: !trackerAnime,
+        ),
+      ));
+      return;
+    }
+    final app = context.read<AppState>();
+    final resolved = await app.catalogs.resolveAnime(item);
+    if (!context.mounted || resolved == null) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MediaDetailPage(
+        item: resolved.withAnimeIds(
+          anilistId: item.anilistId,
+          idMal: item.idMal,
+        ),
+        resumeSeason: entry.season ?? (trackerAnime ? 1 : null),
+        resumeEpisode: entry.episode ?? entry.nextEpisode,
+        resumeProgress: entry.progress,
+        resumeAtPausePoint: !trackerAnime,
+      ),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Most recently watched first — same ordering as the Harbor web row.
-    final sorted = [...widget.entries]
-      ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
-    // Web tokens: --cw-card-w = min(66vw, 300px) with aspect-ratio 16 / 9 —
-    // solved once (with the 34/20 gutter) by [_CwRailMetrics].
+    final app = context.watch<AppState>();
+    final sorted = <_ContinueRailItem>[
+      for (final entry in widget.entries) _ContinueRailItem.local(entry),
+      for (final entry in widget.linkedEntries) _ContinueRailItem.linked(entry),
+    ]..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
     final metrics = _CwRailMetrics.solve(MediaQuery.sizeOf(context).width);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,7 +305,6 @@ class _ContinueRailState extends State<ContinueWatchingRail> {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: metrics.pad),
           child: HomeSectionHeader(
-            // Exact site strings (web homeT "continueWatching").
             title: NovaStrings.lookup(widget.english, 'message125'),
           ),
         ),
@@ -170,62 +318,11 @@ class _ContinueRailState extends State<ContinueWatchingRail> {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final entry = sorted[index];
-              final item = entry.item;
-              final isSeries = item.type == 'series' &&
-                  entry.season != null &&
-                  entry.episode != null;
-              final enrichment = _enrichment[item.id];
-              final epName = enrichment?.episodeName;
-              final data = CwCardData(
-                id: '${entry.item.id}:${entry.watchedAt}',
-                item: item,
-                progress: entry.durationMs > 0
-                    ? (entry.positionMs / entry.durationMs).clamp(0.0, 1.0)
-                    : 0.0,
-                epTag: isSeries ? 'S${entry.season} E${entry.episode}' : null,
-                subtitle: isSeries
-                    ? (epName != null && epName.isNotEmpty
-                        ? epName
-                        : (NovaStrings.lookup(widget.english, 'message44',
-                            {'p0': entry.episode})))
-                    : _remainingLabel(entry, widget.english),
-                badge: cwUpcomingLabel(
-                    enrichment?.nextAirMs, widget.english, DateTime.now()),
-                fresh: enrichment?.fresh ?? false,
-              );
-              return ContinueCard(
-                data: data,
-                english: widget.english,
-                width: metrics.cardWidth,
-                height: metrics.cardHeight,
-                onOpen: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => MediaDetailPage(
-                      item: item,
-                      resumeVideoId: entry.videoId,
-                      resumePositionMs: entry.positionMs,
-                    ),
-                  ),
-                ),
-                onMarkWatched: () {
-                  unawaited(
-                    context
-                        .read<AppState>()
-                        .markContinueWatchingWatched(item.id)
-                        .then((_) {
-                      if (context.mounted) {
-                        NoorToast.show(
-                          context,
-                          NovaStrings.lookup(widget.english, 'message94'),
-                        );
-                      }
-                    }),
-                  );
-                },
-                onRemove: () => unawaited(
-                  context.read<AppState>().removeContinueWatchingEntry(item.id),
-                ),
-              );
+              final local = entry.local;
+              if (local != null) {
+                return _localCard(context, app, local, metrics);
+              }
+              return _linkedCard(context, entry.linked!, metrics);
             },
           ),
         ),
@@ -247,6 +344,7 @@ class CwCardData {
     this.badge,
     this.fresh = false,
     this.sourceLabel,
+    this.localSnapshotPath,
   });
 
   final String id;
@@ -262,6 +360,9 @@ class CwCardData {
   /// Small provenance pill ("Trakt" / "AniList" / "MyAnimeList") on cards
   /// sourced from a linked service.
   final String? sourceLabel;
+
+  /// Local pause-frame preview; never populated for linked-service rows.
+  final String? localSnapshotPath;
 }
 
 class ContinueCard extends StatelessWidget {
@@ -298,6 +399,7 @@ class ContinueCard extends StatelessWidget {
     final item = data.item;
     final progress = data.progress;
     final image = item.background ?? item.poster;
+    final snapshotPath = data.localSnapshotPath;
     final epTag = data.epTag;
     final subtitle = data.subtitle;
     final badge = data.badge;
@@ -400,17 +502,35 @@ class ContinueCard extends StatelessWidget {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      image == null
-                          ? ColoredBox(color: NovaTheme.of(context).surface)
-                          : NovaNetworkImage(
-                              image,
+                      snapshotPath != null
+                          ? Image.file(
+                              File(snapshotPath),
                               fit: BoxFit.cover,
-                              // Task 136: decode at the card's on-screen size.
                               cacheWidth: imageCacheWidth(context, width),
-                              errorBuilder: (_, __, ___) => ColoredBox(
-                                color: NovaTheme.of(context).surface,
-                              ),
-                            ),
+                              errorBuilder: (_, __, ___) => image == null
+                                  ? ColoredBox(
+                                      color: NovaTheme.of(context).surface)
+                                  : NovaNetworkImage(
+                                      image,
+                                      fit: BoxFit.cover,
+                                      cacheWidth:
+                                          imageCacheWidth(context, width),
+                                      errorBuilder: (_, __, ___) => ColoredBox(
+                                        color: NovaTheme.of(context).surface,
+                                      ),
+                                    ),
+                            )
+                          : image == null
+                              ? ColoredBox(color: NovaTheme.of(context).surface)
+                              : NovaNetworkImage(
+                                  image,
+                                  fit: BoxFit.cover,
+                                  // Task 136: decode at the card's on-screen size.
+                                  cacheWidth: imageCacheWidth(context, width),
+                                  errorBuilder: (_, __, ___) => ColoredBox(
+                                    color: NovaTheme.of(context).surface,
+                                  ),
+                                ),
                       // Web scrim: to top, 85% black → 45% → transparent.
                       DecoratedBox(
                         decoration: BoxDecoration(
@@ -592,5 +712,117 @@ class ContinueCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The same card language as local continue-watching, backed by linked
+/// trackers. Provider progress remains separate from local playback history.
+class IntegrationContinueWatchingRail extends StatelessWidget {
+  const IntegrationContinueWatchingRail({
+    super.key,
+    required this.entries,
+    required this.english,
+    this.showHeader = true,
+  });
+
+  final List<IntegrationCwEntry> entries;
+  final bool english;
+  final bool showHeader;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _CwRailMetrics.solve(MediaQuery.sizeOf(context).width);
+    final sorted = [...entries]
+      ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (showHeader)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: metrics.pad),
+            child: HomeSectionHeader(
+              title: NovaStrings.lookup(english, 'message125'),
+            ),
+          ),
+        if (showHeader) const SizedBox(height: 12),
+        SizedBox(
+          height: metrics.cardHeight,
+          child: ListView.separated(
+            padding: EdgeInsets.symmetric(horizontal: metrics.pad),
+            scrollDirection: Axis.horizontal,
+            itemCount: sorted.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final entry = sorted[index];
+              final source = switch (entry.source) {
+                'trakt' => 'Trakt',
+                'simkl' => 'Simkl',
+                'anilist' => 'AniList',
+                'mal' => 'MyAnimeList',
+                _ => entry.source,
+              };
+              final isEpisode = entry.season != null && entry.episode != null;
+              final subtitle = isEpisode
+                  ? 'S${entry.season} E${entry.episode}'
+                  : entry.episodesWatched > 0
+                      ? '${NovaStrings.lookup(english, 'message558')} · ${entry.episodesWatched}'
+                      : null;
+              return ContinueCard(
+                data: CwCardData(
+                  id: '${entry.source}:${entry.item.id}',
+                  item: entry.item,
+                  progress: entry.progress,
+                  epTag:
+                      isEpisode ? 'S${entry.season} E${entry.episode}' : null,
+                  subtitle: subtitle,
+                  sourceLabel: source,
+                ),
+                english: english,
+                width: metrics.cardWidth,
+                height: metrics.cardHeight,
+                onOpen: () => unawaited(_openLinkedEntry(context, entry)),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openLinkedEntry(
+    BuildContext context,
+    IntegrationCwEntry entry,
+  ) async {
+    final item = entry.item;
+    final trackerAnime = entry.source == 'anilist' || entry.source == 'mal';
+    final needsResolve =
+        item.id.startsWith('anilist:') || item.id.startsWith('mal:');
+    if (!needsResolve) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => MediaDetailPage(
+          item: item,
+          resumeSeason: entry.season ?? (trackerAnime ? 1 : null),
+          resumeEpisode: entry.episode ?? entry.nextEpisode,
+          resumeProgress: entry.progress,
+          resumeAtPausePoint: !trackerAnime,
+        ),
+      ));
+      return;
+    }
+    final app = context.read<AppState>();
+    final resolved = await app.catalogs.resolveAnime(item);
+    if (!context.mounted || resolved == null) return;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MediaDetailPage(
+        item: resolved.withAnimeIds(
+          anilistId: item.anilistId,
+          idMal: item.idMal,
+        ),
+        resumeSeason: entry.season ?? (trackerAnime ? 1 : null),
+        resumeEpisode: entry.episode ?? entry.nextEpisode,
+        resumeProgress: entry.progress,
+        resumeAtPausePoint: !trackerAnime,
+      ),
+    ));
   }
 }

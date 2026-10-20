@@ -93,8 +93,12 @@ abstract final class NovaTheme {
       surfaceContainer: dark ? NovaColors.graphite : NovaColors.lightBackground,
       surfaceContainerHigh:
           dark ? NovaColors.surfaceHigh : NovaColors.lightBackground,
-      surfaceContainerHighest:
-          dark ? NovaColors.divider : NovaColors.lightDivider,
+      // Keep small accent text AA-readable even on the highest surface.
+      // Divider tokens alone miss 4.5:1 against redSoft / lightAccent.
+      surfaceContainerHighest: Color.alphaBlend(
+          (dark ? NovaColors.divider : NovaColors.lightDivider)
+              .withValues(alpha: .8),
+          dark ? NovaColors.ink : NovaColors.white),
       onSurfaceVariant: muted,
       outline: muted,
       outlineVariant: dark ? NovaColors.divider : NovaColors.lightDivider,

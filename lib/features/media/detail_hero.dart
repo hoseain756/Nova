@@ -169,11 +169,11 @@ class DetailMetaRow extends StatelessWidget {
         children: [
           if (double.tryParse(item.rating ?? '') != null)
             Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(LucideIcons.star, color: scheme.primary, size: 16),
+              Icon(LucideIcons.star, color: scheme.secondary, size: 16),
               const SizedBox(width: 4),
               Text(item.rating!,
                   style: TextStyle(
-                      color: scheme.primary, fontWeight: FontWeight.w700))
+                      color: scheme.secondary, fontWeight: FontWeight.w700))
             ]),
           if (item.releaseInfo?.isNotEmpty == true) Text(item.releaseInfo!),
           if (item.runtime?.isNotEmpty == true)

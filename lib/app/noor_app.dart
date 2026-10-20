@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -6,15 +7,18 @@ import '../core/data/cache_reset_service.dart';
 import '../core/state/app_state.dart';
 import '../core/theme/nova_theme.dart';
 import '../features/shell/main_shell.dart';
+import '../features/settings/settings_data_page.dart';
+import '../core/update/app_update_service.dart';
 import '../features/onboarding/onboarding_page.dart';
+import '../features/splash/nova_splash.dart';
 import '../features/torrent/magnet_link_handler.dart';
 import '../l10n/nova_strings.dart';
-import '../shared/widgets/nova_brand.dart';
 import '../shared/widgets/shimmer_box.dart';
 
 class NovaApp extends StatelessWidget {
-  const NovaApp({super.key, required this.state});
+  const NovaApp({super.key, required this.state, this.updateService});
   final AppState state;
+  final AppUpdateService? updateService;
   static final _darkArabic = NovaTheme.build(Brightness.dark, arabic: true);
   static final _lightArabic = NovaTheme.build(Brightness.light, arabic: true);
   @override
@@ -27,7 +31,8 @@ class NovaApp extends StatelessWidget {
             app.webSettings['reduceMotion'] == true
           ),
           builder: (context, value, _) => MaterialApp(
-            title: 'NOVA',
+            onGenerateTitle: (context) =>
+                NovaStrings.of(context).text('appName'),
             debugShowCheckedModeBanner: false,
             theme: value.$1 ? NovaTheme.light : _lightArabic,
             darkTheme: value.$1 ? NovaTheme.dark : _darkArabic,
@@ -50,7 +55,8 @@ class NovaApp extends StatelessWidget {
                       disableAnimations: media.disableAnimations || value.$3),
                   child: child!);
             },
-            home: const IncomingLinkListener(child: _LaunchGate()),
+            home: IncomingLinkListener(
+                child: _LaunchGate(updateService: updateService)),
           ),
         ),
       );
@@ -62,7 +68,8 @@ class NoorApp extends NovaApp {
 }
 
 class _LaunchGate extends StatefulWidget {
-  const _LaunchGate();
+  const _LaunchGate({this.updateService});
+  final AppUpdateService? updateService;
   @override
   State<_LaunchGate> createState() => _LaunchGateState();
 }
@@ -70,6 +77,8 @@ class _LaunchGate extends StatefulWidget {
 class _LaunchGateState extends State<_LaunchGate> {
   String? _startupError;
   bool _onboarding = false;
+  bool _splashComplete = false;
+  AppUpdateStatus? _forcedUpdate;
   @override
   void initState() {
     super.initState();
@@ -85,8 +94,21 @@ class _LaunchGateState extends State<_LaunchGate> {
       final app = context.read<AppState>();
       await app.initialize();
       CacheResetService.instance.start(app);
+      unawaited(_checkForForcedUpdate());
     } catch (error) {
       if (mounted) setState(() => _startupError = error.toString());
+    }
+  }
+
+  Future<void> _checkForForcedUpdate() async {
+    try {
+      final status =
+          await (widget.updateService ?? AppUpdateService()).checkForUpdates();
+      if (mounted && status.forceRequired) {
+        setState(() => _forcedUpdate = status);
+      }
+    } catch (_) {
+      // An unavailable update manifest must never prevent offline app use.
     }
   }
 
@@ -100,42 +122,56 @@ class _LaunchGateState extends State<_LaunchGate> {
   Widget build(BuildContext context) {
     final ready = context.select<AppState, bool>((app) => app.initialized);
     final s = NovaStrings.of(context);
-    if (ready) {
+    if (ready && _splashComplete) {
+      if (_forcedUpdate != null) {
+        return SettingsAboutPage(
+          updateService: widget.updateService,
+          initialStatus: _forcedUpdate,
+        );
+      }
       return _onboarding
           ? OnboardingPage(onComplete: _complete)
           : const MainShell();
     }
-    return Scaffold(
-        body: SafeArea(
-            child: Center(
-                child: SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const NovaBrand(width: 184),
-            const SizedBox(height: 40),
-            if (_startupError != null) ...[
-              Text(s.text('startError'),
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              Text(s.text('errorBody'), textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              FilledButton(
-                  onPressed: () {
-                    setState(() => _startupError = null);
-                    _initialize();
-                  },
-                  child: Text(s.text('retry'))),
-            ] else ...[
-              Semantics(
-                  liveRegion: true,
-                  child: Text(s.text('loading'),
-                      style: Theme.of(context).textTheme.bodyMedium)),
-              const SizedBox(height: 24),
-              const ShimmerBox(width: 240, height: 6),
-            ],
-          ])),
-    ))));
+    return NovaSplash(
+      onFinished: () {
+        if (mounted && !_splashComplete) {
+          setState(() => _splashComplete = true);
+        }
+      },
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_startupError != null) ...[
+            Text(
+              s.text('startError'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(s.text('errorBody'), textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: () {
+                setState(() => _startupError = null);
+                _initialize();
+              },
+              child: Text(s.text('retry')),
+            ),
+          ] else ...[
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                s.text('loading'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const ShimmerBox(width: 240, height: 6),
+          ],
+        ],
+      ),
+    );
   }
 }

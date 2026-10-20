@@ -298,7 +298,8 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
                 onPressed: () => _openSection(const AnimePage())),
           ]),
         )),
-        if (app.continueWatching.isNotEmpty)
+        if (app.continueWatching.isNotEmpty ||
+            app.linkedContinueWatching.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsetsDirectional.only(
@@ -306,6 +307,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
               ),
               child: ContinueWatchingRail(
                 entries: app.continueWatching,
+                linkedEntries: app.linkedContinueWatching,
                 english: english,
               ),
             ),

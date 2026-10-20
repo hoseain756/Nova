@@ -1,32 +1,49 @@
 # Repository Guidelines
 
-## Project Structure
+## Project Map
 
-This repository is the NOVA Flutter app. App startup and composition live in `lib/app` and `lib/main.dart`; shared state, APIs, caches, themes, and playback services live in `lib/core`. Screen groups are organized by feature under `lib/features` (for example `home`, `media`, `player`, and `settings`), with reusable UI in `lib/shared`. Keep brand assets and fonts in `assets/`, English and Arabic ARB sources in `lib/l10n/`, tests in `test/`, and product, design, and migration notes in `docs/`. Platform-specific configuration belongs in `android/` and `ios/`; maintenance scripts belong in `tool/`.
+- `lib/main.dart` starts the app; `lib/app/noor_app.dart` composes launch, theme, and localization.
+- `lib/core/` contains API, data/cache, downloads, models, OAuth, state, sync, theme, torrent, tracking, and Trakt.
+- lib/core/update/app_update_service.dart validates root version.json and APK content, compares installed build metadata, classifies update failures, downloads to app cache, and opens the package installer.
+- `lib/core/models/integration_cw.dart` normalizes linked-service playback progress (Trakt/Simkl pause points and AniList/MyAnimeList episode counters); `AppState.refreshLinkedContent` refreshes it, and `AppState.historyForTitle` merges provider episode state with local history for details.
+- `lib/core/storage/resume_snapshot_store.dart` saves compressed, expiring video pause frames locally; its metadata stays separate from synced watch history.
+- `lib/features/` contains `shell/`, `home/`, `media/` (details/episodes/sources), `catalog/`, `anime/`, `calendar/`, `live_tv/`, `kids/`, `library/`, `downloads/`, `player/`, `settings/`, `onboarding/`, `splash/`, and torrent handlers.
+- `lib/shared/widgets/` holds reusable cards, rails, image helpers, dialogs, parental gates, and loading states. `lib/l10n/` contains Arabic/English ARB sources and generated code.
+- `lib/features/media/episode_views.dart` owns detail episode list/grid presentation; long-press actions are wired from `media_detail_page.dart`, while `AppState` stores watched ranges and sends one enabled-service sync per provider.
+- `lib/features/home/widgets/continue_watching_rail.dart` renders local and linked Continue Watching cards together in one horizontal rail; `lib/features/media/episode_views.dart` presents episode progress and mark-watched actions; Anime reuses the same linked-progress rail.
+- Local Continue Watching cards can display device-only resume frames; the playback retention choice lives in `SettingsPreferencesPage` and defaults to 30 days.
+- `assets/brand/` and `assets/fonts/` hold NOVA identity and fonts; `android/` and `ios/` hold platform files; `test/` has tests; `tool/` has utilities.
+- Root configuration includes pubspec.yaml, the public update manifest version.json, analysis_options.yaml, DESIGN.md, and PRODUCT.md. .github/workflows/release.yml runs Android analysis, tests, and APK builds; docs/nova/release-signing.md records the release-signing limits.
 
 ## Build, Test, and Development
 
-- `flutter pub get` resolves the pinned dependencies in `pubspec.lock`.
-- `flutter analyze` runs the repository's `flutter_lints` rules.
-- `flutter test` runs unit and widget tests; use `flutter test test/<name>_test.dart` for a focused file.
-- `dart format lib test` formats Dart sources. Check without modifying files with `dart format --output=none --set-exit-if-changed lib test`.
-- `python tool/generate_nova_l10n.py` regenerates `lib/l10n/nova_messages.g.dart` from the ARB files.
-- `flutter build apk --release` builds Android; `flutter build ios --release` requires macOS and Xcode.
-
-Never launch an emulator. For interactive device checks, use an already-connected physical device only when requested; otherwise rely on analysis and tests.
+- `flutter pub get` resolves the locked dependencies.
+- `flutter analyze --no-pub` checks diagnostics; `flutter test --no-pub` runs unit/widget tests (or pass `test/<name>_test.dart` for one file).
+- `dart format lib test` formats code; use `--output=none --set-exit-if-changed` for a check.
+- `python tool/generate_nova_l10n.py` regenerates localization code from ARB sources.
+- `flutter build apk --release --no-pub` builds Android. An iOS build requires macOS and Xcode.
+- Never launch an emulator. Do not claim physical-device verification unless a device was actually used.
 
 ## Code Style and Localization
 
-Use standard Dart formatting, two-space indentation, `UpperCamelCase` for types, `lowerCamelCase` for members, and `snake_case.dart` filenames. Follow nearby feature patterns, keep widgets and state narrowly scoped, and prefer shared components over duplicated UI. Add user-facing copy to both `lib/l10n/app_en.arb` and `lib/l10n/app_ar.arb`, then run the generator; do not edit generated `nova_messages.g.dart` directly. Preserve RTL-aware layout and direction-sensitive behavior.
+Use standard Dart formatting, two-space indentation, `UpperCamelCase` types, `lowerCamelCase` members, and `snake_case.dart` files. Keep feature state scoped and reuse shared widgets. Add copy to both `lib/l10n/app_en.arb` and `app_ar.arb`, run the generator, and never hand-edit `nova_messages.g.dart`. Use logical directional layout and check RTL behavior.
 
-## Testing
+## Architecture and Compatibility
 
-Tests use Flutter's `flutter_test` framework and are named `*_test.dart`. Add focused unit or widget coverage for behavior changed, including Arabic/English and light/dark variants for UI changes where applicable. No numeric coverage threshold is configured; run the relevant tests and `flutter analyze` before submitting.
+Preserve app IDs, callbacks, secure-storage and sync keys. Internal `noor` names are compatibility identifiers. Claim provider/device behavior only after real verification.
 
-## Commits and Pull Requests
+## Testing and Review
 
-History generally uses Conventional Commit subjects such as `feat(player): ...`, `fix(torrent): ...`, and `perf(app): ...`; keep subjects specific and concise. A pull request should explain user-visible behavior, list validation commands and results, link related issues when available, and include before/after screenshots for UI changes. Note any platform or device checks that could not be performed.
+Name tests `*_test.dart`; cover changed behavior, including RTL/LTR and themes for UI. Before submitting, run relevant tests/analyzer, inspect `git diff --check`, and disclose checks needing hardware, accounts, or macOS.
 
-## Configuration and Sensitive Data
+## Commit and Pull Requests
 
-Do not commit private signing keys, tokens, or personal provider credentials. The README notes that the checked-in Android release build uses a debug signing key; it is not suitable for store distribution.
+Use concise Conventional Commit subjects, e.g. `feat(player): ...`. PRs should describe behavior, list validation, link issues, and include UI screenshots.
+
+## Security and Configuration
+
+Never commit provider credentials or private signing keys. Keep key.properties and *.jks ignored. Android release builds use the existing debug-key fallback until a complete local android/key.properties is configured; the GitHub workflow has no upload keystore and its APK artifact must not be published as an app update. See android/key.properties.example and docs/nova/release-signing.md. The updater reads public version metadata and installs downloaded APKs from app cache.
+
+## Required Documentation Maintenance
+
+**Always update this `AGENTS.md` whenever project structure, architecture, commands, conventions, or important development practices change. Keep the project map accurate as files and modules evolve.**

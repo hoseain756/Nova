@@ -474,7 +474,9 @@ class _SourcesPageState extends State<SourcesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final english = context.watch<AppState?>()?.english ?? widget.english;
+    final app = context.watch<AppState?>();
+    final english = app?.english ?? widget.english;
+    final condensed = app?.webSettings['pickerLayout'] == 'condensed';
     final scheme = Theme.of(context).colorScheme;
     final video = widget.video;
     final season = (video?['season'] as num?)?.toInt();
@@ -593,7 +595,7 @@ class _SourcesPageState extends State<SourcesPage> {
                               stream: stream,
                               facts: _facts[i],
                               english: english,
-                              condensed: false,
+                              condensed: condensed,
                               onTap: _isDirect(stream) || _isTorrent(stream)
                                   ? () => Navigator.of(context).pop(stream)
                                   : null);
@@ -846,7 +848,7 @@ class _SourceRow extends StatelessWidget {
             ? (NovaStrings.lookup(english, 'message195'))
             : (NovaStrings.lookup(english, 'message210'));
     return Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: 16),
+        padding: EdgeInsetsDirectional.only(bottom: condensed ? 8 : 16),
         child: Material(
           color: scheme.surfaceContainerLow,
           shape: RoundedRectangleBorder(
@@ -856,7 +858,7 @@ class _SourceRow extends StatelessWidget {
           child: InkWell(
               onTap: onTap,
               child: Padding(
-                  padding: const EdgeInsets.all(20),
+                  padding: EdgeInsets.all(condensed ? 12 : 20),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -875,7 +877,7 @@ class _SourceRow extends StatelessWidget {
                                   style: Theme.of(context)
                                       .textTheme
                                       .labelLarge
-                                      ?.copyWith(color: scheme.primary))),
+                                      ?.copyWith(color: scheme.secondary))),
                           if (facts.qualityLabel != null)
                             Container(
                                 padding: const EdgeInsetsDirectional.fromSTEB(
@@ -890,9 +892,14 @@ class _SourceRow extends StatelessWidget {
                                         ?.copyWith(
                                             color: scheme.onPrimaryContainer))),
                         ]),
-                        const SizedBox(height: 12),
+                        SizedBox(height: condensed ? 6 : 12),
                         Text(title,
-                            maxLines: 2,
+                            maxLines: condensed &&
+                                    MediaQuery.textScalerOf(context)
+                                            .scale(14) <=
+                                        21
+                                ? 1
+                                : 2,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context)
                                 .textTheme
@@ -902,7 +909,7 @@ class _SourceRow extends StatelessWidget {
                                     color: onTap == null
                                         ? scheme.onSurfaceVariant
                                         : scheme.onSurface)),
-                        const SizedBox(height: 12),
+                        SizedBox(height: condensed ? 6 : 12),
                         Row(children: [
                           Expanded(
                               child: Wrap(
@@ -1015,7 +1022,7 @@ class StreamPrepareDialog extends StatelessWidget {
                               style: Theme.of(context)
                                   .textTheme
                                   .headlineSmall
-                                  ?.copyWith(color: scheme.primary)),
+                                  ?.copyWith(color: scheme.secondary)),
                           Text(
                               '${(snapshot.downloadRate / (1024 * 1024)).toStringAsFixed(2)} MB/s',
                               textDirection: TextDirection.ltr,

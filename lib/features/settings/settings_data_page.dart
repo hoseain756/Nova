@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/cache_reset_service.dart';
 import '../../core/state/app_state.dart';
@@ -14,6 +15,7 @@ import '../../core/sync/noor_sync.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/torrent/torrent_service.dart';
 import '../../core/version.dart';
+import '../../core/update/app_update_service.dart';
 import '../../shared/widgets/noor_toast.dart';
 import 'widgets/settings_tiles.dart';
 import '../downloads/downloads_page.dart';
@@ -697,8 +699,7 @@ class _CacheResetCard extends StatelessWidget {
     final detail = hours <= 0
         ? (NovaStrings.lookup(english, 'message398'))
         : (NovaStrings.lookup(english, 'message399', {
-            'p0': _labelFor(hours, true).toLowerCase(),
-            'p1': _labelFor(hours, false)
+            'p0': _labelFor(hours, english).toLowerCase(),
           }));
     return Container(
       margin: const EdgeInsetsDirectional.only(bottom: 8),
@@ -745,8 +746,8 @@ class _CacheResetCard extends StatelessWidget {
           BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .8),
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: ListView(
+            shrinkWrap: true,
             children: [
               Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 20, 4),
@@ -879,67 +880,366 @@ class _DataRow extends StatelessWidget {
       );
 }
 
-class SettingsAboutPage extends StatelessWidget {
-  const SettingsAboutPage({super.key});
+class SettingsAboutPage extends StatefulWidget {
+  const SettingsAboutPage({super.key, this.updateService, this.initialStatus});
+
+  final AppUpdateService? updateService;
+  final AppUpdateStatus? initialStatus;
+
+  @override
+  State<SettingsAboutPage> createState() => _SettingsAboutPageState();
+}
+
+class _SettingsAboutPageState extends State<SettingsAboutPage> {
+  late final AppUpdateService _updateService =
+      widget.updateService ?? AppUpdateService();
+  AppUpdateStatus? _updateStatus;
+  bool _checking = false;
+  bool _downloading = false;
+  bool _requiredDialogOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateStatus = widget.initialStatus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final required = widget.initialStatus;
+      if (required?.forceRequired == true) {
+        unawaited(_showRequiredUpdate(required!));
+      } else {
+        unawaited(_checkForUpdates(automatic: true));
+      }
+    });
+  }
+
+  Future<void> _checkForUpdates({required bool automatic}) async {
+    if (_checking || _downloading) return;
+    setState(() => _checking = true);
+    try {
+      final status = await _updateService.checkForUpdates();
+      if (!mounted) return;
+      setState(() => _updateStatus = status);
+      if (status.forceRequired) {
+        await _showRequiredUpdate(status);
+      } else if (!automatic) {
+        final app = context.read<AppState>();
+        _showMessage(status.hasUpdate
+            ? (!app.english && status.manifest.messageAr.isNotEmpty
+                ? status.manifest.messageAr
+                : app.tr('updateAvailable', {
+                    'version': status.manifest.latestVersion,
+                  }))
+            : app.tr('updateCurrent'));
+      }
+    } catch (error) {
+      if (mounted && !automatic) {
+        final failure = classifyAppUpdateFailure(
+          error,
+          operation: AppUpdateOperation.check,
+        );
+        _showMessage(
+          context.read<AppState>().tr(appUpdateMessageKey(failure)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _showRequiredUpdate(AppUpdateStatus status) async {
+    if (_requiredDialogOpen || !mounted) return;
+    _requiredDialogOpen = true;
+    final app = context.read<AppState>();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(app.tr('updateRequiredTitle')),
+          content: Text(
+            app.english || status.manifest.messageAr.isEmpty
+                ? app.tr('updateRequiredBody')
+                : status.manifest.messageAr,
+          ),
+          actions: [
+            FilledButton.icon(
+              onPressed: _downloading
+                  ? null
+                  : () => unawaited(_downloadAndInstall(status)),
+              icon: const Icon(LucideIcons.download),
+              label: Text(app.tr('updateDownloadAction')),
+            ),
+          ],
+        ),
+      ),
+    );
+    _requiredDialogOpen = false;
+  }
+
+  Future<void> _downloadAndInstall(AppUpdateStatus status) async {
+    if (_downloading || !mounted) return;
+    setState(() => _downloading = true);
+    final app = context.read<AppState>();
+    final progress = ValueNotifier<double?>(0);
+    var progressDialogOpen = true;
+    var operation = AppUpdateOperation.download;
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(app.tr('updateDownloadProgressTitle')),
+          content: ValueListenableBuilder<double?>(
+            valueListenable: progress,
+            builder: (context, value, _) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LinearProgressIndicator(value: value),
+                const SizedBox(height: 12),
+                Text(
+                  app.tr('updateDownloadProgress', {
+                    'percent':
+                        value == null ? '—' : (value * 100).round().toString(),
+                  }),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    void closeProgressDialog() {
+      if (mounted && progressDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        progressDialogOpen = false;
+      }
+    }
+
+    try {
+      await Future<void>.delayed(Duration.zero);
+      if (Platform.isAndroid) {
+        final file = await _updateService.downloadAndroidApk(
+          status.manifest.androidUrl,
+          onProgress: (received, total) {
+            progress.value =
+                total > 0 ? (received / total).clamp(0.0, 1.0) : null;
+          },
+        );
+        closeProgressDialog();
+        operation = AppUpdateOperation.install;
+        await _updateService.installAndroidApk(file.path);
+        if (mounted) {
+          await _showUpdateFeedback(
+            app.tr('updateInstallerOpened'),
+            app: app,
+          );
+        }
+      } else if (Platform.isIOS) {
+        closeProgressDialog();
+        operation = AppUpdateOperation.install;
+        final link = status.manifest.iosUrl.trim();
+        if (link.isEmpty) {
+          throw const AppUpdateException(AppUpdateFailure.iosUnavailable);
+        }
+        final uri = Uri.tryParse(link);
+        if (uri == null ||
+            uri.scheme != 'https' ||
+            !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+          throw const AppUpdateException(AppUpdateFailure.iosOpenFailed);
+        }
+        if (mounted) {
+          await _showUpdateFeedback(app.tr('updateIosOpened'), app: app);
+        }
+      } else {
+        throw const AppUpdateException(AppUpdateFailure.unsupportedPlatform);
+      }
+    } catch (error) {
+      closeProgressDialog();
+      if (mounted) {
+        final failure = classifyAppUpdateFailure(error, operation: operation);
+        await _showUpdateFeedback(
+          app.tr(appUpdateMessageKey(failure)),
+          app: app,
+          isError: true,
+        );
+      }
+    } finally {
+      progress.dispose();
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showUpdateFeedback(
+    String message, {
+    required AppState app,
+    bool isError = false,
+  }) async {
+    if (!mounted) return;
+    if (!_requiredDialogOpen) {
+      _showMessage(message);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(app.tr(isError ? 'updateErrorTitle' : 'updateSection')),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(app.tr('updateDismiss')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _updateControl(AppState app) {
+    final status = _updateStatus;
+    final title = _checking
+        ? app.tr('updateChecking')
+        : status?.hasUpdate == true
+            ? app.tr('updateDownloadAction')
+            : app.tr('updateCheckAction');
+    final subtitle = _checking
+        ? app.tr('updateChecking')
+        : status?.hasUpdate == true
+            ? (!app.english && status!.manifest.messageAr.isNotEmpty
+                ? status.manifest.messageAr
+                : app.tr('updateAvailable', {
+                    'version': status!.manifest.latestVersion,
+                  }))
+            : status != null
+                ? app.tr('updateCurrent')
+                : app.tr('updateDescription');
+    return SettingsContentSection(
+      title: app.tr('updateSection'),
+      children: [
+        ListTile(
+          leading: Icon(
+            status?.hasUpdate == true
+                ? LucideIcons.download
+                : LucideIcons.refreshCw,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          title: Text(title),
+          subtitle: Text(subtitle),
+          trailing: _downloading || _checking
+              ? const SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  Directionality.of(context) == TextDirection.rtl
+                      ? LucideIcons.chevronLeft
+                      : LucideIcons.chevronRight,
+                ),
+          onTap: _checking || _downloading
+              ? null
+              : status?.hasUpdate == true
+                  ? () => unawaited(_downloadAndInstall(status!))
+                  : () => unawaited(_checkForUpdates(automatic: false)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
     final app = context.read<AppState>();
     return Scaffold(
-        appBar: AppBar(title: Text(app.tr('message405'))),
-        body: Center(
-            child: ConstrainedBox(
+      appBar: AppBar(title: Text(app.tr('message405'))),
+      body: Center(
+        child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView(
-              padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 48),
-              children: [
-                Center(
-                    child: Image.asset(
-                        'assets/brand/android/play_store/ic_launcher-playstore-512.png',
-                        width: 104,
-                        height: 104,
-                        filterQuality: FilterQuality.medium)),
-                const SizedBox(height: 24),
-                Text('NOVA',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                        fontWeight: FontWeight.w800, letterSpacing: 8)),
-                const SizedBox(height: 8),
-                Text(app.tr('message406', {'p0': noorVersionLabel}),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.secondary)),
-                const SizedBox(height: 32),
-                Text(app.tr('message407'),
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 12),
-                Text(app.tr('message408'),
-                    style: Theme.of(context).textTheme.bodyLarge),
-                SettingsContentSection(title: app.tr('message409'), children: [
+            padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 48),
+            children: [
+              Center(
+                child: Image.asset(
+                  'assets/brand/android/play_store/ic_launcher-playstore-512.png',
+                  width: 104,
+                  height: 104,
+                  filterQuality: FilterQuality.medium,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'NOVA',
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .displaySmall
+                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 8),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                app.tr('message406', {'p0': noorVersionLabel}),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+              ),
+              const SizedBox(height: 20),
+              _updateControl(app),
+              const SizedBox(height: 24),
+              Text(
+                app.tr('message407'),
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 12),
+              Text(app.tr('message408'),
+                  style: Theme.of(context).textTheme.bodyLarge),
+              SettingsContentSection(
+                title: app.tr('message409'),
+                children: [
                   SettingsTile(
-                      icon: LucideIcons.codeXml,
-                      title: app.tr('message410'),
-                      subtitle: app.tr('message411'),
-                      onTap: () => showLicensePage(
-                          context: context,
-                          applicationName: 'NOVA',
-                          applicationVersion: noorVersionLabel)),
+                    icon: LucideIcons.codeXml,
+                    title: app.tr('message410'),
+                    subtitle: app.tr('message411'),
+                    onTap: () => showLicensePage(
+                      context: context,
+                      applicationName: 'NOVA',
+                      applicationVersion: noorVersionLabel,
+                    ),
+                  ),
                   Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(app.tr('message412')),
-                            const SizedBox(height: 8),
-                            const SelectableText(
-                                'github.com/harborstremio/harbor'),
-                          ])),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(app.tr('message412')),
+                        const SizedBox(height: 8),
+                        const SelectableText(
+                          'github.com/harborstremio/harbor',
+                        ),
+                      ],
+                    ),
+                  ),
                   Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(app.tr('message413'))),
-                ]),
-                SettingsInfoBanner(message: app.tr('message414')),
-              ]),
-        )));
+                    padding: const EdgeInsets.all(20),
+                    child: Text(app.tr('message413')),
+                  ),
+                ],
+              ),
+              SettingsInfoBanner(message: app.tr('message414')),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

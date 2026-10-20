@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties. The copy is ignored by Git.
+# Set storeFile to an absolute path or a path relative to the android/ directory.
+storeFile=C:/path/to/upload-keystore.jks
+storePassword=
+keyPassword=
+keyAlias=

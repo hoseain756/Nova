@@ -89,7 +89,7 @@ class Top10Item extends StatelessWidget {
                 Text(rank.toString().padLeft(2, '0'),
                     textDirection: TextDirection.ltr,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: scheme.primary, fontWeight: FontWeight.w800)),
+                        color: scheme.secondary, fontWeight: FontWeight.w800)),
                 const SizedBox(width: 8),
                 Expanded(
                     child: Text(item.name,
@@ -114,5 +114,5 @@ class OutlinedRankNumber extends StatelessWidget {
       style: TextStyle(
           fontSize: fontSize,
           fontWeight: FontWeight.w800,
-          color: Theme.of(context).colorScheme.primary));
+          color: Theme.of(context).colorScheme.secondary));
 }

@@ -63,12 +63,17 @@ class PosterCard extends StatelessWidget {
                     fit: StackFit.expand,
                     children: [
                       if (item.poster != null)
-                        NovaNetworkImage(
-                          item.poster!,
-                          fit: BoxFit.cover,
-                          // Task 136: decode at the card's on-screen size.
-                          cacheWidth: imageCacheWidth(context, width),
-                          errorBuilder: (_, __, ___) => const _PosterFallback(),
+                        SizedBox.expand(
+                          child: NovaNetworkImage(
+                            item.poster!,
+                            width: double.infinity,
+                            height: double.infinity,
+                            fit: BoxFit.cover,
+                            // Task 136: decode at the card's on-screen size.
+                            cacheWidth: imageCacheWidth(context, width),
+                            errorBuilder: (_, __, ___) =>
+                                const _PosterFallback(),
+                          ),
                         )
                       else
                         const _PosterFallback(),
@@ -104,13 +109,14 @@ class PosterCard extends StatelessWidget {
                                 children: [
                                   Icon(
                                     LucideIcons.star,
-                                    color: NovaTheme.of(context).gold,
+                                    color: NovaColors.rating,
                                     size: 12,
                                   ),
                                   const SizedBox(width: 3),
                                   Text(
                                     item.rating!,
                                     style: const TextStyle(
+                                      color: NovaColors.white,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w700,
                                     ),

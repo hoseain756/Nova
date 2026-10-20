@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -211,6 +212,16 @@ class MediaKitEngine extends PlaybackEngine {
   /// Texture-backed video surface (subtitles render Flutter-side — see
   /// [PlayerVideoSurface.overlay] and widgets/subtitle_overlay.dart).
   VideoController get controller => _controller;
+
+  /// Captures the decoded frame from mpv for a local resume preview.
+  Future<Uint8List?> captureFrame() async {
+    if (_disposed || !ready) return null;
+    try {
+      return await _player.screenshot(format: 'image/jpeg');
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<void> open(String url,
