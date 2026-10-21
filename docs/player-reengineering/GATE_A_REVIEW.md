@@ -1,8 +1,18 @@
-**BASELINE EXPLORATORY ONLY — user accepted**
+**CURRENT DISPOSITION — STATIC-ONLY DIAGNOSIS ACCEPTED; VALID LEGACY BASELINE EXPLICITLY WAIVED (2026-10-21).**
+
+## Current user decision — supersedes historical pending status below
+
+> Gate A decision: accept the STATIC-ONLY diagnosis. User explicitly waives the valid legacy baseline. All performance claims remain STRONGLY INFERRED or UNKNOWN. BASELINE.md stays marked incomplete. Proceed to Station 09 planning only (architecture and engine decision options with evidence labels, license notes, and dependency review). Do NOT change production code, do NOT build, install, or run device commands. Write GATE_B_REVIEW.md if needed, but do not commit anything until I approve. Stop after the Station 09 options draft and send me the decision summary.
+
+Gate A resolved by written acceptance/waiver for Station 09 planning only. Station 09 completed at Gate B (commit `6de10d0`); Station 10 requires explicit user go-ahead. Current decision: `GATE_B_REVIEW.md`. Official baseline remains INCOMPLETE / NOT MEASURED; every BEFORE field NOT MEASURED; architecture confidence reduced and baseline-dependent targets evaluated as absolute values only. Performance benefit remains UNKNOWN without valid before/after measurement; purpose is structural decoupling only. No hypothesis upgraded or production/runtime authorization granted. Do not stage or commit these updates yet. The historical quotation above uses the current Gate B filename as requested. The packet below and `GATE_A_REVIEWER.md` retain their historical findings at the Station 08 checkpoint; their pending/no-waiver/stop-at-A/unentered-Station-09 statements are superseded by this addendum. Station 08 analysis is preserved unchanged.
+
+---
+
+**Historical Gate A packet — BASELINE EXPLORATORY ONLY at preparation time**
 
 # Gate A — Station 08 diagnosis review
 
-- Status: AWAITING USER DECISION — Gate A not passed.
+- Status: Station 09 completed at Gate B (commit `6de10d0`); Station 10 requires explicit user go-ahead.
 - Verification status: STATIC-ONLY. Date: 2026-10-21, Asia/Riyadh.
 - Analysis: `08_STATION.md`. Rules: root specification Sections 0.4, 0.4A and 54A, with current user instruction authorizing Station 08 only and replacing the missing-device banner.
 

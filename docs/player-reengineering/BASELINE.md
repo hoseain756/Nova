@@ -2,7 +2,7 @@
 
 ## Status
 
-**2026-10-21 user decision: EXPLORATORY SAMPLE only accepted; official baseline NOT MEASURED.** This is not an explicit written waiver. Station 08 static diagnosis and Gate A preparation are authorized now; historical instructions below against later work are superseded only for this bounded continuation. No device command or runtime measurement is authorized here. Current device availability UNKNOWN; references below to a connected device describe the historical capture session.
+**2026-10-21 current status: Station 09 completed at Gate B (commit `6de10d0`); Station 10 requires explicit user go-ahead.** The valid legacy baseline was explicitly waived for Station 09 planning only; STATIC-ONLY diagnosis accepted. Gate A waiver: `GATE_A_REVIEW.md` current addendum. Gate B decision: `GATE_B_REVIEW.md`. These decisions supersede the earlier exploratory-only/no-waiver gate restriction without validating any exploratory metric. Every BEFORE value remains NOT MEASURED; performance benefit is UNKNOWN because no valid before/after measurement exists. Purpose: structural decoupling only. Baseline-dependent targets are evaluated as absolute values only. No production change, build, install, runtime measurement or device command is authorized before explicit Station 10 go-ahead. Current device availability UNKNOWN; device facts below are historical.
 
 **INCOMPLETE — OFFICIAL BASELINE NOT CAPTURED.** One user-played exploratory sample was accepted, but it does not satisfy Section 0.9's three-run, run-bounded protocol. Official baseline scenario counts remain zero; no median/min/max is valid.
 
@@ -57,4 +57,4 @@ No official-valid measurement logs exist. The saved filtered capture is explorat
 
 ## Historical Station 03 stop and deferred measurement work
 
-Station 03 is **INCOMPLETE for the official baseline** and was stopped here at the user's direction. Do not treat this exploratory sample as a baseline or start later stations from it. If the user resumes baseline work, establish run start/stop timestamps, capture at least three Profile-mode repetitions per scenario, record only explicit buffering-state transitions, and keep Flutter UI frame timings separate from decoder drops. No production code was changed in this Station 03 session.
+Station 03 is **INCOMPLETE for the official baseline** and was stopped here at the user's direction. Do not treat the exploratory sample as a baseline. The explicit waiver permitted Station 09 planning, now completed at Gate B (commit `6de10d0`); it does not complete Station 03 or authorize implementation/runtime work. Station 10 requires explicit user go-ahead; see `GATE_B_REVIEW.md`. If the user resumes baseline work, establish run start/stop timestamps, capture at least three Profile-mode repetitions per scenario, record only explicit buffering-state transitions, and keep Flutter UI frame timings separate from decoder drops. No production code was changed in this Station 03 session.
