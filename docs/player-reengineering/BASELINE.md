@@ -2,6 +2,8 @@
 
 ## Status
 
+**2026-10-21 user decision: EXPLORATORY SAMPLE only accepted; official baseline NOT MEASURED.** This is not an explicit written waiver. Station 08 static diagnosis and Gate A preparation are authorized now; historical instructions below against later work are superseded only for this bounded continuation. No device command or runtime measurement is authorized here. Current device availability UNKNOWN; references below to a connected device describe the historical capture session.
+
 **INCOMPLETE — OFFICIAL BASELINE NOT CAPTURED.** One user-played exploratory sample was accepted, but it does not satisfy Section 0.9's three-run, run-bounded protocol. Official baseline scenario counts remain zero; no median/min/max is valid.
 
 ## Device and protocol facts available
@@ -32,7 +34,7 @@ Run 1 does not count toward the official three runs. Runs 2 and 3 were not perfo
 
 ## Required scenarios and status
 
-All cells have 0 runs; therefore median and min/max are unavailable. A physical device is present; these cells are NOT MEASURED due to missing valid playback input and profile diagnostics, not because the device is absent.
+All cells have 0 official runs; therefore median and min/max are unavailable. A physical device was present in the capture session; current availability is UNKNOWN. These cells remain NOT MEASURED because there are no valid bounded three-run scenarios, not because of a newly verified absence of hardware.
 
 | Scenario | Runs | Time-to-first-frame | Steady-state / metric | Status and reason |
 |---|---:|---|---|---|
@@ -53,6 +55,6 @@ All cells have 0 runs; therefore median and min/max are unavailable. A physical 
 
 No official-valid measurement logs exist. The saved filtered capture is exploratory only; `evidence/PHYSICAL_DEVICE_PREFLIGHT.md` remains an environmental snapshot. No official median, min, or max is reported.
 
-## Station status and deferred work
+## Historical Station 03 stop and deferred measurement work
 
 Station 03 is **INCOMPLETE for the official baseline** and was stopped here at the user's direction. Do not treat this exploratory sample as a baseline or start later stations from it. If the user resumes baseline work, establish run start/stop timestamps, capture at least three Profile-mode repetitions per scenario, record only explicit buffering-state transitions, and keep Flutter UI frame timings separate from decoder drops. No production code was changed in this Station 03 session.

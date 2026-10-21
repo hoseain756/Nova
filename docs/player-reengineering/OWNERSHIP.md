@@ -2,7 +2,7 @@
 
 | Role | Authorized scope | Write access for this mission |
 |---|---|---|
-| Primary agent | Master plan, all NOVA/player analysis, architecture, decision log, integrations, verification, final reporting | `docs/player-reengineering/` mission reports and plan files only during Stations 00–07; no production player code under this session's explicit user constraint |
+| Primary agent | Current continuation: Station 08 analysis and Gate A packet only | Explicit Gate A review/report and mission-plan/status documents under `docs/player-reengineering/`; no production/instrumentation/config changes, no build/install/device commands; stage/commit only these scoped docs, never unrelated files |
 | `nova_player_auditor` | One read-only static audit for Station 02 | None; may read NOVA player source and return findings only |
 | `reference_researcher` | One named reference repo per invocation at Stations 04, 05, 06, 06A, 06B (max five total) | None; reference source read-only, no network/build/device; final response only |
 | `perf_log_analyst` | Saved measurements after Stations 03, 10, 19 | None; saved logs only |
