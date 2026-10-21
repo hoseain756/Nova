@@ -1,15 +1,37 @@
 # NOVA Player Reengineering — Master Plan
 
+## Current stop / rollback instruction — 2026-10-21
+
+User halted implementation and directed rollback of **only the latest action** in `lib/features/player/session/playback_progress.dart` and `test/playback_progress_test.dart`, preserving earlier/user changes. Latest equal-input/clock-clamping/test edits reverted with explicit reverse hunks; pre-existing unwired helper/test additions remain untracked. No other application source/test edited, no reset/restore/clean, no executable checks or device work, no staging/commit. Incident recorded at the start of `10_STATION.md`; verification STATIC-ONLY. Earlier implementation authorizations/results below are historical and do not permit continuation.
+
+Disk station is 10 after recorded Gate B documentation checkpoints; Session 1/2 boundaries named in the user's stop instruction require read-only reconciliation with earlier handoff/Gate A records. Do not invent a session assignment or overwrite approvals. Before any continuation, report current branch/status/rollback scope and proposed next documentation task to the user, then STOP. Branch `feature/player-reengineering`, HEAD `260e811d5f459979e166492a203fbad1fdd2ea20`, production LKG `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no promotion or commit. Detailed contracts remain PROPOSED.
+
+## Historical continuation — Station 10 isolated progress slice, 2026-10-21
+
+User accepted only the smallest-edit plan. Contracts C10-1–C10-5 remain **PROPOSED until separately accepted**. Authorized code paths: new `lib/features/player/session/playback_progress.dart` and new `test/playback_progress_test.dart`, unwired. Required AGENTS/master/Station 10/ownership documentation may track this slice. Latest follow-up: retain pending trailing publication on equal input, clamp backward clock readings, add regression tests and show the diff. **Do not rerun tests or analysis; user will run the test file themselves.** No device commands, APK builds, installs, other production edits, staging or commits. This supersedes earlier computer-check authorization for this follow-up.
+
+The helper retains exact immutable samples, equality-filters latest UI publication at 100 ms minimum spacing, retains a pending callback across equal input, clamps backward clock readings, and cancels pending work on generation reset/close with stale-callback guards. Default timing uses Stopwatch/Timer; tests inject deterministic time/scheduling. It owns no engine, UI or persistence. Current fixes are **STATIC-ONLY; updated tests NOT-VERIFIED** until the user runs them. Historical prior-version checks: formatting passed, targeted tests 20/20, analysis no issues, full suite 472 passed; these do not verify the changed revision. No playback/performance claim, integration authorization, general baseline waiver or LKG promotion follows. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; HEAD `260e811d5f459979e166492a203fbad1fdd2ea20`. Original implementation checklist 0/10, mission totals 216/116, agent count 6. **STOP after showing the diff; no commit.**
+
+## Historical continuation — Station 10 planning only, 2026-10-21
+
+User explicitly started Station 10 **planning only**: read the root specification (Section 0 overrides), this plan, Gate B, BASELINE and Station 09; verify expected HEAD/status; write the session/progress/rendering/recovery/persistence DRAFT-to-FINAL proposal, exact future paths and smallest reversible first edit; commit nothing and stop with a summary of at most 10 lines. No production/instrumentation edits, build/install or device commands. Device connected per user, intentionally unused and not queried. This scope supersedes older commit/continuation instructions below and in historical Gate B/Station 09/ownership text.
+
+Proposal: `10_STATION.md`, C10-1 through C10-5. Design verification STATIC-ONLY; proposed runtime behavior NOT-VERIFIED. Proposed FINAL wording awaits user acceptance; no detailed ADR promoted. Recommended first later slice: unwired `session/playback_progress.dart` plus `test/playback_progress_test.dart`, with required documentation, deterministic time tests and file-scoped rollback. Exact subsequent integration paths and legacy-default selector are listed in Station 10. Implementation authorization and the Station-09-only baseline waiver boundary must be resolved before production edits; this planning instruction does not extend the waiver.
+
+Current read-only Git verification: branch `feature/player-reengineering`, HEAD `260e811d5f459979e166492a203fbad1fdd2ea20`; prior Gate B docs commit `6de10d0` exists. Initial index empty; 32 initial short-status entries, no tracked player changes. Production LKG `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5` is an ancestor and matches the existing safety tag. Existing unrelated edits remain untouched. No commit/tag/push or LKG promotion in this continuation.
+
+Station 10 planning checklist 4/4 is tracked separately from its original implementation checklist 0/10. Original mission counts remain 216 tasks / 116 checked. Station 10 implementation incomplete; Stations 11–20 unentered. All BEFORE/AFTER metrics NOT MEASURED; performance benefit UNKNOWN; native-library license classification unclear, personal-use scope retained. Agent invocations unchanged at 6; no new reviewer/gate/agent. **STOP at the proposal; await the user's next instruction.**
+
 ## Mission state
 
 - Authoritative specification: `C:\Users\hosea\projects\app\Nova\NOVA_PLAYER_PROMPT_V2_1.md`, SHA-256 `105C6368ACE6B92CC2D793FA8CE61FB519026B56D202FA73CD26584B378F3F50`. The root copy contains Section 54A and takes precedence as the user directed. All root/docs specification copies and backups remain untouched.
 - Feature branch: `feature/player-reengineering`.
 - Safety tag: `pre-player-reengineering-baseline` → `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`.
-- Current continuation: record Gate B approval and commit ONLY the six Gate B documentation/plan files listed in `GATE_B_REVIEW.md`, after showing `git diff --cached --name-only`. No production/instrumentation/config/dependency edits, build, install or device commands. No push or tag; stop after commit. Existing unrelated changes excluded.
-- Documentation commit PENDING: `git add` could not create protected `.git/index.lock` (Permission denied); the required escalated Git-index write request was rejected by the user. No files staged or committed. Do not bypass that rejection. Gate B human approval remains valid; Station 10 remains unentered awaiting explicit go-ahead.
+- Historical Gate B continuation: six documentation/plan files only; actual Git now records `6de10d0` and follow-up status commit `260e811`. Current authorization is the Station 10 planning-only addendum above; no further commit authorized.
+- Earlier Git-index write failure/rejected escalation was historical. Read-only log verification establishes the subsequent documentation commits exist; no index write, retry or permission bypass was attempted in this continuation.
 - Last-known-good production commit: `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`.
 - Current HEAD at Station 09 entry: `d19224bc3a59dbfe9db1c43126842159820ff33f` (`player: station 08 root-cause analysis gate a`). Pre-existing instrumentation is in its ancestry; no new code LKG.
-- Current station: 09 — planning checkpoint COMPLETE, STATIC-ONLY, 9/9 tasks; Gate B APPROVED WITH CONDITIONS for Option A (retain media_kit, structural decoupling only). Session/progress/rendering/recovery/persistence interface contracts remain DRAFT for finalization in Station 10. Stations 10–20 unentered; Station 10 requires explicit user go-ahead.
+- Current station: 10 — STOPPED; latest-action fixes reverted, earlier unwired additions preserved; rollback inspection STATIC-ONLY. Session 1/2 boundary reconciliation pending user review. C10-1–C10-5 remain PROPOSED. Original full-core tasks 0/10; Stations 11–20 unentered. Historical Gate A/B approvals are not rewritten.
 - Gate B conditions (2026-10-21): performance benefit remains UNKNOWN, no performance claim without valid before/after measurement; personal-use scope/no planned distribution, native-library classification stays unclear and license review must reopen before any distribution; interface contracts DRAFT; no production/build/install/device work until explicitly starting Station 10; scoped docs commit only, no push/tag, then stop. Full verbatim reply: `GATE_B_REVIEW.md`.
 - Gate B revision requested before approval: purpose is structural decoupling only; **performance benefit UNKNOWN because no valid before/after measurement exists**. Each option A–D now maps RC1 rebuild coupling / RC3 recovery / RC4 source continuity with structural evidence labels. Section 0.8 classifications: media_kit stack wrapper LICENSE files permissive (MIT), exact bundled native artifact classification unclear pending inventory. Details in Station 09, Gate B draft and license notes. No new agent invocation, production/runtime work, staging or commit.
 - User decision (2026-10-21): accept STATIC-ONLY diagnosis and explicitly waive the valid legacy baseline, for Station 09 planning only. Verbatim decision in `GATE_A_REVIEW.md` addendum and `GATE_B_REVIEW.md-draft`. `BASELINE.md` remains INCOMPLETE; every BEFORE NOT MEASURED. All performance claims STRONGLY INFERRED or UNKNOWN; baseline-dependent targets absolute-only. Historical no-waiver/stop-at-A instructions are superseded for this scope.
@@ -39,7 +61,7 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 07 | Cross-project engineering comparison | 8 | 8 | COMPLETE — STATIC-ONLY |
 | 08 | Root-cause analysis | 8 | 8 | COMPLETE — STATIC-ONLY; Gate A accepted with explicit baseline waiver |
 | 09 | Final architecture | 9 | 9 | COMPLETE planning — STATIC-ONLY; Gate B Option A approved with conditions; interface contracts DRAFT |
-| 10 | Playback core stabilization | 10 | 0 | PLANNED — not entered |
+| 10 | Playback core stabilization | 10 | 0 | STOPPED — latest-action rollback STATIC-ONLY; earlier additions preserved, session boundary pending |
 | 11 | Player controls and gestures | 8 | 0 | PLANNED — not entered |
 | 12 | Subtitles, audio, speed, sources | 9 | 0 | PLANNED — not entered |
 | 13 | Resume playback | 7 | 0 | PLANNED — not entered |
@@ -52,7 +74,7 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 20 | Final full audit | 10 | 0 | PLANNED — not entered |
 | **Total** |  | **216** | **116** |  |
 
-Station tracking files: `00_STATION.md`–`20_STATION.md`, plus `STATION_06A.md` and `STATION_06B.md`. Station 09 only entered in this continuation; Stations 10–20 unentered. `SESSION_1_HANDOFF.md`, unchanged Station 08 report and old gate-pending text are historical; current waiver/scope above controls resumption.
+Station tracking files: `00_STATION.md`–`20_STATION.md`, plus `STATION_06A.md` and `STATION_06B.md`. Station 10 isolated helper/tests only; player integration and Stations 11–20 unentered. `SESSION_1_HANDOFF.md`, unchanged Station 08 report and old gate-pending text are historical; current smallest-edit scope above controls resumption.
 
 ## Last-known-good and documentation commits
 
@@ -73,7 +95,7 @@ The production LKG remains the supplied safety baseline. Historical documentatio
 | Station 07 + Session 1 handoff | Historical checkpoint present in current history | Docs only; historical next-step instruction superseded |
 | Latest Station 03 exploratory checkpoint | Requested documentation checkpoint verified as HEAD at entry | Docs/evidence only; official baseline NOT MEASURED |
 | Station 08 + Gate A | `d19224bc3a59dbfe9db1c43126842159820ff33f` | Seven scoped docs; STATIC-ONLY. Gate A subsequently accepted with waiver. |
-| Station 09 + Gate B approval | PENDING — protected Git-index write request rejected; intended subject `player: station 09 gate b approval` | Six scoped documentation/plan files saved but unstaged/uncommitted; no new production LKG. Prior Gate A/baseline/ownership working changes excluded. |
+| Station 09 + Gate B approval | `6de10d0 docs: station 09 gate b decision`; `260e811 docs: record gate b decision status` | Documentation checkpoints verified in current log; no new production LKG. Earlier pending/index-rejection notes are historical. |
 
 ## License and clean-room status
 
@@ -83,7 +105,7 @@ Exact licenses, upstream refs, and clean-room rules are in `LICENSE_NOTES.md`. R
 
 ## Architecture decision log
 
-**ADR-P001 engine/direction ACCEPTED at Gate B; remaining detailed contracts/ADRs DRAFT for Station 10.** All technical verification remains STATIC-ONLY; approval is not implementation or runtime evidence. Full alternatives/contracts/evidence ledger S1–S8 in `09_STATION.md`. Purpose is structural decoupling only; structural suitability may be STRONGLY INFERRED, but performance benefit is UNKNOWN without valid before/after measurement. No Section 51A absolute target relaxed.
+**ADR-P001 engine/direction ACCEPTED at Gate B; detailed C10-1–C10-5 contracts remain PROPOSED until user acceptance.** Only the isolated unwired progress helper/test slice is authorized and implemented; no other ADR or contract is silently accepted. Broader design remains STATIC-ONLY; player runtime NOT-VERIFIED. Full alternatives/contracts/evidence ledger S1–S8 in `09_STATION.md`. Purpose is structural decoupling only; structural suitability may be STRONGLY INFERRED, but performance benefit is UNKNOWN without valid before/after measurement. No Section 51A absolute target relaxed.
 
 | ID / problem | Options / recommended selection | Evidence / reason / tradeoffs / affected stations |
 |---|---|---|
@@ -106,7 +128,7 @@ Station 08 independently re-summed saved capture lines 116–226: 110 summaries,
 
 Current user written waiver resolves Gate A for Station 09 planning only. Final BEFORE fields remain NOT MEASURED; reduced-confidence Gate B draft and absolute-only baseline-dependent evaluation in `09_STATION.md`. Relative TTFF/seek/gap/drift clauses cannot be evaluated, are not assumed passed and get no invented thresholds.
 
-Current authoritative approval: `GATE_B_REVIEW.md`; historical options: `GATE_B_REVIEW.md-draft`; independent historical review/correction: `GATE_B_REVIEWER.md`. Gate B APPROVED WITH CONDITIONS. Commit only the six authorized documentation/plan files after displaying staged paths, then STOP. Station 10 requires explicit user go-ahead; no production/build/install/device work. No push/tag. Current production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no current analyzer/tests/build/runtime proof.
+Authoritative engine approval: `GATE_B_REVIEW.md`; historical options: `GATE_B_REVIEW.md-draft`; independent historical review/correction: `GATE_B_REVIEWER.md`. Gate B APPROVED WITH CONDITIONS. Current user instruction starts Station 10 planning only and forbids commits/production/build/install/device work. Stop after the proposal, see the current-continuation addendum and `10_STATION.md`. No push/tag. Production LKG remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`; no current analyzer/tests/build/runtime proof.
 
 The earlier uncommitted Gate A/baseline/ownership addenda are excluded from this commit. Current Gate A waiver and Gate B conditions are recorded in the committed Gate B packet; their decisions supersede historical pending/no-waiver text in earlier station/baseline documents without marking Station 03 complete.
 
