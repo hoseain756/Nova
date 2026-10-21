@@ -19,6 +19,7 @@ import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
+import 'player_diagnostics.dart';
 import 'segments/playback_segments.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
@@ -203,6 +204,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   @override
   void initState() {
     super.initState();
+    PlayerDiagnostics.instance.start();
     WidgetsBinding.instance.addObserver(this);
     _streamIndex = widget.streamIndex ?? 0;
     final resumeAction = NovaPlaybackPreferences.resumeAction(
@@ -1781,6 +1783,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   @override
   Widget build(BuildContext context) {
+    PlayerDiagnostics.instance.record('playerPageBuild');
     final engine = _engine;
     final ready = engine != null && engine.ready;
     // Task 128: a stuck stream (dead source / wedged texture) is a first-class

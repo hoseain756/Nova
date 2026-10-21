@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../player_diagnostics.dart';
+
 export 'package:media_kit/media_kit.dart'
     show AudioTrack, SubtitleTrack, Track, Tracks;
 
@@ -94,6 +96,9 @@ class MediaKitEngine extends PlaybackEngine {
   /// (low-end Mali devices render an eternal WHITE surface when MediaCodec
   /// stalls — Task 128).
   MediaKitEngine({this.hardwareAcceleration = true}) {
+    if (PlayerDiagnostics.enabled) {
+      PlayerDiagnostics.instance.record('engineCreated');
+    }
     // Defensive belt-and-braces (Task 127): main() calls the idempotent
     // ensureInitialized already, but every entry point that constructs the
     // engine (player page, magnet opener, library, live TV, next-episode)
@@ -227,6 +232,9 @@ class MediaKitEngine extends PlaybackEngine {
   Future<void> open(String url,
       {Duration? startAt, Map<String, String>? httpHeaders}) async {
     if (_disposed) return;
+    if (PlayerDiagnostics.enabled) {
+      PlayerDiagnostics.instance.record('open');
+    }
     _failed = false;
     _errorMessage = null;
     _completed = false;
@@ -404,12 +412,14 @@ class MediaKitEngine extends PlaybackEngine {
   // ── Stream handlers ─────────────────────────────────────────────────────
 
   void _onPlaying(bool value) {
+    PlayerDiagnostics.instance.record('playing');
     _playing = value;
     if (value) _buffering = false;
     _notifySafely();
   }
 
   void _onCompleted(bool value) {
+    PlayerDiagnostics.instance.record('completed');
     if (_completed == value) return;
     _completed = value;
     if (value) {
@@ -420,33 +430,39 @@ class MediaKitEngine extends PlaybackEngine {
   }
 
   void _onBuffering(bool value) {
+    PlayerDiagnostics.instance.record('buffering');
     if (_buffering == value) return;
     _buffering = value;
     _notifySafely();
   }
 
   void _onPosition(Duration value) {
+    PlayerDiagnostics.instance.record('position');
     _position = value;
     _notifySafely();
   }
 
   void _onDuration(Duration value) {
+    PlayerDiagnostics.instance.record('duration');
     _duration = value;
     _notifySafely();
   }
 
   void _onBuffer(Duration value) {
+    PlayerDiagnostics.instance.record('buffer');
     _buffer = value;
     _notifySafely();
   }
 
   void _onRate(double value) {
+    PlayerDiagnostics.instance.record('rate');
     if ((_rate - value).abs() < 0.001) return;
     _rate = value;
     _notifySafely();
   }
 
   void _onVolume(double value) {
+    PlayerDiagnostics.instance.record('volume');
     final normalized = (value / 100.0).clamp(0.0, 1.0);
     if (normalized > 0.001) _lastNonZeroVolume = normalized;
     if ((_volume - normalized).abs() < 0.001) return;
@@ -455,22 +471,26 @@ class MediaKitEngine extends PlaybackEngine {
   }
 
   void _onTracks(Tracks value) {
+    PlayerDiagnostics.instance.record('tracks');
     _tracks = value;
     _notifySafely();
   }
 
   void _onSelectedTrack(Track value) {
+    PlayerDiagnostics.instance.record('selectedTrack');
     _selected = value;
     _notifySafely();
   }
 
   void _onError(String message) {
+    PlayerDiagnostics.instance.record('error');
     _failed = true;
     _errorMessage = message;
     _notifySafely();
   }
 
   void _notifySafely() {
+    PlayerDiagnostics.instance.record('engineNotify');
     if (_disposed) return;
     notifyListeners();
   }
@@ -507,6 +527,7 @@ class PlayerVideoSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    PlayerDiagnostics.instance.record('videoSurfaceBuild');
     return Stack(
       fit: StackFit.expand,
       children: [
