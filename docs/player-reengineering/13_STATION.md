@@ -1,29 +1,91 @@
 # Station 13 — Resume playback
 
-- Status: PLANNED
-- Verification status: NOT-VERIFIED (station work not yet completed)
-- Checklist: 0/7 tasks complete
+- Status: COMPLETE — functional resume LKG passed on both selectable Android routes
+- Verification status: analyzer, 590 project tests, both Profile builds/installs and user-controlled repeat resume passed on physical SM-A217F
+- Checklist: 7/7 tasks complete
 - Evidence:
 
-- [ ] Centralize resume save/restore and completion thresholds.
-- [ ] Preserve existing storage keys and user data semantics.
-- [ ] Ensure linked-provider and local resume interactions remain distinct.
-- [ ] Add unit/widget coverage for start, pause, completion and cleanup thresholds.
-- [ ] Verify saved progress across real app sessions without clearing app data.
-- [ ] Run LKG checks and document hardware/account limitations.
-- [ ] Commit only Station 13 paths/docs.
+- [x] Centralize resume save/restore and completion thresholds. Shared pure policy now supplies prompt/seek/write eligibility and the existing two-minute completion/frame rules to both routes and AppState.
+- [x] Preserve existing storage keys and user data semantics. No key, serialized field, threshold or history identity changed; short media retain their prior completion behavior.
+- [x] Ensure linked-provider and local resume interactions remain distinct. `historyForTitle` remains an additive presentation merge; local `recordPlayback` does not mutate linked rows.
+- [x] Add unit/widget coverage for start, pause, completion and cleanup thresholds. Focused policy/AppState/checkpoint/widget tests pass, including exact 30-second, five-second, and two-minute boundaries.
+- [x] Verify saved progress across real app sessions without clearing app data. The user closed and reopened NOVA and reported successful Core resume and Start over on the tested episode; later confirmed repeated resume on the final Core APK. Legacy automatic resume was previously confirmed on one source.
+- [x] Run LKG checks and document hardware/account limitations. Both final Profile routes built/installed and user-reported playback/resume passed on physical SM-A217F; linked accounts and iOS remain unverified.
+- [x] Commit only Station 13 paths/docs. Shared Stations 12–13 code was committed as scoped checkpoint `41e804681e01ae667ca99dbc6e0368cd180fc5b3`; unrelated local changes were excluded.
 
 ## Findings and evidence
 
-No findings recorded yet.
+### Final station result — 2026-10-22 (authoritative)
+
+`flutter pub get` PASS; `flutter analyze --no-pub` PASS/no issues; full `flutter test --no-pub --reporter expanded` PASS **590/590**. The focused startup-resume regression suite passed **5/5**, including paused capability delay, playing-source position confirmation and failure that pauses instead of silently restarting. Scoped formatting and `git diff --check` passed. Final Legacy/Core Profile APK hashes, build and install steps are recorded in `12_STATION.md`; both were installed after `adb devices -l` showed physical `RF8NA2NNVNY` / `SM_A217F`, without data clearing or agent-controlled app launch/playback.
+
+The user reported **«انها تعمل 100/100»** after two automatic-resume opens on the corrected final Legacy APK. On the final Core APK, the user reported **«كل شي يعمل»** to the two-open resume and end-card request. On the preceding Core APK, the user had closed and reopened NOVA without clearing data and reported persisted resume and Start over working, along with valid subtitle/source/picture/audio/position checks; the final Core source change was confined to a Legacy startup-seek fallback. Local unit tests separately cover movie completion/Continue Watching and episode/linked-history separation; only an episode/source received the reported physical-device test. No instrumented timestamp, linked Trakt/Simkl/AniList/MAL account result, completion-rail removal observation, iOS result or performance result is claimed. The current functional LKG code checkpoint is `41e804681e01ae667ca99dbc6e0368cd180fc5b3`; Gate D and release decisions remain later work.
+
+### Latest Legacy automatic-resume failure and fallback candidate — 2026-10-22
+
+Retest update: the user manually opened the same episode twice on the newly installed Legacy fallback APK with automatic resume and reported **«انها تعمل 100/100»**. This supersedes the failure on the preceding Legacy APK for the tested episode. A fresh `adb devices -l` showed `RF8NA2NNVNY` / `SM_A217F`; the final Core APK installed successfully without clearing data, agent launch or playback. Its repeated-resume and card retest is pending. Station 13 remains **5/7** until both-route LKG and scoped commit are recorded.
+
+Build update: the fresh Core Profile APK also built successfully (125.5 s), SHA-256 `8EBD0A15E43DC1B0DF068ECA510D5D9C0E642D9CA16F4DAA051A17802D65CEC9`; it remains saved and uninstalled until the user finishes the Legacy retest. Both route build details are in `12_STATION.md`.
+
+The user tested the final layout Legacy Profile APK and reported all other requested controls working, but automatic resume failed: a playback error appeared, and Retry started the episode at 0:00. Read-only physical-device logcat recorded `legacy open failed: UnsupportedError` for the attempted nonzero startup seek. The paused-open capability check had no positive result within its bound. The prompt path had previously resumed after playback began, but the native reason for the paused result remains unknown. The current source adds a bounded playing-source fallback that accepts success only after a position sample reaches the target and pauses/reports failure otherwise; progress writes remain suppressed during the transition. Focused tests PASS **5/5**, analyzer PASS/no issues, full tests PASS **590/590**, scoped format and diff check PASS. A fresh Legacy Profile APK identified in `12_STATION.md` built and installed on the physical phone after an ADB device check without clearing data or agent playback. The user has been asked to test automatic resume twice; a fresh Core build is underway. Station 13 remains **5/7**; LKG and scoped commit are not complete.
+
+### Final Core acceptance and Legacy install — 2026-10-22
+
+The final Core Profile APK identified in `12_STATION.md` contains the corrected Up-Next layout. After installing it without clearing data, the user reported **«البطاقة والاستئناف يعملان»** for the visible card and repeated resume. The immediately preceding Core APK had also received a user report that app-restart resume, Start over, valid external subtitle, source continuity and picture/audio/position checks succeeded. This is physical-device, user-controlled evidence for one episode/source; no linked-account or broader format result follows. Analyzer PASS/no issues, full tests **588/588**, focused Up-Next tests **3/3**. A fresh final Legacy Profile APK built and installed on the same physical phone after an ADB device check, without clearing data or agent playback; its manual playback/resume/card retest is pending. Station 13 is **5/7**; LKG and scoped commit remain open.
+
+### Current Core functional result and Up-Next layout defect — 2026-10-22
+
+Latest checks supersede the pending-build sentence below: analyzer PASS/no issues, full suite PASS **588/588**, focused Up-Next layout tests PASS **3/3**, and a fresh Core Profile APK built and installed on physical `RF8NA2NNVNY` after ADB verification without data clearing. Exact artifact hash is in `12_STATION.md`. User-controlled end-card and repeat-resume retest is pending; Legacy build is in progress. Station 13 remains **4/7**.
+
+After the successful second-open report, the user manually closed and reopened NOVA without clearing data, then reported **all requested Core checks passed**: persisted resume, Start over, valid external subtitle, source switch and picture/audio/position continuity. At the episode end, a physical-device screenshot showed the Up-Next card clipped against the top of the landscape screen with mostly blank content. Source/widget tests identified an infinite-width minimum on its secondary button and a fixed bottom offset that could place tall content beyond the viewport. A shared layout fix and 320×240/800×360 RTL/LTR text-scale tests now pass at the focused level. This is a new UI regression found during Station 13 LKG, not a reopening of completed Station 11. Full validation and physical retest are pending; Station 13 remains **4/7** until the corrected binary is verified.
+
+### Core repeat-open result on stream-close build — 2026-10-22
+
+The user reported **«نجحت المحاولة الثانية والوضع التلقائي»** after installing the Core Profile build identified in `12_STATION.md`. The second prompt-based open and automatic resume now work on the tested episode, with no agent-controlled launch or playback. This is narrower than a full persisted app restart, Start over/completion cleanup or linked-account verification. Those checks and a fresh Legacy build/device pass remain open; Station 13 stays **4/7** until they are recorded.
+
+### Ownership candidate physical failure and drain follow-up — 2026-10-22 (current)
+
+Latest verification supersedes the pending-build sentence below: focused tests PASS **38/38**, full suite PASS **585/585**, analyzer PASS, and a fresh Core Profile APK built and installed on physical `RF8NA2NNVNY` after an ADB check without data clearing. Exact artifact details are in `12_STATION.md`; user-controlled repeated-open retest is pending. Station 13 remains **4/7**.
+
+The user reported that the second attempt on the installed Core ownership APK failed with the localized **previous player could not close** message. The prior indefinite spinner became an explicit failure, but the second-open LKG still fails. Read-only logcat showed the preceding exit at `checkpoint_write`; after the bounded write, the remaining awaited close step is torrent lease release. The local stream server force-closes its socket but previously waited without a deadline for all pending requests, including a potentially stuck piece query. A focused loopback HTTP test now reproduces that drain stall; the close drain is bounded to two seconds with a sanitized timeout log. The exact physical stall stage remains an inference until the next device test; a stage log was added if the barrier fails again. Full checks, fresh build and user-controlled retest are pending. Station 13 remains **4/7**.
+
+### Second-open Core lifecycle correction — 2026-10-22 (current)
+
+The user clarified that **both** the resume question and automatic resume hung on the loading circle during the second Core attempt; the episode never started. Diagnostic logcat from the physical device placed the new route at `ownership` and the preceding close at `command_lane`. The session's stuck command lane could prevent native retirement; source preparation from the detail page could also deactivate a torrent before the old Core player retired. The current code cancels command results, retires native playback before waiting on a stuck active command or checkpoint write, and adds a prior-retirement barrier before detail-page torrent preparation. A 15-second retirement timeout reports a localized error and blocks unsafe new native creation. This targets the observed lifecycle path, not a proven resume-seek defect. Focused session tests PASS **35/35**, full suite PASS **584/584**, and analyzer PASS. A fresh Core Profile APK built and installed on physical `RF8NA2NNVNY` after `adb devices -l` without clearing data; exact hash and install evidence are in `12_STATION.md`. User-controlled repeated-open retest is pending; Core remains failed for LKG and Station 13 stays **4/7**.
+
+### Latest Core LKG failure — 2026-10-22
+
+After one successful Core retry/resume and full subtitle/source/start-over report, the user reopened an episode with automatic resume enabled on the later final Core Profile build. The loading circle remained for more than 30 seconds with no error or Retry button. Read-only ADB logs show a local torrent source start and repeated three-second cleanup timeouts on prior Core exits; they do not show whether the new route is waiting for old native retirement or current backend open. A focused diagnostic build now records sanitized open/close stages; focused session tests **31/31** and analysis PASS, while device diagnosis is pending. The current Core LKG therefore **fails**, despite earlier single-run success. No station completion, scoped commit or production LKG promotion is permitted yet; Station 13 stays **4/7**.
+
+### Core retry position regression — 2026-10-22 (latest)
+
+The user reported that Core sometimes starts at 0:00 after a source problem followed by Retry, and sometimes keeps loading. The exact source error and stream type are unknown. The Core session previously built `PlaybackContinuity` from the backend's current position at Retry, which can be zero after a failure. It now retains the last positive exact position within the session and the first-open resume target, while honoring an explicit seek to zero even before the native position stream catches up. Three focused tests reproduce the zero-reset failure, failed initial open and intentional start-over. The retry still fails visibly if the reopened source cannot confirm seeking; the change does not establish a cause for long loading or repair a failing source.
+
+Focused session tests PASS **31/31**, full suite PASS **580/580**, full analyzer PASS. A revised Core Profile build was installed on physical `RF8NA2NNVNY` after ADB verification without clearing data; the user reported **«تم حل المشكلة وتم الاستئناف»** and then **«الكل يعمل جيداً»** for the subtitle/source/resume/start-over checklist. These are user-reported results on one source, not an instrumented trace. After the small delayed-native-position correction, focused session tests **31/31**, full suite **580/580** and analyzer passed again; another fresh Core Profile APK built and installed on the same device after ADB verification. Artifact hashes and steps are in `12_STATION.md`. The second attempt on that binary stalled indefinitely, as documented above. Station 13 stays **4/7**; no production LKG promotion.
+
+### Legacy automatic resume failure and corrected candidate — 2026-10-22
+
+The user watched about nine minutes and reported that selecting Resume in the prompt worked, but disabling the prompt caused Legacy to restart at 0:00. This isolates the observed symptom to Legacy's automatic startup path; it does not by itself prove the native failure mechanism. Source inspection showed an immediate seek during paused `MediaKitEngine.open`, before duration/seekability was confirmed, whereas the working prompt sought after readiness. The automatic path now waits up to seven 500-ms probes for positive duration and native seekability before seeking and playing. An unsupported result is surfaced rather than hidden, with retry from the beginning. Three new deterministic tests cover delayed readiness, failure and engine retirement. A read-only device log from the preceding user run showed a separate definite disposal crash at `_saveProgress` using `context.read` on a deactivated element; it now uses the retained `AppState`. The same log showed resume-frame capture exceeded its two-second exit bound; frame capture remains best effort.
+
+After the fix, final focused resume/session tests PASS **36/36**, full suite PASS **577/577**, analysis PASS, and both final Profile APKs built. Legacy reinstalled without data clearing; the user answered **«تم نجح»** to the combined request to check automatic resume near the saved nine-minute point, a working external subtitle and continuity. This verifies the reported Legacy path for one source, without an instrumented timestamp. Core APK subsequently installed on the same physical device and awaits the user's playback, cross-session resume and prompt test. Station 13 remains **4/7** until Core and remaining LKG/account checks are resolved; no scoped commit or LKG promotion yet. Artifact hashes and ADB steps are in `12_STATION.md`.
+
+### Earlier combined candidate — 2026-10-22 (superseded by corrected build above)
+
+The user explicitly authorized both Profile builds and installation, superseding the historical no-build instruction below. Shared Station 13 resume code is included in the fresh Legacy and Core artifacts detailed in `12_STATION.md`. `flutter pub get`, full analysis and all **572** project tests passed after the Station 12 panel/error changes. Legacy installed successfully on physical `RF8NA2NNVNY`; Core built but installation is deferred until the user tests Legacy because both route APKs use the same app ID. The agent did not launch NOVA or play media. The required real restart/resume/start-over/completion check remains pending on both routes, with no app data clearing. Linked-account verification is limited by whether the user's Trakt/Simkl/AniList/MAL accounts are configured; no account result is claimed. No Station 13 commit or LKG promotion yet.
+
+The user explicitly approved entering Station 13 while Station 12 remains 7/9 with LKG/device checks pending. The earlier instruction not to build a phone APK remains in force. Station 12 is not relabeled complete.
+
+`PlaybackResumePolicy` centralizes the existing >30-second prompt choice, five-second end-margin for resume seek, pending-prompt write suppression, and last-120000-ms completion rule. `NovaPlaybackPreferences` delegates its existing public methods to this policy. `AppState.recordPlayback`, Continue Watching, watched-episode counting and linked mirroring use the same predicate; Legacy and Core frame capture use it through their existing paths. No storage schema, IDs, preference keys, provider gates or near-end behavior changed. In particular, media shorter than two minutes still meets the old completion predicate even at position zero; changing that needs separate data review.
+
+`flutter pub get` passed without changing dependency files. The focused run `flutter test --no-pub test/playback_resume_policy_test.dart test/app_state_resume_test.dart test/nova_playback_preferences_test.dart test/playback_checkpoint_test.dart test/playback_session_test.dart --reporter compact` passed **51 tests**. `flutter analyze --no-pub` passed with no issues. `flutter test --no-pub --reporter expanded` passed **566 tests**. `dart format --output=none --set-exit-if-changed` on the seven touched Dart files and `git diff --check` passed. The new tests cover local start/pause/completion, serialized history fields, provider-row separation, frame eligibility and resume decision boundaries. They do not simulate a real persisted app restart or native seek.
 
 ## Blockers / unknowns
 
-None recorded yet.
+No blocker remains for the tested Android functional LKG. Linked Trakt/Simkl/AniList/MAL behavior requires an available linked account; no account result is claimed. Movie resume was covered at the unit level, not on the phone. Continue Watching removal at completion has no explicit final phone observation. iOS remains NOT-VERIFIED, performance remains NOT MEASURED, and the prior frame-capture timeout remains an open best-effort diagnostic.
 
 ## Commit / LKG
 
-Pending station completion.
+Functional station LKG passed on both selectable Android routes. Shared Stations 12–13 code was committed as `41e804681e01ae667ca99dbc6e0368cd180fc5b3`; only listed player-related paths were staged, leaving unrelated dirty files untouched. The authoritative current result is at the top of this file; earlier pending text is historical.
 
 ## Session 1 scope
-Not entered in this session. The user checkpoint ends after Station 07; this station remains PLANNED.
+Historical session note superseded by the 2026-10-22 Station 13 continuation above.
