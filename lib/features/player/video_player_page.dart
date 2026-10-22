@@ -958,6 +958,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   // ── Chrome actions ──────────────────────────────────────────────────────
 
   void _lock() {
+    unawaited(_endTemporarySpeed());
     _hideTimer?.cancel();
     setState(() {
       _locked = true;
@@ -981,7 +982,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     Future<void> Function() show, {
     bool pauseVideo = false,
   }) async {
-    unawaited(_endTemporarySpeed());
+    await _endTemporarySpeed();
     _sheetOpen = true;
     _hideTimer?.cancel();
     if (mounted) setState(() => _controlsVisible = true);
@@ -1005,7 +1006,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       }
     }
   }
-    await _endTemporarySpeed();
 
   /// Task 141 (user mandate): the playback settings open as the SAME
   /// right-half panel as the subtitle picker — a single setState, no route,
@@ -1054,6 +1054,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// if it was playing; never resumes an engine that was swapped mid-panel.
   void _openPanel(PlayerPanelKind kind) {
     if (_locked) return;
+    if (_temporarySpeed.active || _temporarySpeed.settling) {
+      unawaited(_endTemporarySpeed().then((_) {
+        if (mounted && !_locked && !_closing) _openPanel(kind);
+      }));
+      return;
+    }
     final engine = _engine;
     if (_panel == kind) {
       _closePanel();
@@ -1077,12 +1083,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     // Data loading happens in front of the user INSIDE the panel:
     // addon subtitles always re-fetch; streams seed from the delivered
     // list and only fetch when it is empty.
-    if (_temporarySpeed.active || _temporarySpeed.settling) {
-      unawaited(_endTemporarySpeed().then((_) {
-        if (mounted && !_locked && !_closing) _openPanel(kind);
-      }));
-      return;
-    }
     if (kind == PlayerPanelKind.subtitles) {
       _panelExternalSubs = const [];
       unawaited(_loadPanelData(refresh: false));
@@ -1403,6 +1403,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     required Map<String, dynamic> stream,
     required List<Map<String, dynamic>> streams,
   }) async {
+    await _endTemporarySpeed();
     final resolved = await _resolveForPlayback(_app, stream);
     if (!mounted) return;
     if (resolved == null) {
@@ -1426,7 +1427,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           videoId: videoId,
           season: season,
           episode: episode,
-    await _endTemporarySpeed();
           headers: resolved.headers.isEmpty ? null : resolved.headers,
           torrent: resolved.torrent,
           streams: streams,
@@ -1604,29 +1604,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   // ── Gestures ────────────────────────────────────────────────────────────
 
-  void _handleDoubleTap(TapDownDetails details) {
-    if (!_videoGesturesEnabled) return;
-    final width = MediaQuery.sizeOf(context).width;
-    final backStep = _backStepSec;
-    final forwardStep = _forwardStepSec;
-    final logicalX = logicalSeekPosition(details.localPosition.dx, width,
-        rtl: Directionality.of(context) == TextDirection.rtl);
-    if (logicalX < width * .34) {
-      _showRipple(forward: false, step: backStep);
-      unawaited(_seekBy(-backStep));
-    } else if (logicalX > width * .66) {
-      _showRipple(forward: true, step: forwardStep);
-      unawaited(_seekBy(forwardStep));
-    } else {
-      unawaited(_togglePlay());
-    }
-  }
-
-  void _onScaleStart(ScaleStartDetails details) {
-    if (!_videoGesturesEnabled) return;
-    _hideTimer?.cancel();
-    _hudLingerTimer?.cancel();
-    final engine = _engine;
   bool get _videoGesturesEnabled =>
       !_locked &&
       !_sheetOpen &&
@@ -1669,6 +1646,29 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (mounted && wasVisible && !_locked && !_sheetOpen) _bumpControls();
   }
 
+  void _handleDoubleTap(TapDownDetails details) {
+    if (!_videoGesturesEnabled) return;
+    final width = MediaQuery.sizeOf(context).width;
+    final backStep = _backStepSec;
+    final forwardStep = _forwardStepSec;
+    final logicalX = logicalSeekPosition(details.localPosition.dx, width,
+        rtl: Directionality.of(context) == TextDirection.rtl);
+    if (logicalX < width * .34) {
+      _showRipple(forward: false, step: backStep);
+      unawaited(_seekBy(-backStep));
+    } else if (logicalX > width * .66) {
+      _showRipple(forward: true, step: forwardStep);
+      unawaited(_seekBy(forwardStep));
+    } else {
+      unawaited(_togglePlay());
+    }
+  }
+
+  void _onScaleStart(ScaleStartDetails details) {
+    if (!_videoGesturesEnabled) return;
+    _hideTimer?.cancel();
+    _hudLingerTimer?.cancel();
+    final engine = _engine;
     _gestureModeStart(details.pointerCount);
     if (details.pointerCount >= 2) {
       _mode = _GestureMode.zoom;
@@ -1773,6 +1773,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     } catch (_) {
       // Platform refused (rare); HUD stays silent rather than lying.
       _mode = _GestureMode.none;
+      if (mounted) _hudRevision.value++;
     }
   }
 
@@ -1794,12 +1795,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       }
     } catch (_) {
       _mode = _GestureMode.none;
+      if (mounted) _hudRevision.value++;
     }
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
+    if (!_videoGesturesEnabled) {
+      _mode = _GestureMode.none;
+      return;
+    }
     if (_mode == _GestureMode.seek && _hudTargetMs > 0) {
-      if (mounted) _hudRevision.value++;
       unawaited(_engine?.seekTo(Duration(milliseconds: _hudTargetMs)));
       _mode = _GestureMode.none;
       _hudValue = 0;
@@ -1819,15 +1824,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         _hudRevision.value++;
       });
       _bumpControls();
-      if (mounted) _hudRevision.value++;
       return;
     }
     _mode = _GestureMode.none;
     _hudValue = 0;
-    if (!_videoGesturesEnabled) {
-      _mode = _GestureMode.none;
-      return;
-    }
     _hudDeltaSeconds = 0;
     _hudTargetMs = 0;
     if (mounted) setState(() {});
@@ -1841,6 +1841,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   @override
   void dispose() {
+    _temporarySpeed.invalidate();
+    _hudRevision.dispose();
     _progressBinding?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _app.removeListener(_onAppSettingsChanged);
@@ -1864,8 +1866,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   Future<void> _restoreBrightness() async {
-    _temporarySpeed.invalidate();
-    _hudRevision.dispose();
     try {
       await ScreenBrightness().resetApplicationScreenBrightness();
     } catch (_) {
@@ -2014,6 +2014,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
+            if (_sheetOpen ||
+                _panel != null ||
+                _leaveDialogOpen ||
+                _closing ||
+                _temporarySpeed.active) {
+              return;
+            }
             if (_locked) {
               _flashHint(NovaStrings.lookup(english, 'message14'));
             } else {
@@ -2021,6 +2028,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             }
           },
           onDoubleTapDown: _handleDoubleTap,
+          onLongPressStart: _startTemporarySpeed,
+          onLongPressEnd: (_) => unawaited(_endTemporarySpeed()),
+          onLongPressCancel: () => unawaited(_endTemporarySpeed()),
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
@@ -2037,13 +2047,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                       : (engine?.errorMessage ?? _engineInitError),
                   english: english,
                   onRetry: () {
-            if (_sheetOpen ||
-                _panel != null ||
-                _leaveDialogOpen ||
-                _closing ||
-                _temporarySpeed.active) {
-              return;
-            }
                     _softwareDecodeRetryUsed = false;
                     final old = _engine;
                     _progressBinding?.unbind();
@@ -2051,9 +2054,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                     old?.dispose();
                     setState(() {
                       _controlsVisible = true;
-          onLongPressStart: _startTemporarySpeed,
-          onLongPressEnd: (_) => unawaited(_endTemporarySpeed()),
-          onLongPressCancel: () => unawaited(_endTemporarySpeed()),
                       _zoom = 1;
                     });
                     _createEngine();
@@ -2420,6 +2420,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                 // (the same corner — the outro pill is the actionable one
                 // there; the card returns once the outro window passes).
                 if (!_locked &&
+                    !_temporarySpeed.active &&
                     ready &&
                     !failed &&
                     nextEpisode != null &&
@@ -2443,7 +2444,6 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
-                    !_temporarySpeed.active &&
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(

@@ -833,13 +833,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // ── Chrome actions ──────────────────────────────────────────────────────
 
   void _lock() {
+    unawaited(_endTemporarySpeed());
     _hideTimer?.cancel();
     setState(() {
       _locked = true;
       _controlsVisible = false;
     });
   }
-    unawaited(_endTemporarySpeed());
 
   void _unlock() {
     setState(() => _locked = false);
@@ -857,13 +857,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     Future<void> Function() show, {
     bool pauseVideo = false,
   }) async {
+    await _endTemporarySpeed();
     _sheetOpen = true;
     _hideTimer?.cancel();
     if (mounted) setState(() => _controlsVisible = true);
     final engine = _engine;
     // Workstream A1: the full-screen selection panels pause the video for
     // their lifetime and resume ONLY if it was playing before — closing
-    await _endTemporarySpeed();
     // must never leave the player paused, and opening must never auto-start
     // a video the user had paused. The `identical` guard keeps the resume
     // off an engine that was swapped/disposed while the panel was open.
@@ -928,18 +928,18 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// if it was playing; never resumes an engine that was swapped mid-panel.
   void _openPanel(PlayerPanelKind kind) {
     if (_locked) return;
-    final engine = _engine;
-    if (_panel == kind) {
-      _closePanel();
-      return;
-    }
-    // Task 141: panel→panel hand-offs (settings → audio / subtitles) keep
     if (_temporarySpeed.active || _temporarySpeed.settling) {
       unawaited(_endTemporarySpeed().then((_) {
         if (mounted && !_locked && !_closing) _openPanel(kind);
       }));
       return;
     }
+    final engine = _engine;
+    if (_panel == kind) {
+      _closePanel();
+      return;
+    }
+    // Task 141: panel→panel hand-offs (settings → audio / subtitles) keep
     // the ORIGINAL session's pause contract — no double pause, and the final
     // close still resumes exactly when the first panel interrupted playback.
     final switching = _panel != null;
@@ -1206,13 +1206,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Future<void> _switchToStream(Map<String, dynamic> stream) async {
     if (_episodeTransitionBusy) return;
     _episodeTransitionBusy = true;
+    await _endTemporarySpeed();
     _pendingContinuity = _engine == null ? null : PlaybackContinuity(_engine!);
     try {
       if (!mounted) return;
       await _replaceWithResolved(
         videoId: widget.videoId,
         season: widget.season,
-    await _endTemporarySpeed();
         episode: widget.episode,
         stream: stream,
         streams: [stream],
@@ -1280,13 +1280,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     required List<Map<String, dynamic>> streams,
     bool allowRetired = false,
   }) async {
+    await _endTemporarySpeed();
     final owner = _engine;
     if (owner == null || (owner.isClosing && !allowRetired)) return;
     final resolutionIdentity = owner.beginResolution();
     final pausing = owner.pause();
     final handoffIntent = owner.handoffIntent(
         resolutionIdentity, _pendingContinuity?.playing ?? false);
-    await _endTemporarySpeed();
     await pausing;
     await _saveProgress();
     if (!mounted || !owner.acceptsResolution(resolutionIdentity)) return;
@@ -1545,12 +1545,6 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   // ── Gestures ────────────────────────────────────────────────────────────
 
-  void _handleDoubleTap(TapDownDetails details) {
-    if (!_videoGesturesEnabled) return;
-    final width = MediaQuery.sizeOf(context).width;
-    final backStep = _backStepSec;
-    final forwardStep = _forwardStepSec;
-    final logicalX = logicalSeekPosition(details.localPosition.dx, width,
   bool get _videoGesturesEnabled =>
       !_locked &&
       !_sheetOpen &&
@@ -1600,6 +1594,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     if (mounted && wasVisible && !_locked && !_sheetOpen) _bumpControls();
   }
 
+  void _handleDoubleTap(TapDownDetails details) {
+    if (!_videoGesturesEnabled) return;
+    final width = MediaQuery.sizeOf(context).width;
+    final backStep = _backStepSec;
+    final forwardStep = _forwardStepSec;
+    final logicalX = logicalSeekPosition(details.localPosition.dx, width,
         rtl: Directionality.of(context) == TextDirection.rtl);
     if (logicalX < width * .34) {
       _showRipple(forward: false, step: backStep);
@@ -1648,13 +1648,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (!_videoGesturesEnabled) return;
     if (!identical(_engine, _gestureSession) ||
         !(_gestureSession?.owns(_gestureIdentity) ?? false)) {
       return;
     }
     if (_locked || _mode == _GestureMode.none && details.pointerCount == 0) {
       return;
-    if (!_videoGesturesEnabled) return;
     }
     if (_mode == _GestureMode.zoom) {
       setState(() {
@@ -1730,13 +1730,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     } catch (_) {
       // Platform refused (rare); HUD stays silent rather than lying.
       _mode = _GestureMode.none;
+      if (mounted) _hudRevision.value++;
     }
   }
 
   Future<void> _updateVolume(double totalDy, double height) async {
     try {
       // Captured ONCE per gesture (see [_volumeStart]): re-reading the
-      if (mounted) _hudRevision.value++;
       // system value every tick raced the platform round-trip.
       _volumeStart ??= await VolumeController.instance.getVolume();
       final next = gestureScaledValue(
@@ -1752,21 +1752,21 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       }
     } catch (_) {
       _mode = _GestureMode.none;
+      if (mounted) _hudRevision.value++;
     }
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
-    if (!identical(_engine, _gestureSession) ||
-        !(_gestureSession?.owns(_gestureIdentity) ?? false)) {
-      if (mounted) _hudRevision.value++;
-      if (mounted) setState(() => _mode = _GestureMode.none);
-      return;
-    }
-    if (_mode == _GestureMode.seek && _hudTargetMs > 0) {
     if (!_videoGesturesEnabled) {
       _mode = _GestureMode.none;
       return;
     }
+    if (!identical(_engine, _gestureSession) ||
+        !(_gestureSession?.owns(_gestureIdentity) ?? false)) {
+      if (mounted) setState(() => _mode = _GestureMode.none);
+      return;
+    }
+    if (_mode == _GestureMode.seek && _hudTargetMs > 0) {
       unawaited(_engine?.seekTo(Duration(milliseconds: _hudTargetMs)));
       _mode = _GestureMode.none;
       _hudValue = 0;
@@ -1803,14 +1803,14 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   @override
   void dispose() {
+    _temporarySpeed.invalidate();
+    _hudRevision.dispose();
     _engine?.cancelResolution();
     WidgetsBinding.instance.removeObserver(this);
     _app.removeListener(_onAppSettingsChanged);
     _hideTimer?.cancel();
     _hintTimer?.cancel();
     _rippleTimer?.cancel();
-    _temporarySpeed.invalidate();
-    _hudRevision.dispose();
     _hudLingerTimer?.cancel();
     _torrentSub?.cancel();
     _subStyle.dispose();
@@ -1999,12 +1999,6 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
         body: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
-            if (_locked) {
-              _flashHint(NovaStrings.lookup(english, 'message14'));
-            } else {
-              _toggleControls();
-            }
-          },
             if (_sheetOpen ||
                 _panel != null ||
                 _leaveDialogOpen ||
@@ -2012,16 +2006,22 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 _temporarySpeed.active) {
               return;
             }
+            if (_locked) {
+              _flashHint(NovaStrings.lookup(english, 'message14'));
+            } else {
+              _toggleControls();
+            }
+          },
           onDoubleTapDown: _handleDoubleTap,
+          onLongPressStart: _startTemporarySpeed,
+          onLongPressEnd: (_) => unawaited(_endTemporarySpeed()),
+          onLongPressCancel: () => unawaited(_endTemporarySpeed()),
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
           child: Stack(
             fit: StackFit.expand,
             children: [
-          onLongPressStart: _startTemporarySpeed,
-          onLongPressEnd: (_) => unawaited(_endTemporarySpeed()),
-          onLongPressCancel: () => unawaited(_endTemporarySpeed()),
               // Match the legacy player lifecycle: attach the native video
               // output only after the session has completed open/seek/startup
               // preparation. Mounting it as soon as the backend exists can
@@ -2383,13 +2383,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 // (the same corner — the outro pill is the actionable one
                 // there; the card returns once the outro window passes).
                 if (!_locked &&
+                    !_temporarySpeed.active &&
                     ready &&
                     !failed &&
                     nextEpisode != null &&
                     cardAppearAt >= 0 &&
                     position >= cardAppearAt &&
                     !outroVisible &&
-                    !_temporarySpeed.active &&
                     !_upNextDismissed &&
                     !_stopScrobbled)
                   PositionedDirectional(
