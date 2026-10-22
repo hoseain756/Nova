@@ -2,7 +2,7 @@
 
 ## Active continuation — Station 12 UI candidate, 2026-10-22
 
-The user restated the remaining player UI requirements after Station 11. The working-tree candidate now covers panel navigation/sizing, subtitle styling and precise delay, compact speed/fit controls, season/episode presentation and an opt-in automatic episode source preference; details and current verification limits are in `12_STATION.md`. Station 11 remains complete. Station 12's broader source/track checklist, physical playback check and acceptance remain open. Legacy is still the default route, and the performance baseline is waived/NOT MEASURED. Earlier Station 12 "not entered" wording below is historical.
+The user restated the remaining player UI requirements after Station 11. Commit `1bd6d24` records the UI implementation: panel navigation/sizing, subtitle styling and precise delay, compact speed/fit controls, season/episode presentation and opt-in automatic episode source selection. The six requested UI implementation items are checked complete in `12_STATION.md`; Station 12 itself remains IN PROGRESS because selecting the tested SubDL external subtitle still fails, external track recovery/reset checks and LKG validations remain open, and broad source/format coverage is incomplete. Station 11 remains complete. Legacy is still the default route, and the performance baseline is waived/NOT MEASURED. Earlier Station 12 "not entered" wording below is historical.
 
 ## Active continuation — Gate C APPROVED; Station 11 COMPLETE, 2026-10-22
 

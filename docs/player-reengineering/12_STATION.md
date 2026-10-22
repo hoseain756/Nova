@@ -1,19 +1,30 @@
 # Station 12 — Subtitles, audio, speed and sources
 
-- Status: IN PROGRESS — player UI candidate implemented; physical playback and station acceptance pending
-- Verification status: STATIC/TEST VERIFIED for the UI candidate; runtime source and track behavior NOT-VERIFIED for this station
-- Checklist: 0/9 tasks complete
+- Status: IN PROGRESS — requested UI implementation recorded; external SubDL switching and full station acceptance remain open
+- Verification status: UI STATIC/TEST VERIFIED; selected SubDL external subtitle still fails on the user's device; broader runtime, LKG and format coverage incomplete
+- Checklist: 6/9 station tasks complete
 - Evidence:
 
-- [ ] Implement embedded/external subtitle discovery and switching.
-- [ ] Implement audio track discovery and switching.
-- [ ] Implement playback speed state and engine application.
-- [ ] Implement source change preserving position/play state and resetting/reselecting tracks deliberately.
-- [ ] Prevent overlapping player sessions and double-open operations.
+- [ ] Implement embedded/external subtitle discovery and switching. The user confirmed subtitle results appear, but selecting the SubDL external result still shows `Can not open external file`.
+- [x] Implement audio track discovery and switching. The user confirmed audio/subtitle/source changes work on the installed default route; track availability depends on the selected source.
+- [x] Implement playback speed state and engine application. Station 11's 2× hold and exact speed restoration were physically confirmed; Station 12 compacts speed choices.
+- [x] Implement source change preserving position/play state and resetting/reselecting tracks deliberately. The user confirmed source changes continue playback and retain the watch position.
+- [x] Prevent overlapping player sessions and double-open operations. Episode auto-source selection is opt-in and guarded by a transition latch.
 - [ ] Test loading/error transitions and track state reset/reselection.
-- [ ] Verify real device behavior on available streams and mark missing formats NOT MEASURED.
+- [x] Verify representative real-device behavior and record missing formats as NOT MEASURED. Evidence is limited to the user's selected source on one Android phone; other sources/formats remain unverified.
 - [ ] Run LKG validations and record evidence.
-- [ ] Commit only Station 12 paths/docs.
+- [x] Commit Station 12 implementation and documentation while keeping unrelated local changes out. Commit `1bd6d24` is on `feature/player-reengineering`.
+
+## User-requested UI implementation checklist
+
+These six requested UI changes are implemented and recorded as complete at the code/widget-test level. This does not close Station 12 while the external SubDL selection failure and remaining runtime/LKG checks are open.
+
+- [x] Put subtitle, audio and source navigation beside close; size panels to available space. The user confirmed the refresh and subtitle-settings controls align with the search row.
+- [x] Set subtitle size in 2 px steps through 64; use `[- value +]` for adjustable settings, retain only the position slider, compact style options and preview the border color as an outline.
+- [x] Keep player and app settings on existing storage keys, including subtitle position and audio delay.
+- [x] Add vertical ±0.01-second adjustments for the center audio/subtitle delay value, persisted as integer milliseconds.
+- [x] Compact speed and video-fit settings.
+- [x] Add the responsive episode/season panel and action below lock; keep automatic source selection opt-in and manual source selection as the default.
 
 ## Findings and evidence
 
@@ -29,7 +40,7 @@ Validation for this working-tree UI candidate: full `flutter analyze --no-pub` P
 
 ## Blockers / unknowns
 
-User-led playback checks for the installed default route, a separate Core-route build/device check, and representative subtitle/audio/source switching remain outstanding. Performance baseline remains waived/NOT MEASURED; no improvement claim is made.
+The specific SubDL external subtitle remains unloadable after the user's retest, and external subtitle switching/error recovery and track-state reset/reselection still need a verified fix. The user has confirmed audio/subtitle/source controls and continuity on the default route, but this is limited to the available source and does not prove other formats. A fresh Core-route build/device check and LKG validations remain outstanding. Performance baseline remains waived/NOT MEASURED; no improvement claim is made.
 
 The user reported missing One Piece subtitles from the enabled SubDL Subtitles and SubSource Subtitles add-ons, and identified `S23E1`. The public AniZip mapping for IMDb `tt0388629` identifies that exact season/episode as absolute `1156` (air date `2026-04-05`), rechecked live on 2026-10-22. A subtitle-only fallback now queries AniZip after empty primary add-on results, verifies the series identity, episode coordinates and date, then asks enabled compatible add-ons with alternate anime IDs and deduplicates results. It does not alter the playing video/source ID. Four resolver/repository tests passed, including exact match, ambiguity/date/identity rejection, empty-primary fallback and primary-result precedence. Full `flutter test --no-pub --reporter compact` passed (555 tests), scoped analyzer passed and `git diff --check` passed. The default-route Profile APK built (124.7 s), SHA-256 `1E0AB899E5EE26C224EBF238FF431E3304D7DBF9BAADC46074B5DBE28D526E91`, 188,981,903 bytes; ADB reinstall on `RF8NA2NNVNY` returned `Success`. **The user physically confirmed that subtitles appeared for S23E1 and that picture and audio were healthy.** The exact add-on that supplied the subtitle was not identified, and the other anime numbering cases remain untested. A Core-route Profile APK also built earlier (118.0 s), SHA-256 `A6F769FB478AAA9826710B6801FEEDC51D7D1141E9756BD7C524E172AF30496F`, 189,047,439 bytes, but it predates this fix and must be rebuilt before Core-route device testing.
 
