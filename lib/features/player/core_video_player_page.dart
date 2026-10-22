@@ -25,6 +25,7 @@ import 'session/playback_progress.dart';
 import 'session/playback_session.dart';
 import 'session/playback_state.dart';
 import 'session/playback_checkpoint.dart';
+import 'temporary_speed_hold.dart';
 import 'widgets/player_session_surface.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
@@ -105,6 +106,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Timer? _hintTimer;
 
   bool _controlsVisible = true;
+  final TemporarySpeedHold _temporarySpeed = TemporarySpeedHold();
+  final ValueNotifier<int> _hudRevision = ValueNotifier<int>(0);
+  bool _controlsVisibleBeforeHold = true;
   bool _locked = false;
   bool _sheetOpen = false;
 
@@ -355,6 +359,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       10;
 
   void _createEngine() {
+    final wasHolding = _temporarySpeed.active;
+    _temporarySpeed.invalidate();
+    if (wasHolding) _controlsVisible = _controlsVisibleBeforeHold;
     _engineInitError = null;
     _preferenceSession.resetForEngine();
     if (widget.continuity != null) {
@@ -518,7 +525,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // ── Chrome visibility ───────────────────────────────────────────────────
 
   void _bumpControls() {
-    if (_locked) return;
+    if (_locked || _temporarySpeed.active) return;
     setState(() => _controlsVisible = true);
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: 4000), () {
@@ -532,6 +539,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   }
 
   void _toggleControls() {
+    if (_temporarySpeed.active) return;
     if (_controlsVisible) {
       _hideTimer?.cancel();
       setState(() => _controlsVisible = false);
@@ -644,6 +652,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       _backgroundScrobbled = false;
       session.foreground();
     } else {
+      unawaited(_endTemporarySpeed());
       unawaited(_pauseAndSaveResumeFrame());
     }
   }
@@ -693,6 +702,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Future<void> _performClose() async {
     if (_closing || _allowRoutePop) return;
     _closing = true;
+    _temporarySpeed.invalidate();
     _engine?.cancelResolution();
     _scrobble('stop');
     _stopScrobbled = true;
@@ -829,6 +839,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       _controlsVisible = false;
     });
   }
+    unawaited(_endTemporarySpeed());
 
   void _unlock() {
     setState(() => _locked = false);
@@ -852,6 +863,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final engine = _engine;
     // Workstream A1: the full-screen selection panels pause the video for
     // their lifetime and resume ONLY if it was playing before — closing
+    await _endTemporarySpeed();
     // must never leave the player paused, and opening must never auto-start
     // a video the user had paused. The `identical` guard keeps the resume
     // off an engine that was swapped/disposed while the panel was open.
@@ -922,6 +934,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       return;
     }
     // Task 141: panel→panel hand-offs (settings → audio / subtitles) keep
+    if (_temporarySpeed.active || _temporarySpeed.settling) {
+      unawaited(_endTemporarySpeed().then((_) {
+        if (mounted && !_locked && !_closing) _openPanel(kind);
+      }));
+      return;
+    }
     // the ORIGINAL session's pause contract — no double pause, and the final
     // close still resumes exactly when the first panel interrupted playback.
     final switching = _panel != null;
@@ -1194,6 +1212,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       await _replaceWithResolved(
         videoId: widget.videoId,
         season: widget.season,
+    await _endTemporarySpeed();
         episode: widget.episode,
         stream: stream,
         streams: [stream],
@@ -1267,6 +1286,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final pausing = owner.pause();
     final handoffIntent = owner.handoffIntent(
         resolutionIdentity, _pendingContinuity?.playing ?? false);
+    await _endTemporarySpeed();
     await pausing;
     await _saveProgress();
     if (!mounted || !owner.acceptsResolution(resolutionIdentity)) return;
@@ -1526,11 +1546,60 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // ── Gestures ────────────────────────────────────────────────────────────
 
   void _handleDoubleTap(TapDownDetails details) {
-    if (_locked) return;
+    if (!_videoGesturesEnabled) return;
     final width = MediaQuery.sizeOf(context).width;
     final backStep = _backStepSec;
     final forwardStep = _forwardStepSec;
     final logicalX = logicalSeekPosition(details.localPosition.dx, width,
+  bool get _videoGesturesEnabled =>
+      !_locked &&
+      !_sheetOpen &&
+      _panel == null &&
+      !_leaveDialogOpen &&
+      !_closing &&
+      !_temporarySpeed.active;
+
+  void _startTemporarySpeed(LongPressStartDetails details) {
+    final engine = _engine;
+    if (!_videoGesturesEnabled ||
+        engine == null ||
+        !engine.ready ||
+        !engine.playing) {
+      return;
+    }
+    final identity = engine.interactionIdentity;
+    final started = _temporarySpeed.begin(
+      previousRate: engine.rate,
+      setRate: (rate) async {
+        await engine.setRate(rate);
+      },
+      ownsSource: () =>
+          mounted &&
+          !_closing &&
+          identical(_engine, engine) &&
+          engine.owns(identity),
+    );
+    if (!started) return;
+    _controlsVisibleBeforeHold = _controlsVisible;
+    _hideTimer?.cancel();
+    _hudLingerTimer?.cancel();
+    setState(() {
+      _mode = _GestureMode.none;
+      _controlsVisible = false;
+    });
+  }
+
+  Future<void> _endTemporarySpeed() async {
+    if (!_temporarySpeed.active) {
+      await _temporarySpeed.end();
+      return;
+    }
+    final wasVisible = _controlsVisibleBeforeHold;
+    if (mounted) setState(() => _controlsVisible = wasVisible);
+    await _temporarySpeed.end();
+    if (mounted && wasVisible && !_locked && !_sheetOpen) _bumpControls();
+  }
+
         rtl: Directionality.of(context) == TextDirection.rtl);
     if (logicalX < width * .34) {
       _showRipple(forward: false, step: backStep);
@@ -1547,7 +1616,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Object? _gestureIdentity;
 
   void _onScaleStart(ScaleStartDetails details) {
-    if (_locked) return;
+    if (!_videoGesturesEnabled) return;
     _hideTimer?.cancel();
     _hudLingerTimer?.cancel();
     final engine = _engine;
@@ -1585,6 +1654,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     }
     if (_locked || _mode == _GestureMode.none && details.pointerCount == 0) {
       return;
+    if (!_videoGesturesEnabled) return;
     }
     if (_mode == _GestureMode.zoom) {
       setState(() {
@@ -1626,11 +1696,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             width: size.width,
             durationMs: durationMs,
             rtl: Directionality.of(context) == TextDirection.rtl);
-        setState(() {
-          _hudDeltaSeconds = (deltaMs / 1000).round();
-          _hudTargetMs =
-              clampSeekTargetMs(_positionAtDragStartMs + deltaMs, durationMs);
-        });
+        _hudDeltaSeconds = (deltaMs / 1000).round();
+        _hudTargetMs =
+            clampSeekTargetMs(_positionAtDragStartMs + deltaMs, durationMs);
+        _hudRevision.value++;
       case _GestureMode.brightness:
         // Accumulate BEFORE applying: the value tracks the total drag from
         // the captured start, not just this tick's delta (A2 fix).
@@ -1654,7 +1723,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
         height: height,
       );
       await ScreenBrightness().setApplicationScreenBrightness(next);
-      if (mounted) setState(() => _hudValue = next);
+      if (mounted) {
+        _hudValue = next;
+        _hudRevision.value++;
+      }
     } catch (_) {
       // Platform refused (rare); HUD stays silent rather than lying.
       _mode = _GestureMode.none;
@@ -1664,6 +1736,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Future<void> _updateVolume(double totalDy, double height) async {
     try {
       // Captured ONCE per gesture (see [_volumeStart]): re-reading the
+      if (mounted) _hudRevision.value++;
       // system value every tick raced the platform round-trip.
       _volumeStart ??= await VolumeController.instance.getVolume();
       final next = gestureScaledValue(
@@ -1673,7 +1746,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       );
       VolumeController.instance.showSystemUI = false;
       await VolumeController.instance.setVolume(next);
-      if (mounted) setState(() => _hudValue = next);
+      if (mounted) {
+        _hudValue = next;
+        _hudRevision.value++;
+      }
     } catch (_) {
       _mode = _GestureMode.none;
     }
@@ -1682,10 +1758,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   void _onScaleEnd(ScaleEndDetails details) {
     if (!identical(_engine, _gestureSession) ||
         !(_gestureSession?.owns(_gestureIdentity) ?? false)) {
+      if (mounted) _hudRevision.value++;
       if (mounted) setState(() => _mode = _GestureMode.none);
       return;
     }
     if (_mode == _GestureMode.seek && _hudTargetMs > 0) {
+    if (!_videoGesturesEnabled) {
+      _mode = _GestureMode.none;
+      return;
+    }
       unawaited(_engine?.seekTo(Duration(milliseconds: _hudTargetMs)));
       _mode = _GestureMode.none;
       _hudValue = 0;
@@ -1701,7 +1782,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       _hudLingerTimer?.cancel();
       _hudLingerTimer = Timer(const Duration(milliseconds: 900), () {
         if (!mounted) return;
-        setState(() => _mode = _GestureMode.none);
+        _mode = _GestureMode.none;
+        _hudRevision.value++;
       });
       _bumpControls();
       return;
@@ -1727,6 +1809,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _hideTimer?.cancel();
     _hintTimer?.cancel();
     _rippleTimer?.cancel();
+    _temporarySpeed.invalidate();
+    _hudRevision.dispose();
     _hudLingerTimer?.cancel();
     _torrentSub?.cancel();
     _subStyle.dispose();
@@ -1921,6 +2005,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
               _toggleControls();
             }
           },
+            if (_sheetOpen ||
+                _panel != null ||
+                _leaveDialogOpen ||
+                _closing ||
+                _temporarySpeed.active) {
+              return;
+            }
           onDoubleTapDown: _handleDoubleTap,
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
@@ -1928,6 +2019,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           child: Stack(
             fit: StackFit.expand,
             children: [
+          onLongPressStart: _startTemporarySpeed,
+          onLongPressEnd: (_) => unawaited(_endTemporarySpeed()),
+          onLongPressCancel: () => unawaited(_endTemporarySpeed()),
               // Match the legacy player lifecycle: attach the native video
               // output only after the session has completed open/seek/startup
               // preparation. Mounting it as soon as the backend exists can
@@ -2084,46 +2178,54 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                   ),
                 ),
 
-                // Center gesture HUDs.
-                if (_mode == _GestureMode.seek)
-                  Center(
-                    child: SeekHud(
-                      deltaSeconds: _hudDeltaSeconds,
-                      targetText: formatPlayerTime(
-                        Duration(milliseconds: _hudTargetMs),
-                      ),
-                    ),
-                  )
-                else if (_mode == _GestureMode.brightness)
-                  // The logical start side controls brightness.
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(start: 24),
-                      child: VerticalHud(
-                        icon: LucideIcons.sunMoon,
-                        label: NovaStrings.lookup(english, 'message16'),
-                        value: _hudValue,
-                        vertical: true,
-                      ),
-                    ),
-                  )
-                else if (_mode == _GestureMode.volume)
-                  // The logical end side controls volume.
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 24),
-                      child: VerticalHud(
-                        icon: LucideIcons.volume2,
-                        label: NovaStrings.lookup(english, 'message17'),
-                        value: _hudValue,
-                        vertical: true,
-                      ),
-                    ),
-                  )
-                else if (_mode == _GestureMode.zoom && _zoom > 1.01)
-                  Center(child: ZoomHud(scale: _zoom)),
+                // Gesture updates rebuild only this HUD, not the video page.
+                ValueListenableBuilder<int>(
+                  valueListenable: _hudRevision,
+                  builder: (context, _, child) {
+                    if (_mode == _GestureMode.seek) {
+                      return Center(
+                        child: SeekHud(
+                          deltaSeconds: _hudDeltaSeconds,
+                          targetText: formatPlayerTime(
+                            Duration(milliseconds: _hudTargetMs),
+                          ),
+                        ),
+                      );
+                    }
+                    if (_mode == _GestureMode.brightness) {
+                      return Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.only(start: 24),
+                          child: VerticalHud(
+                            icon: LucideIcons.sunMoon,
+                            label: NovaStrings.lookup(english, 'message16'),
+                            value: _hudValue,
+                            vertical: true,
+                          ),
+                        ),
+                      );
+                    }
+                    if (_mode == _GestureMode.volume) {
+                      return Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 24),
+                          child: VerticalHud(
+                            icon: LucideIcons.volume2,
+                            label: NovaStrings.lookup(english, 'message17'),
+                            value: _hudValue,
+                            vertical: true,
+                          ),
+                        ),
+                      );
+                    }
+                    if (_mode == _GestureMode.zoom && _zoom > 1.01) {
+                      return Center(child: ZoomHud(scale: _zoom));
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
 
                 // Reset-zoom chip.
                 if (_zoom > 1.01 &&
@@ -2175,11 +2277,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                       child: InkWell(
                         borderRadius: BorderRadius.circular(999),
                         onTap: _unlock,
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 9,
-                          ),
+                        child: const SizedBox(
+                          width: 48,
+                          height: 48,
                           child: Icon(
                             LucideIcons.lock,
                             color: NovaColors.white,
@@ -2191,12 +2291,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                   ),
 
                 // Hint pill.
-                if (_hintVisible)
+                if (_hintVisible && !_temporarySpeed.active)
                   Center(child: LockHintHud(message: _lastHint)),
 
                 // Double-tap seek ripple (Task 124: animated ±N feedback),
                 // anchored to the tapped third of the screen.
-                if (_rippleVisible && !_locked)
+                if (_rippleVisible && !_locked && !_temporarySpeed.active)
                   Positioned.fill(
                     child: IgnorePointer(
                       child: Align(
@@ -2289,6 +2389,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                     cardAppearAt >= 0 &&
                     position >= cardAppearAt &&
                     !outroVisible &&
+                    !_temporarySpeed.active &&
                     !_upNextDismissed &&
                     !_stopScrobbled)
                   PositionedDirectional(
@@ -2381,7 +2482,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 // while the playhead is inside a data-provided window — with
                 // no timing data it never appears (spec B1.4/B3: no guessed
                 // timings, feature inactive).
-                if (introVisible || outroVisible)
+                if (!_temporarySpeed.active && (introVisible || outroVisible))
                   PositionedDirectional(
                     bottom: 180 * scale,
                     end: 16,

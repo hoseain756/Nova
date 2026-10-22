@@ -1,5 +1,9 @@
 # NOVA Player Reengineering — Master Plan
 
+## Active continuation — Gate C APPROVED; Station 11 COMPLETE, 2026-10-22
+
+The user's explicit **«نعم انتقل وأكمل إلى المحطة التالية»** approved Gate C and entry to Station 11 only. The preceding Gate C HOLD statements below are historical. Station 11's control/gesture changes are complete in both routes: full analysis PASS, 539/539 tests PASS, both Profile APKs built/installed on `RF8NA2NNVNY`, and the user manually selected a source for each route and reported both functional checklists **«نجح الفحص»**. This verifies the current working-tree candidate on one phone and one source per route, not measured performance. All BEFORE/AFTER performance remains NOT MEASURED and benefit UNKNOWN. The legacy route remains default; iOS is NOT-VERIFIED. The scoped Station 11 commit deliberately excludes the pre-existing confirmed-exit fixes in the same page files, so the committed tree is NOT-VERIFIED independently and is not promoted to production LKG. The recorded production LKG/safety tag remains `c9257c0`. Station 12 and subsequent gates require their own explicit user decisions.
+
 ## Current core candidate — Gate C HOLD, 2026-10-22
 
 Accepted C10-1–C10-5 implemented as an opt-in route-owned core candidate: frozen request/outcomes, ordered session/resolver ownership, independent projections, shared immutable checkpoint writer, awaitable native retirement, stable surface child, independent core page and once-per-route legacy/core selector. All five player entry routes preserve launch inputs; legacy stays default (`NOVA_PLAYER_CORE=true` enables core). New small surface-host module and localized save-error copy/generator are recorded scope additions. No engine replacement, dependency/native/signing/storage schema/key change. Personal-use/native-license conditions unchanged.
