@@ -1788,6 +1788,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     PlayerDiagnostics.instance.record('playerPageBuild');
     final engine = _engine;
     final ready = engine != null && engine.ready;
+    final nativeEngine = engine?.nativeEngine;
     // Task 128: a stuck stream (dead source / wedged texture) is a first-class
     // failure — the error panel must also WIN over the (white) video branch.
     final failed = (engine?.failed ?? false) || _engineInitError != null;
@@ -1927,15 +1928,19 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (engine?.nativeEngine != null)
+              // Match the legacy player lifecycle: attach the native video
+              // output only after the session has completed open/seek/startup
+              // preparation. Mounting it as soon as the backend exists can
+              // race media_kit's Android SurfaceProducer initialization.
+              if (ready && nativeEngine != null)
                 ClipRect(
                     child: Transform.scale(
                   scale: _zoom,
                   child: PlaybackSessionSurface(
-                    identity: engine!.nativeEngine!,
+                    identity: nativeEngine,
                     geometry: _fit,
                     buildSurface: () => PlayerVideoSurface(
-                      engine: engine.nativeEngine!,
+                      engine: nativeEngine,
                       fit: _fit,
                       overlay:
                           SubtitleOverlay(engine: engine, style: _subStyle),

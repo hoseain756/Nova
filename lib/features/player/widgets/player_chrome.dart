@@ -819,10 +819,12 @@ class PlayerBottomCluster extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Progress row — NEVER mirrored: full duration at the far
-                // right, current time to its left, fill left→right always.
+                // User-selected timeline convention: Arabic begins on the
+                // left, English on the right. Keep fill, thumb, labels and
+                // touch coordinates in the same direction.
                 Directionality(
-                  textDirection: Directionality.of(context),
+                  textDirection:
+                      english ? TextDirection.rtl : TextDirection.ltr,
                   child: Row(
                     children: [
                       _TimeLabel(

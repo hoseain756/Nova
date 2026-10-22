@@ -108,6 +108,7 @@ class PlaybackSession extends PlaybackEngine {
     bool startInBackground = false,
     this.onExactProgress,
     this.periodicInterval = const Duration(seconds: 5),
+    this.seekabilityProbeInterval = const Duration(milliseconds: 500),
     this.cleanupSaveTimeout = const Duration(seconds: 3),
   })  : _request = request,
         _createBackend = createBackend ?? MediaKitSessionBackend.new,
@@ -139,6 +140,7 @@ class PlaybackSession extends PlaybackEngine {
   final Set<PreparedTorrent> _leases = Set.identity();
   final void Function(PlaybackSession session)? onExactProgress;
   final Duration periodicInterval;
+  final Duration seekabilityProbeInterval;
   final Duration cleanupSaveTimeout;
   final progress = ValueNotifier<PlaybackProgress?>(null);
   late final PlaybackProgressCoalescer _coalescer;
@@ -148,6 +150,9 @@ class PlaybackSession extends PlaybackEngine {
   Future<void> _resolutionLane = Future.value();
   Future<void>? _closeFuture;
   Timer? _periodic;
+  Timer? _seekabilityProbe;
+  int _seekabilityProbeAttempts = 0;
+  bool _seekabilityProbeInFlight = false;
   PlaybackPhase phase = PlaybackPhase.idle;
   PlaybackFailure? failure;
   bool persistenceFailed = false;
@@ -347,6 +352,11 @@ class PlaybackSession extends PlaybackEngine {
   }
 
   void _invalidateSource() {
+    _seekabilityProbe?.cancel();
+    _seekabilityProbe = null;
+    _seekabilityProbeAttempts = 0;
+    _seekabilityProbeInFlight = false;
+    _seekable = null;
     final raw = _raw;
     final listener = _backendListener;
     if (raw != null && listener != null) raw.removeListener(listener);
@@ -414,6 +424,8 @@ class PlaybackSession extends PlaybackEngine {
       }
       if (isClosing || generation != _generation) return;
       if (target != null && target > Duration.zero) {
+        if (!canSeek) await _waitForStartupSeekability(backend, generation);
+        if (isClosing || generation != _generation) return;
         if (!canSeek) throw UnsupportedError('Source cannot preserve position');
         await backend.engine.seekTo(target);
         if (isClosing || generation != _generation) return;
@@ -443,6 +455,9 @@ class PlaybackSession extends PlaybackEngine {
       return;
     }
     final raw = backend.engine;
+    if (_prepared && raw.duration > Duration.zero && _seekable != true) {
+      _scheduleSeekabilityProbe(backend, generation);
+    }
     _coalescer.add(PlaybackProgress(
         contentGeneration: 1,
         sourceGeneration: generation,
@@ -475,6 +490,66 @@ class PlaybackSession extends PlaybackEngine {
     if (projection != _transportProjection) {
       _transportProjection = projection;
       _notify();
+    }
+  }
+
+  void _scheduleSeekabilityProbe(PlaybackBackend backend, int generation) {
+    if (_seekabilityProbe != null ||
+        _seekabilityProbeInFlight ||
+        _seekabilityProbeAttempts >= 6) {
+      return;
+    }
+    // mpv can report "no" while a paused source is opening, then expose
+    // seeking after its duration and demuxer state become available.
+    _seekabilityProbe = Timer(seekabilityProbeInterval, () async {
+      _seekabilityProbe = null;
+      if (isClosing ||
+          generation != _generation ||
+          !identical(backend, _backend)) {
+        return;
+      }
+      _seekabilityProbeInFlight = true;
+      _seekabilityProbeAttempts++;
+      bool? value;
+      try {
+        value = await backend.seekable();
+      } catch (_) {
+        // Capability queries are advisory; keep playback running.
+      } finally {
+        if (generation == _generation && identical(backend, _backend)) {
+          _seekabilityProbeInFlight = false;
+        }
+      }
+      if (isClosing ||
+          generation != _generation ||
+          !identical(backend, _backend)) {
+        return;
+      }
+      if (value == true) {
+        _seekable = true;
+        _notify();
+      } else if (backend.engine.duration > Duration.zero) {
+        _scheduleSeekabilityProbe(backend, generation);
+      }
+    });
+  }
+
+  Future<void> _waitForStartupSeekability(
+      PlaybackBackend backend, int generation) async {
+    for (var attempt = 0; attempt < 6 && !canSeek; attempt++) {
+      await Future<void>.delayed(seekabilityProbeInterval);
+      if (isClosing ||
+          generation != _generation ||
+          !identical(backend, _backend)) {
+        return;
+      }
+      try {
+        if (await backend.seekable() == true) {
+          _seekable = true;
+        }
+      } catch (_) {
+        // A failed capability query never authorizes a resume seek.
+      }
     }
   }
 

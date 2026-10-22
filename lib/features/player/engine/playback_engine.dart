@@ -420,9 +420,10 @@ class MediaKitEngine extends PlaybackEngine {
     if (platform is! NativePlayer) return null;
     try {
       final value = await platform.getProperty('seekable');
-      return value == 'yes'
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'yes' || normalized == 'true' || normalized == '1'
           ? true
-          : value == 'no'
+          : normalized == 'no' || normalized == 'false' || normalized == '0'
               ? false
               : null;
     } catch (_) {

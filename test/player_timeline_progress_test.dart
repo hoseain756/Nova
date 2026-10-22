@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/features/player/widgets/player_chrome.dart';
 
+void _noop() {}
+void _noopValue(double _) {}
+
 Widget _host({
   required ValueChanged<double> commit,
   ValueChanged<double>? preview,
@@ -40,6 +43,118 @@ Widget _host({
     );
 
 void main() {
+  for (final english in <bool>[false, true]) {
+    testWidgets(
+        'player timeline uses requested ${english ? 'English' : 'Arabic'} direction',
+        (tester) async {
+      double? committed;
+      await tester.pumpWidget(MaterialApp(
+        home: Directionality(
+          textDirection: english ? TextDirection.ltr : TextDirection.rtl,
+          child: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 800,
+                height: 300,
+                child: Stack(children: [
+                  PlayerBottomCluster(
+                    durationMs: 100000,
+                    positionMs: 25000,
+                    bufferedMs: 50000,
+                    showRemaining: false,
+                    volume: 1,
+                    muted: false,
+                    fullscreen: true,
+                    canPrev: false,
+                    canNext: false,
+                    scale: 1,
+                    wide: false,
+                    english: english,
+                    onPrev: null,
+                    onNext: null,
+                    onVolumeChanged: _noopValue,
+                    onVolumeDragEnd: _noop,
+                    onMuteToggle: _noop,
+                    onToggleFullscreen: _noop,
+                    onOpenStreams: _noop,
+                    onOpenSubtitles: _noop,
+                    onOpenAudio: _noop,
+                    onToggleRemaining: _noop,
+                    onScrubStart: _noop,
+                    onScrubUpdate: _noopValue,
+                    onScrubEnd: (value) => committed = value,
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ));
+      final timeline = tester.getRect(find.byType(GradientTimeline));
+      final played = tester.getRect(find
+          .descendant(
+            of: find.byType(GradientTimeline),
+            matching: find.byType(FractionallySizedBox),
+          )
+          .at(1));
+      final current = tester.getRect(find.text('0:25'));
+      final total = tester.getRect(find.text('1:40'));
+      if (english) {
+        expect(played.right, closeTo(timeline.right, 1));
+        expect(current.left, greaterThan(total.right));
+      } else {
+        expect(played.left, closeTo(timeline.left, 1));
+        expect(current.right, lessThan(total.left));
+      }
+      await tester.tapAt(
+          Offset(timeline.left + timeline.width * .25, timeline.center.dy));
+      expect(committed, closeTo(english ? 75 : 25, .1));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final direction in TextDirection.values) {
+    testWidgets('played and buffered tracks begin at locale start $direction',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Directionality(
+          textDirection: direction,
+          child: const Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 400,
+                child: GradientTimeline(
+                  durationMs: 100000,
+                  positionMs: 25000,
+                  bufferedMs: 50000,
+                  onScrubStart: _noop,
+                  onScrubUpdate: _noopValue,
+                  onScrubEnd: _noopValue,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+      final timeline = tester.getRect(find.byType(GradientTimeline));
+      final fractions = find.descendant(
+        of: find.byType(GradientTimeline),
+        matching: find.byType(FractionallySizedBox),
+      );
+      final buffered = tester.getRect(fractions.at(0));
+      final played = tester.getRect(fractions.at(1));
+      expect(buffered.width, closeTo(200, 1));
+      expect(played.width, closeTo(100, 1));
+      if (direction == TextDirection.rtl) {
+        expect(buffered.right, closeTo(timeline.right, 1));
+        expect(played.right, closeTo(timeline.right, 1));
+      } else {
+        expect(buffered.left, closeTo(timeline.left, 1));
+        expect(played.left, closeTo(timeline.left, 1));
+      }
+    });
+  }
+
   for (final direction in TextDirection.values) {
     for (final brightness in Brightness.values) {
       testWidgets('tap uses exact duration $direction $brightness',

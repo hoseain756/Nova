@@ -43,6 +43,7 @@ void main() {
     PlaybackStartupSettings startupSettings = const PlaybackStartupSettings(),
     bool startInBackground = false,
     Duration timeout = const Duration(milliseconds: 30),
+    Duration seekabilityProbeInterval = const Duration(milliseconds: 500),
   }) {
     final session = PlaybackSession(
         request: request ?? _request(),
@@ -53,6 +54,7 @@ void main() {
         checkpointWriter: writer ?? PlaybackCheckpointWriter(),
         persist: persist,
         cleanupSaveTimeout: timeout,
+        seekabilityProbeInterval: seekabilityProbeInterval,
         periodicInterval: const Duration(days: 1));
     sessions.add(session);
     return session;
@@ -388,6 +390,46 @@ void main() {
     expect(backend.log.where((op) => op.startsWith('seek')), isEmpty);
   });
 
+  test('seek unlocks when paused-open capability becomes available', () async {
+    final backend = _Backend()..canSeek = false;
+    final session = create(backend,
+        seekabilityProbeInterval: const Duration(milliseconds: 5));
+    await session.open(_request().url);
+    expect(session.canSeek, isFalse);
+    backend.canSeek = true;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(session.canSeek, isTrue);
+    expect((await session.seekTo(const Duration(minutes: 2))).applied, isTrue);
+    expect(backend.raw.position, const Duration(minutes: 2));
+  });
+
+  test('startup resume waits for late seek capability before playing',
+      () async {
+    final backend = _Backend()..seekableAfterQuery = 2;
+    final session = create(backend,
+        seekabilityProbeInterval: const Duration(milliseconds: 5));
+    final result =
+        await session.open(_request().url, startAt: const Duration(minutes: 3));
+    expect(result.applied, isTrue);
+    expect(backend.raw.position, const Duration(minutes: 3));
+    expect(backend.log.indexOf('seek:180000'),
+        lessThan(backend.log.indexOf('play')));
+  });
+
+  test('new source does not inherit the previous seek capability', () async {
+    final first = _Backend();
+    final second = _Backend()..canSeek = false;
+    var created = 0;
+    final session =
+        create(first, factory: () => created++ == 0 ? first : second);
+    await session.open(_request().url);
+    expect(session.canSeek, isTrue);
+    await session.open('https://example.test/other');
+    expect(session.canSeek, isFalse);
+    expect((await session.seekTo(const Duration(seconds: 5))).status,
+        PlaybackCommandStatus.unsupported);
+  });
+
   test('resolution token survives deliberate retirement but exit cancels it',
       () async {
     final session = create(_Backend());
@@ -494,6 +536,8 @@ class _Backend implements PlaybackBackend {
   Completer<void>? closeGate;
   bool failClose = false;
   bool canSeek = true;
+  int? seekableAfterQuery;
+  int seekableQueries = 0;
   bool closed = false;
   @override
   PlaybackEngine get engine => raw;
@@ -506,7 +550,12 @@ class _Backend implements PlaybackBackend {
   }
 
   @override
-  Future<bool?> seekable() async => canSeek;
+  Future<bool?> seekable() async {
+    seekableQueries++;
+    return canSeek &&
+        (seekableAfterQuery == null || seekableQueries >= seekableAfterQuery!);
+  }
+
   @override
   Future<Uint8List?> captureFrame() async => null;
   @override
