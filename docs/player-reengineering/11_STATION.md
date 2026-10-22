@@ -30,7 +30,7 @@ Physical Android device `RF8NA2NNVNY` (SM-A217F, Android 12) is visible in `adb`
 
 ## Commit / LKG
 
-After the scoped Station 11 commit, record its hash in this section and `00_MASTER_PLAN.md`. The pre-existing confirmed-exit fixes on the same page files and all unrelated local changes remain uncommitted and untouched. The commit therefore differs from the device-tested working-tree candidate and is NOT-VERIFIED independently, not installed or promoted to production LKG. The recorded production LKG/safety tag remains `c9257c0`. No push/tag/release; no performance or iOS claim.
+Station 11's scoped code/test/docs commit is `2931cb6` (`player: station 11 controls and gestures`). The pre-existing confirmed-exit fixes on the same page files and all unrelated local changes remain uncommitted and untouched. The commit therefore differs from the device-tested working-tree candidate and is NOT-VERIFIED independently, not installed or promoted to production LKG. The recorded production LKG/safety tag remains `c9257c0`. No push/tag/release; no performance or iOS claim.
 
 ## Session 1 scope
 Historical note from the initial planning checkpoint; superseded by the active Station 11 continuation above.
