@@ -1,7 +1,7 @@
 # Station 11 — Player controls and gestures
 
 - Status: COMPLETE — Station 11 functional checks passed on the physical Android phone for the current working-tree candidate
-- Verification status: current working-tree candidate VERIFIED-ON-DEVICE for the user-reported Core and legacy playback/gesture checklists on one Android phone and one user-selected source per route; scoped committed tree NOT-VERIFIED independently; performance NOT MEASURED
+- Verification status: working-tree candidate VERIFIED-ON-DEVICE for the user-reported Core and legacy playback/gesture checklists on one Android phone and one user-selected source per route; scoped committed tree BUILD-VERIFIED by full analysis and tests on the exact staged snapshot; performance NOT MEASURED
 - Checklist: 8/8 tasks complete
 - Evidence:
 
@@ -30,7 +30,7 @@ Physical Android device `RF8NA2NNVNY` (SM-A217F, Android 12) is visible in `adb`
 
 ## Commit / LKG
 
-Station 11's scoped code/test/docs commit is `2931cb6` (`player: station 11 controls and gestures`). The pre-existing confirmed-exit fixes on the same page files and all unrelated local changes remain uncommitted and untouched. The commit therefore differs from the device-tested working-tree candidate and is NOT-VERIFIED independently, not installed or promoted to production LKG. The recorded production LKG/safety tag remains `c9257c0`. No push/tag/release; no performance or iOS claim.
+Station 11 commits are `2931cb6` (`player: station 11 controls and gestures`) and corrective page-integration commit `ebb825e` (`fix(player): correct station 11 page integration`). The exact corrected staged tree passed `flutter analyze --no-pub` and `flutter test --no-pub --reporter compact` (539/539); both player routes were installed and user-checked from the working tree. The pre-existing confirmed-exit fixes on the same page files and all unrelated local changes remain uncommitted and untouched, so the commit tree was not installed on-device and is not promoted to production LKG. The recorded production LKG/safety tag remains `c9257c0`. No push/tag/release; no performance or iOS claim.
 
 ## Session 1 scope
 Historical note from the initial planning checkpoint; superseded by the active Station 11 continuation above.
