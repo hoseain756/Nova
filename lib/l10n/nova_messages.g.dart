@@ -11,6 +11,12 @@ const Map<String, String> novaEnglish = {
   "playerExitFullscreen": "Exit fullscreen",
   "playerPreviousEpisode": "Previous episode",
   "playerChangeSource": "Change source",
+  "playerEpisodePlay": "Play",
+  "playerCurrentEpisode": "Playing",
+  "playerNoEpisodes": "No episodes in this season",
+  "playerAutoSelectEpisodeSource": "Choose episode source automatically",
+  "playerAutoSelectEpisodeSourceDescription":
+      "Play the best available source when starting an episode. You can still choose another source manually.",
   "addonUrlHint": "https://addon.example/manifest.json",
   "logicalPixelValue": "{value} dp",
   "retry": "Try again",
@@ -25,29 +31,36 @@ const Map<String, String> novaEnglish = {
   "errorTitle": "Something went wrong",
   "errorBody": "Go back and try again.",
   "welcomeTitle": "Your next story.\nYour own universe.",
-  "welcomeBody": "Movies, series and anime, brought together with your addons and connected libraries.",
+  "welcomeBody":
+      "Movies, series and anime, brought together with your addons and connected libraries.",
   "language": "Language",
   "appearance": "Appearance",
   "navigationBarStyle": "Navigation bar style",
   "navigationBarStyleSubtitle": "Choose the look of the bottom navigation bar.",
-  "navigationBarStyleDescription": "Tap a style to preview and apply it immediately. Your choice is saved with your settings.",
+  "navigationBarStyleDescription":
+      "Tap a style to preview and apply it immediately. Your choice is saved with your settings.",
   "navigationBarPreview": "Live preview",
   "navigationBarOptions": "Choose a style",
   "navigationBarClassic": "Classic",
-  "navigationBarClassicDescription": "The current glass bar with icons and labels underneath.",
+  "navigationBarClassicDescription":
+      "The current glass bar with icons and labels underneath.",
   "navigationBarCompact": "Compact icons",
-  "navigationBarCompactDescription": "The same bar shape and spacing, with icons only.",
+  "navigationBarCompactDescription":
+      "The same bar shape and spacing, with icons only.",
   "navigationBarMini": "Mini",
-  "navigationBarMiniDescription": "A slimmer floating bar with icons only and clear space at both edges.",
+  "navigationBarMiniDescription":
+      "A slimmer floating bar with icons only and clear space at both edges.",
   "dark": "Dark",
   "light": "Light",
   "system": "System",
   "startExploring": "Start exploring",
-  "welcomePrivacy": "Your library stays yours. Connect services when you are ready in Settings.",
+  "welcomePrivacy":
+      "Your library stays yours. Connect services when you are ready in Settings.",
   "parentGate": "For parents",
   "parentExplain": "Enter your parent PIN to leave Kids.",
   "createPin": "Create a parent PIN",
-  "createPinBody": "Choose 4–8 digits. This PIN protects Kids exit and parental settings on this device.",
+  "createPinBody":
+      "Choose 4–8 digits. This PIN protects Kids exit and parental settings on this device.",
   "pin": "Parent PIN",
   "confirmPin": "Confirm PIN",
   "pinInvalid": "Enter 4–8 digits and make sure both entries match.",
@@ -58,17 +71,21 @@ const Map<String, String> novaEnglish = {
   "downloads": "Downloads",
   "downloadIntro": "Your stories, ready to go.",
   "downloadsEmpty": "Take a story with you",
-  "downloadsEmptyBody": "Open a title, choose Download, then select a direct video source. Completed downloads play here offline.",
+  "downloadsEmptyBody":
+      "Open a title, choose Download, then select a direct video source. Completed downloads play here offline.",
   "downloading": "Downloading",
   "downloadComplete": "Ready offline",
   "downloadFailed": "Download interrupted",
   "downloadCancelled": "Cancelled",
   "downloadQueued": "Queued",
   "downloadDelete": "Delete download?",
-  "downloadDeleteBody": "This removes the saved video from this device. Your library is kept.",
+  "downloadDeleteBody":
+      "This removes the saved video from this device. Your library is kept.",
   "playOffline": "Play offline",
-  "downloadForeground": "Keep NOVA open while downloading. Protected streams and live playlists cannot be saved as offline files.",
+  "downloadForeground":
+      "Keep NOVA open while downloading. Protected streams and live playlists cannot be saved as offline files.",
   "downloadError": "This source could not be downloaded. Try another source.",
+  "subtitleLoadFailed": "Could not load this subtitle. Try another track.",
   "downloadBytes": "{received} of {total}",
   "message1": "{p0}{p1} s",
   "message2": "Default",
@@ -84,7 +101,8 @@ const Map<String, String> novaEnglish = {
   "message12": "Intro skipped",
   "message13": "Outro skipped",
   "message14": "Controls locked",
-  "message15": "This stream is not responding on this device — it may be offline, too slow, or undecodable. Try another source from the sources page.",
+  "message15":
+      "This stream is not responding on this device — it may be offline, too slow, or undecodable. Try another source from the sources page.",
   "message16": "Brightness",
   "message17": "Volume",
   "message18": "RESUME",
@@ -142,7 +160,8 @@ const Map<String, String> novaEnglish = {
   "message70": "ch",
   "message71": "default",
   "message72": "No delay",
-  "message73": "No selectable audio tracks in this stream. Dubs may be available as separate sources.",
+  "message73":
+      "No selectable audio tracks in this stream. Dubs may be available as separate sources.",
   "message74": "Audio delay",
   "message75": "Addon subtitle",
   "message76": "In this file",
@@ -150,7 +169,8 @@ const Map<String, String> novaEnglish = {
   "message78": "Search subtitles…",
   "message79": "No subtitles found for this title.",
   "message80": "No matches for your search.",
-  "message81": "No sources available for this title yet — try the refresh button.",
+  "message81":
+      "No sources available for this title yet — try the refresh button.",
   "message82": "Speed",
   "message83": "Video fit",
   "message84": "Fit",
@@ -251,8 +271,10 @@ const Map<String, String> novaEnglish = {
   "message179": "Added to downloads",
   "message180": "Download could not be started",
   "message181": "Link copied to clipboard",
-  "message182": "The Debrid service could not resolve this torrent and this device has no built-in torrent engine.",
-  "message183": "Torrent streaming needs a Debrid service (Real-Debrid / AllDebrid / TorBox) or a device with the built-in torrent engine.",
+  "message182":
+      "The Debrid service could not resolve this torrent and this device has no built-in torrent engine.",
+  "message183":
+      "Torrent streaming needs a Debrid service (Real-Debrid / AllDebrid / TorBox) or a device with the built-in torrent engine.",
   "message184": "Rating",
   "message185": "Similar suggestions",
   "message186": "No similar suggestions are available yet.",
@@ -272,7 +294,8 @@ const Map<String, String> novaEnglish = {
   "message200": "Refresh sources",
   "message201": "{p0} sources · {p1} addons",
   "message202": "Direct files can be saved for offline viewing.",
-  "message203": "Sources could not be refreshed. Check your connection and try again.",
+  "message203":
+      "Sources could not be refreshed. Check your connection and try again.",
   "message204": "Unable to load sources",
   "message205": "No sources available for this title yet",
   "message206": "No matching sources",
@@ -291,14 +314,17 @@ const Map<String, String> novaEnglish = {
   "message219": "Add-on installed. Your catalog is ready.",
   "message220": "Add-ons",
   "message221": "Your universe, expanded.",
-  "message222": "Bring catalogs, streams and subtitles together. You control which sources appear first.",
+  "message222":
+      "Bring catalogs, streams and subtitles together. You control which sources appear first.",
   "message223": "Install from a link",
   "message224": "Manifest URL",
   "message225": "Install add-on",
   "message226": "Installed · {p0}",
   "message227": "Drag the handle to change catalog and stream priority.",
-  "message228": "Start with a catalog above, or paste a stream add-on link to begin watching.",
-  "message229": "Add-ons are independent services. NOVA loads their catalogs and plays the sources you choose.",
+  "message228":
+      "Start with a catalog above, or paste a stream add-on link to begin watching.",
+  "message229":
+      "Add-ons are independent services. NOVA loads their catalogs and plays the sources you choose.",
   "message230": "Priority {p0} · {p1} catalogs",
   "message231": "Enable {p0}",
   "message232": "Enabled",
@@ -317,20 +343,23 @@ const Map<String, String> novaEnglish = {
   "message245": "Copy manifest link",
   "message246": "Link copied.",
   "message247": "Available catalogs",
-  "message248": "This add-on does not advertise a configuration page. Its available controls are shown above.",
+  "message248":
+      "This add-on does not advertise a configuration page. Its available controls are shown above.",
   "message249": "Remove add-on",
   "message250": "Remove add-on?",
   "message251": "Remove {p0} and its catalogs from NOVA?",
   "message252": "Connected services",
   "message253": "Everything, in sync.",
-  "message254": "Your lists, progress and playback services. Connected on your terms.",
+  "message254":
+      "Your lists, progress and playback services. Connected on your terms.",
   "message255": "Watchlists & tracking",
   "message256": "Metadata & ratings",
   "message257": "Built-in metadata · optional personal key",
   "message258": "Built-in ratings provider",
   "message259": "Cloud playback",
   "message260": "Real-Debrid, AllDebrid or TorBox",
-  "message261": "Personal provider keys are stored securely on this device and excluded from cloud sync.",
+  "message261":
+      "Personal provider keys are stored securely on this device and excluded from cloud sync.",
   "message262": "Connected · manage account",
   "message263": "Disconnected · connect account",
   "message264": "Keep the stories you love and your progress together.",
@@ -338,7 +367,8 @@ const Map<String, String> novaEnglish = {
   "message266": "More context for your next discovery.",
   "message267": "Anime lists, episode progress and scores.",
   "message268": "Watchlists, watch history and playback progress.",
-  "message269": "MDBList supplies title ratings through NOVA’s built-in metadata integration. This build does not support connecting an MDBList account or synchronizing personal MDBList lists.",
+  "message269":
+      "MDBList supplies title ratings through NOVA’s built-in metadata integration. This build does not support connecting an MDBList account or synchronizing personal MDBList lists.",
   "message270": "Automatic sync",
   "message271": "Sync playback activity",
   "message272": "Report playback progress while you watch.",
@@ -348,10 +378,13 @@ const Map<String, String> novaEnglish = {
   "message276": "Automatically update your anime progress after playback.",
   "message277": "Available with this connection",
   "message278": "Library import",
-  "message279": "Use Sync library above to import available watchlist and history records.",
+  "message279":
+      "Use Sync library above to import available watchlist and history records.",
   "message280": "Playback tracking",
-  "message281": "Anime progress, lists and scores are managed from the title’s tracking actions.",
-  "message282": "Playback progress is reported automatically while this service remains connected.",
+  "message281":
+      "Anime progress, lists and scores are managed from the title’s tracking actions.",
+  "message282":
+      "Playback progress is reported automatically while this service remains connected.",
   "message283": "TMDB key verified and saved securely on this device.",
   "message284": "Remove TMDB key?",
   "message285": "NOVA will use its built-in metadata access instead.",
@@ -366,10 +399,14 @@ const Map<String, String> novaEnglish = {
   "message294": "Paste your key or read token",
   "message295": "Verify and save",
   "message296": "Account connected.",
-  "message297": "The provider rejected the app credentials — update NOVA to the latest build and retry.",
-  "message298": "That access token was rejected — copy it again from the AniList page and retry.",
-  "message299": "This code has expired — start a new link and paste the fresh code.",
-  "message300": "Could not complete with this code — check it or restart the link.",
+  "message297":
+      "The provider rejected the app credentials — update NOVA to the latest build and retry.",
+  "message298":
+      "That access token was rejected — copy it again from the AniList page and retry.",
+  "message299":
+      "This code has expired — start a new link and paste the fresh code.",
+  "message300":
+      "Could not complete with this code — check it or restart the link.",
   "message301": "Could not start the link.",
   "message302": "Could not start the Trakt link.",
   "message303": "Could not create the link code.",
@@ -385,17 +422,24 @@ const Map<String, String> novaEnglish = {
   "message313": "Episodes",
   "message314": "Mean score",
   "message315": "Sync library",
-  "message316": "Approve the link in the {p0} browser tab — the browser returns straight into NOVA the moment you approve (Redirect URI app.noor.mobile://callback).",
+  "message316":
+      "Approve the link in the {p0} browser tab — the browser returns straight into NOVA the moment you approve (Redirect URI app.noor.mobile://callback).",
   "message317": "Waiting for approval…",
-  "message318": "Browser stuck on a token page? Paste the full URL or the access token here:",
+  "message318":
+      "Browser stuck on a token page? Paste the full URL or the access token here:",
   "message319": "Browser stuck or showing an auth code? Paste it here:",
   "message320": "Authorization code",
   "message321": "Finish",
-  "message322": "No setup needed — NOVA ships with its own {p0} app credentials.",
-  "message323": "Complete the approval in the Trakt browser tab — Trakt bounces you straight back into NOVA the moment you approve (no website involved).",
-  "message324": "Complete the approval in the Trakt browser tab — NOVA finishes the link automatically the moment Trakt approves (you may need to switch back to the app).",
-  "message325": "If Trakt shows an error after approving, add noor://callback to the Redirect URIs on trakt.tv/oauth/applications (one time) — or switch the method above to “Via website”.",
-  "message326": "No setup needed — Trakt returns the approval to NOVA through the NOVA companion site automatically.",
+  "message322":
+      "No setup needed — NOVA ships with its own {p0} app credentials.",
+  "message323":
+      "Complete the approval in the Trakt browser tab — Trakt bounces you straight back into NOVA the moment you approve (no website involved).",
+  "message324":
+      "Complete the approval in the Trakt browser tab — NOVA finishes the link automatically the moment Trakt approves (you may need to switch back to the app).",
+  "message325":
+      "If Trakt shows an error after approving, add noor://callback to the Redirect URIs on trakt.tv/oauth/applications (one time) — or switch the method above to “Via website”.",
+  "message326":
+      "No setup needed — Trakt returns the approval to NOVA through the NOVA companion site automatically.",
   "message327": "Open {p0} and enter this code:",
   "message328": "Code copied.",
   "message329": "Copy code",
@@ -403,8 +447,10 @@ const Map<String, String> novaEnglish = {
   "message331": "Connect {p0}",
   "message332": "Direct to app",
   "message333": "Via website",
-  "message334": "Approve in Trakt and the browser hands you straight back to NOVA — no website in between. One-time setup: add noor://callback to the Redirect URIs on trakt.tv/oauth/applications.",
-  "message335": "Opens the browser — the approval returns to NOVA automatically through the NOVA companion site. No dashboard setup required.",
+  "message334":
+      "Approve in Trakt and the browser hands you straight back to NOVA — no website in between. One-time setup: add noor://callback to the Redirect URIs on trakt.tv/oauth/applications.",
+  "message335":
+      "Opens the browser — the approval returns to NOVA automatically through the NOVA companion site. No dashboard setup required.",
   "message336": "Key verified and saved securely.",
   "message337": "Disconnect cloud playback?",
   "message338": "The stored provider key will be removed from this device.",
@@ -421,8 +467,10 @@ const Map<String, String> novaEnglish = {
   "message349": "Your library, connected.",
   "message350": "Your data. Your control.",
   "message351": "Review local files and keep temporary storage in check.",
-  "message352": "Keep your watchlist, history and preferences together across your linked device.",
-  "message353": "Back up your collection, restore it, or choose what to remove.",
+  "message352":
+      "Keep your watchlist, history and preferences together across your linked device.",
+  "message353":
+      "Back up your collection, restore it, or choose what to remove.",
   "message354": "Export backup",
   "message355": "{p0} saved titles · {p1} history records",
   "message356": "Backup copied as JSON.",
@@ -436,7 +484,8 @@ const Map<String, String> novaEnglish = {
   "message364": "Remove saved titles and playback records from this device.",
   "message365": "Clear your library?",
   "message366": "Your add-ons stay installed on this device.",
-  "message367": "Provider API credentials are kept on this device and excluded from cloud sync.",
+  "message367":
+      "Provider API credentials are kept on this device and excluded from cloud sync.",
   "message368": "Clear",
   "message369": "Sync complete.",
   "message370": "Sync failed — check your connection.",
@@ -460,7 +509,8 @@ const Map<String, String> novaEnglish = {
   "message388": "Torrent downloads",
   "message389": "Clear all",
   "message390": "Checking storage…",
-  "message391": "Nothing on disk — streamed torrents can be kept for instant resume.",
+  "message391":
+      "Nothing on disk — streamed torrents can be kept for instant resume.",
   "message392": "{p0} torrent(s) · {p1} on disk",
   "message393": "Try again",
   "message394": "files",
@@ -470,20 +520,23 @@ const Map<String, String> novaEnglish = {
   "message398": "Automatic reset is off — clear manually from this screen.",
   "message399": "Torrent temp files and the image cache are reset {p0}.",
   "message400": "Reset temporary storage",
-  "message401": "Clears downloaded torrent temp files and the image cache when the interval elapses. The torrent currently streaming is never touched.",
+  "message401":
+      "Clears downloaded torrent temp files and the image cache when the interval elapses. The torrent currently streaming is never touched.",
   "message402": "Reset now",
   "message403": "Cache cleared — {p0} MB freed.",
   "message404": "Cache cleared — nothing to free.",
   "message405": "About NOVA",
   "message406": "Version {p0}",
   "message407": "A whole world of stories.",
-  "message408": "An independent, open-source media center built around the Stremio add-on protocol. Connect your services, bring your own add-ons, and make your next discovery.",
+  "message408":
+      "An independent, open-source media center built around the Stremio add-on protocol. Connect your services, bring your own add-ons, and make your next discovery.",
   "message409": "Open source & acknowledgements",
   "message410": "Open-source licenses",
   "message411": "MIT license and package acknowledgements",
   "message412": "Based on the Harbor desktop project.",
   "message413": "Movie metadata and images may be provided by TMDB.",
-  "message414": "NOVA is not affiliated with Stremio and does not host or distribute media. Add-on providers manage their own content and services.",
+  "message414":
+      "NOVA is not affiliated with Stremio and does not host or distribute media. Add-on providers manage their own content and services.",
   "updateSection": "App updates",
   "updateDescription": "Check for and install the latest NOVA release.",
   "updateCheckAction": "Check for updates",
@@ -491,27 +544,43 @@ const Map<String, String> novaEnglish = {
   "updateAvailable": "A new version {version} is ready to install.",
   "updateCurrent": "You're already using the latest version of NOVA.",
   "updateRequiredTitle": "Update required",
-  "updateRequiredBody": "This version is no longer supported. Install the update to continue.",
+  "updateRequiredBody":
+      "This version is no longer supported. Install the update to continue.",
   "updateDownloadAction": "Download update",
   "updateDownloadProgressTitle": "Downloading update",
   "updateDownloadProgress": "{percent}%",
-  "updateDownloadFailed": "The download didn't finish. Check your connection and try again.",
+  "updateDownloadFailed":
+      "The download didn't finish. Check your connection and try again.",
   "updateCheckFailed": "NOVA couldn't check for updates. Please try again.",
-  "updateInstallerFailed": "Android couldn't start installation. Check that this APK matches your device and was signed with the same key as the installed app.",
-  "updateConnectionFailed": "Can't connect to NOVA's update service. Check your internet connection and try again.",
-  "updateServiceUnavailable": "The update service couldn't be reached right now. Please try again later.",
-  "updateManifestInvalid": "The update information is incomplete or invalid. Please try again later.",
+  "updateInstallerFailed":
+      "Android couldn't start installation. Check that this APK matches your device and was signed with the same key as the installed app.",
+  "updateConnectionFailed":
+      "Can't connect to NOVA's update service. Check your internet connection and try again.",
+  "updateServiceUnavailable":
+      "The update service couldn't be reached right now. Please try again later.",
+  "updateManifestInvalid":
+      "The update information is incomplete or invalid. Please try again later.",
   "updateLinkInvalid": "The download link is invalid. Please contact support.",
-  "updateStorageFailed": "NOVA couldn't save the update. Free up device storage, then try again.",
-  "updateApkUnavailable": "The APK isn't attached to the latest release yet. Please try again later.",
-  "updateApkInvalid": "The downloaded APK is incomplete or invalid. Delete it and download again.",
-  "updateApkMissing": "The downloaded APK could not be found. Download it again.",
-  "updateInstallerPermission": "Android blocked installation. Allow NOVA to install unknown apps in system settings, then try again.",
-  "updateInstallerUnavailable": "No Android package installer is available to open this APK.",
-  "updateIosUnavailable": "An iOS update link isn't available for this release.",
-  "updateIosOpenFailed": "The iOS update link couldn't be opened. Check your connection and try again.",
-  "updateUnsupportedPlatform": "In-app updates aren't supported on this device.",
-  "updateInstallerOpened": "Android's installer opened. Follow its prompts to finish installing.",
+  "updateStorageFailed":
+      "NOVA couldn't save the update. Free up device storage, then try again.",
+  "updateApkUnavailable":
+      "The APK isn't attached to the latest release yet. Please try again later.",
+  "updateApkInvalid":
+      "The downloaded APK is incomplete or invalid. Delete it and download again.",
+  "updateApkMissing":
+      "The downloaded APK could not be found. Download it again.",
+  "updateInstallerPermission":
+      "Android blocked installation. Allow NOVA to install unknown apps in system settings, then try again.",
+  "updateInstallerUnavailable":
+      "No Android package installer is available to open this APK.",
+  "updateIosUnavailable":
+      "An iOS update link isn't available for this release.",
+  "updateIosOpenFailed":
+      "The iOS update link couldn't be opened. Check your connection and try again.",
+  "updateUnsupportedPlatform":
+      "In-app updates aren't supported on this device.",
+  "updateInstallerOpened":
+      "Android's installer opened. Follow its prompts to finish installing.",
   "updateIosOpened": "The iOS update page opened. Follow its steps to install.",
   "updateErrorTitle": "Update couldn't be completed",
   "updateDismiss": "Close",
@@ -550,7 +619,8 @@ const Map<String, String> novaEnglish = {
   "message447": "Small",
   "message448": "Set or change parental PIN",
   "message449": "Required when leaving Kids mode.",
-  "message450": "Kids discovery uses age-appropriate content filters. A parent should review installed add-ons and any external streams.",
+  "message450":
+      "Kids discovery uses age-appropriate content filters. A parent should review installed add-ons and any external streams.",
   "message451": "Poster corner radius",
   "message452": "Your device, your library, everywhere",
   "message453": "Playback",
@@ -577,15 +647,18 @@ const Map<String, String> novaEnglish = {
   "message474": "Open my library",
   "message475": "No matching settings. Try playback, language or privacy.",
   "message476": "Appearance & accessibility",
-  "message477": "Your language, everywhere. Changes apply immediately across NOVA.",
+  "message477":
+      "Your language, everywhere. Changes apply immediately across NOVA.",
   "message478": "A quieter viewing experience.",
   "message479": "Make NOVA feel at home on your screen.",
   "message480": "App language",
   "message481": "Left-to-right interface",
   "message482": "Right-to-left interface",
   "message483": "Content language",
-  "message484": "Posters, descriptions and episode names, when your provider supports them.",
-  "message485": "NOVA currently shows connection, sync and download feedback inside the app. This build does not request push notifications or send promotional alerts.",
+  "message484":
+      "Posters, descriptions and episode names, when your provider supports them.",
+  "message485":
+      "NOVA currently shows connection, sync and download feedback inside the app. This build does not request push notifications or send promotional alerts.",
   "message486": "Color mode",
   "message487": "Cinema dark",
   "message488": "Daylight",
@@ -594,8 +667,10 @@ const Map<String, String> novaEnglish = {
   "message491": "Reduce motion",
   "message492": "Calmer transitions and less animated movement.",
   "message493": "Reduce transparency",
-  "message494": "Solid navigation surfaces for clearer contrast and lighter rendering.",
-  "message495": "NOVA follows your device text size and screen reader settings. System reduced-motion preferences are respected automatically.",
+  "message494":
+      "Solid navigation surfaces for clearer contrast and lighter rendering.",
+  "message495":
+      "NOVA follows your device text size and screen reader settings. System reduced-motion preferences are respected automatically.",
   "message496": "Languages",
   "message497": "Text & style",
   "message498": "Timing",
@@ -605,10 +680,14 @@ const Map<String, String> novaEnglish = {
   "message502": "Stream selection",
   "message503": "Every word, just right.",
   "message504": "Press play. Your way.",
-  "message505": "Choose tracks supplied by your add-ons, then make them comfortable to read.",
-  "message506": "Fine-tune audio, picture and the journey from one episode to the next.",
-  "message507": "Language preferences select available subtitle tracks. NOVA does not automatically translate subtitle files.",
-  "message508": "Sources play directly on this device. Availability depends on your installed add-ons and connected services.",
+  "message505":
+      "Choose tracks supplied by your add-ons, then make them comfortable to read.",
+  "message506":
+      "Fine-tune audio, picture and the journey from one episode to the next.",
+  "message507":
+      "Language preferences select available subtitle tracks. NOVA does not automatically translate subtitle files.",
+  "message508":
+      "Sources play directly on this device. Availability depends on your installed add-ons and connected services.",
   "message509": "None selected",
   "message510": "Your story so far.",
   "message511": "A personal view of your time with NOVA.",
@@ -618,23 +697,27 @@ const Map<String, String> novaEnglish = {
   "message515": "The past seven days",
   "message516": "{p0} titles",
   "message517": "Recent activity",
-  "message518": "Your next story starts with Play. Watching activity will appear here.",
+  "message518":
+      "Your next story starts with Play. Watching activity will appear here.",
   "message519": "Clear history",
   "message520": "This also removes your Continue Watching progress.",
   "message521": "NOVA / ANIME",
   "message522": "A world beyond ordinary",
-  "message523": "Explore anime, follow your favourites and keep your AniList journey in sync.",
+  "message523":
+      "Explore anime, follow your favourites and keep your AniList journey in sync.",
   "message524": "Find anime",
   "message525": "For you",
   "message526": "Films",
   "message527": "Explore this story",
   "message528": "Watching · AniList",
   "message529": "Plan to watch · AniList",
-  "message530": "Anime could not be loaded. Check your connection and try again.",
+  "message530":
+      "Anime could not be loaded. Check your connection and try again.",
   "message531": "No anime titles are available right now.",
   "message532": "Anime series",
   "message533": "Link your AniList account",
-  "message534": "Your Watching and Plan-to-watch lists appear here right after linking.",
+  "message534":
+      "Your Watching and Plan-to-watch lists appear here right after linking.",
   "message535": "Link account",
   "message536": "Discover anime",
   "message537": "Search anime titles",
@@ -646,7 +729,8 @@ const Map<String, String> novaEnglish = {
   "message543": "Could not reach the tracker — try again.",
   "message544": "Anime list updated.",
   "message545": "Remove from trackers?",
-  "message546": "This removes the planning entry from connected trackers where removal is supported.",
+  "message546":
+      "This removes the planning entry from connected trackers where removal is supported.",
   "message547": "Removed from your lists.",
   "message548": "Watching",
   "message549": "Completed",
@@ -656,7 +740,8 @@ const Map<String, String> novaEnglish = {
   "message553": "Rewatching",
   "message554": "Your anime journey",
   "message555": "One update, every connected tracker.",
-  "message556": "We could not load your current progress. Try again before editing.",
+  "message556":
+      "We could not load your current progress. Try again before editing.",
   "message557": "Watch status",
   "message558": "Episodes watched",
   "message559": "One fewer episode",
@@ -668,24 +753,28 @@ const Map<String, String> novaEnglish = {
   "message565": "Calendar",
   "message566": "COMING INTO VIEW",
   "message567": "Your week in stories",
-  "message568": "New episodes from your library, alongside the latest anime airing schedule.",
+  "message568":
+      "New episodes from your library, alongside the latest anime airing schedule.",
   "message569": "Previous week",
   "message570": "Next week",
   "message571": "Whole week",
   "message572": "Today",
   "message573": "The schedule could not be loaded.",
-  "message574": "No episodes are scheduled here. Save a series to follow its next chapter.",
+  "message574":
+      "No episodes are scheduled here. Save a series to follow its next chapter.",
   "message575": "View episode",
   "message576": "Discover",
   "message577": "Movies",
   "message578": "Series",
   "message579": "Add-on catalogs",
-  "message580": "Catalogs could not be loaded. Check the connection or add an add-on.",
+  "message580":
+      "Catalogs could not be loaded. Check the connection or add an add-on.",
   "message581": "Catalogs could not be loaded.",
   "message582": "Explore NOVA",
   "message583": "YOUR NEXT DISCOVERY",
   "message584": "Fresh perspectives from the add-ons you choose.",
-  "message585": "Make room for something remarkable. Explore, filter and find your next watch.",
+  "message585":
+      "Make room for something remarkable. Explore, filter and find your next watch.",
   "message586": "Search titles",
   "message587": "All",
   "message588": "Sort by",
@@ -698,13 +787,15 @@ const Map<String, String> novaEnglish = {
   "message595": "No titles are available in this catalog.",
   "message596": "NOVA Kids",
   "message597": "Big stories.\nLittle explorers.",
-  "message598": "A space for family-rated adventures. A parent unlocks the way out.",
+  "message598":
+      "A space for family-rated adventures. A parent unlocks the way out.",
   "message599": "Explore everything",
   "message600": "Movie time",
   "message601": "One more adventure",
   "message602": "The adventures are taking a break",
   "message603": "Safe stories are on their way",
-  "message604": "Only titles with a verified family age rating appear here. Unrated titles stay hidden.",
+  "message604":
+      "Only titles with a verified family age rating appear here. Unrated titles stay hidden.",
   "message605": "New collection",
   "message606": "Import collection",
   "message607": "titles",
@@ -730,22 +821,26 @@ const Map<String, String> novaEnglish = {
   "message627": "Share code copied. The recipient can import it in My Library.",
   "message628": "Delete this collection?",
   "message629": "Its saved titles will be removed from this collection.",
-  "message630": "Create a collection for films and series you want to keep together.",
+  "message630":
+      "Create a collection for films and series you want to keep together.",
   "message631": "Find a home for this story",
   "message632": "Create your first collection",
-  "message633": "Group favourite stories by mood, occasion or anything you love.",
+  "message633":
+      "Group favourite stories by mood, occasion or anything you love.",
   "message634": "Already in this collection",
   "message635": "Added to your collection",
   "message636": "YOUR PERSONAL UNIVERSE",
   "message637": "My library",
-  "message638": "The stories you love, the ones ahead and everything in between.",
+  "message638":
+      "The stories you love, the ones ahead and everything in between.",
   "message639": "Open torrent",
   "message640": "Watchlist",
   "message641": "History",
   "message642": "Collections",
   "message643": "Find something in your library",
   "message644": "No matching titles",
-  "message645": "Open a title and tap My list to make it part of your collection.",
+  "message645":
+      "Open a title and tap My list to make it part of your collection.",
   "message646": "Your story is just beginning",
   "message647": "Titles you play appear here, ready to pick up again.",
   "message648": "Remove from watchlist",
@@ -753,15 +848,18 @@ const Map<String, String> novaEnglish = {
   "message650": "Preparing the stream…",
   "message651": "Could not resume this torrent: {p0}",
   "message652": "Could not resume this torrent. Try again.",
-  "message653": "Could not load these playlists. Check their URLs and try again.",
+  "message653":
+      "Could not load these playlists. Check their URLs and try again.",
   "message654": "Playlist {p0}",
   "message655": "Remove this playlist?",
-  "message656": "Its channels will disappear from Live TV. You can add the URL again later.",
+  "message656":
+      "Its channels will disappear from Live TV. You can add the URL again later.",
   "message657": "General",
   "message658": "Live TV",
   "message659": "HAPPENING NOW",
   "message660": "The world, live",
-  "message661": "Your channels and programme guide, brought together in one place.",
+  "message661":
+      "Your channels and programme guide, brought together in one place.",
   "message662": "Add playlist",
   "message663": "Playlist",
   "message664": "Find a channel",
@@ -806,17 +904,20 @@ const Map<String, String> novaEnglish = {
   "message703": "Could not finish linking {p0}.",
   "message704": "Trakt account connected.",
   "message705": "{p0} account connected.",
-  "message706": "Torrent streaming needs a device with the built-in torrent engine (Android) or a connected Debrid service.",
+  "message706":
+      "Torrent streaming needs a device with the built-in torrent engine (Android) or a connected Debrid service.",
   "message707": "Paste a magnet link or a 40-character info hash.",
   "message708": "No playable video files found in this torrent.",
   "message709": "Could not fetch torrent info: {p0}",
-  "message710": "Could not fetch torrent info. Check the link and your connection.",
+  "message710":
+      "Could not fetch torrent info. Check the link and your connection.",
   "message711": "Failed to start the stream: {p0}",
   "message712": "Failed to start the stream. Try again.",
   "message713": "Choose file",
   "message714": "Play",
   "message715": "A story from a link",
-  "message716": "Add a magnet link, choose a video, and watch with the built-in player.",
+  "message716":
+      "Add a magnet link, choose a video, and watch with the built-in player.",
   "message717": "magnet:?xt=urn:btih:…  or info hash",
   "message718": "Paste",
   "message719": "Stream",
@@ -828,11 +929,15 @@ const Map<String, String> novaEnglish = {
   "message725": "Every story starts here.",
   "message726": "Custom hex colour",
   "message727": "Use six hexadecimal digits.",
-  "downloadStorageError": "NOVA could not save download data. Check available storage and try again.",
-  "downloadInterrupted": "The download was interrupted. Retry to download the file again.",
+  "downloadStorageError":
+      "NOVA could not save download data. Check available storage and try again.",
+  "downloadInterrupted":
+      "The download was interrupted. Retry to download the file again.",
   "downloadMissingFile": "The downloaded file is no longer on this device.",
-  "downloadInvalidSource": "This source does not provide a supported standalone video file.",
-  "downloadNetworkError": "The download could not finish. Check your connection and retry.",
+  "downloadInvalidSource":
+      "This source does not provide a supported standalone video file.",
+  "downloadNetworkError":
+      "The download could not finish. Check your connection and retry.",
   "operationFailed": "This action could not be completed. Please try again.",
   "arabicLanguage": "Arabic",
   "englishLanguage": "English",
@@ -885,17 +990,25 @@ const Map<String, String> novaEnglish = {
   "message774": "Kids",
   "message775": "Anime",
   "message776": "My Library",
-  "addonInvalidManifest": "This add-on manifest is not valid. Check the URL and try again.",
-  "addonInstallFailed": "The add-on could not be installed. Check your connection and try again.",
+  "addonInvalidManifest":
+      "This add-on manifest is not valid. Check the URL and try again.",
+  "addonInstallFailed":
+      "The add-on could not be installed. Check your connection and try again.",
   "invalidBackup": "This backup file is not valid.",
   "customListNameRequired": "Enter a name for this list.",
   "customListLimitReached": "You have reached the list limit.",
-  "torrentPeerTimeout": "Could not find torrent peers in time. Your network may block P2P or the swarm may be small. Try again or choose a direct source.",
-  "torrentInvalidMagnet": "This stream has no usable torrent identifier. Choose another source.",
-  "torrentUnavailable": "Torrent streaming needs a device with the built-in engine or a connected Debrid service.",
-  "torrentServerFailed": "The local stream server could not start. Try again or choose another source.",
-  "torrentNoFiles": "This torrent contains no playable files. Choose another source.",
-  "torrentStartFailed": "Could not start this stream. Try another source or check your connection.",
+  "torrentPeerTimeout":
+      "Could not find torrent peers in time. Your network may block P2P or the swarm may be small. Try again or choose a direct source.",
+  "torrentInvalidMagnet":
+      "This stream has no usable torrent identifier. Choose another source.",
+  "torrentUnavailable":
+      "Torrent streaming needs a device with the built-in engine or a connected Debrid service.",
+  "torrentServerFailed":
+      "The local stream server could not start. Try again or choose another source.",
+  "torrentNoFiles":
+      "This torrent contains no playable files. Choose another source.",
+  "torrentStartFailed":
+      "Could not start this stream. Try another source or check your connection.",
   "upcomingInDays": "Airs in {days} {unit}",
   "upcomingTwoDays": "Airs in two days",
   "upcomingFewDays": "Airs in {days} days",
@@ -914,35 +1027,50 @@ const Map<String, String> novaEnglish = {
   "mute": "Mute",
   "unmute": "Unmute",
   "serviceAccessDenied": "Approval was denied on Trakt.",
-  "serviceStateMismatch": "Invalid link response (state mismatch). Please retry.",
+  "serviceStateMismatch":
+      "Invalid link response (state mismatch). Please retry.",
   "serviceExchangeFailed": "Token exchange with Trakt failed. Please retry.",
   "serviceFlowExpired": "The pending link timed out. Start again.",
   "serviceNoPendingFlow": "The pending link expired. Start again.",
-  "serviceNetworkError": "A network error interrupted Trakt linking. Please retry.",
+  "serviceNetworkError":
+      "A network error interrupted Trakt linking. Please retry.",
   "serviceLinkFailed": "Could not finish linking Trakt.",
   "primaryNavigation": "Primary navigation",
   "urduLanguage": "Urdu",
   "persianLanguage": "Persian",
   "hebrewLanguage": "Hebrew",
-  "settingsSearchAccountKeywords": "account cloud sync device backup حساب مزامنة",
-  "settingsSearchPlaybackKeywords": "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة",
-  "settingsSearchSubtitleKeywords": "subtitle font size offset translation ترجمة خط حجم تأخير",
-  "settingsSearchDownloadKeywords": "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
-  "settingsSearchAppearanceKeywords": "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
-  "settingsSearchDisplayKeywords": "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
-  "settingsSearchLanguageKeywords": "language arabic english content لغة عربي انجليزي محتوى",
+  "settingsSearchAccountKeywords":
+      "account cloud sync device backup حساب مزامنة",
+  "settingsSearchPlaybackKeywords":
+      "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة",
+  "settingsSearchSubtitleKeywords":
+      "subtitle font size offset translation ترجمة خط حجم تأخير",
+  "settingsSearchDownloadKeywords":
+      "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
+  "settingsSearchAppearanceKeywords":
+      "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
+  "settingsSearchDisplayKeywords":
+      "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
+  "settingsSearchLanguageKeywords":
+      "language arabic english content لغة عربي انجليزي محتوى",
   "settingsSearchNotificationsKeywords": "notifications alerts إشعارات تنبيهات",
-  "settingsSearchPrivacyKeywords": "privacy backup restore history delete أمن خصوصية نسخ استعادة سجل حذف",
-  "settingsSearchAddonKeywords": "addons install url manifest priority إضافات تثبيت رابط أولوية",
-  "settingsSearchServiceKeywords": "trakt simkl anilist myanimelist mal tmdb mdblist debrid services خدمات",
+  "settingsSearchPrivacyKeywords":
+      "privacy backup restore history delete أمن خصوصية نسخ استعادة سجل حذف",
+  "settingsSearchAddonKeywords":
+      "addons install url manifest priority إضافات تثبيت رابط أولوية",
+  "settingsSearchServiceKeywords":
+      "trakt simkl anilist myanimelist mal tmdb mdblist debrid services خدمات",
   "settingsSearchKidsKeywords": "kids pin parental children أطفال رقابة رمز",
-  "settingsSearchStatsKeywords": "stats statistics activity history إحصائيات نشاط سجل",
-  "settingsSearchAboutKeywords": "about support license version nova حول دعم ترخيص إصدار",
+  "settingsSearchStatsKeywords":
+      "stats statistics activity history إحصائيات نشاط سجل",
+  "settingsSearchAboutKeywords":
+      "about support license version nova حول دعم ترخيص إصدار",
   "forwardSeconds": "Forward {p0} seconds",
   "rewindSeconds": "Rewind {p0} seconds",
   "linkedProgress": "Your linked watch progress",
   "resumeSnapshotRetention": "Resume screenshot retention",
-  "resumeSnapshotRetentionDescription": "Pause-frame previews stay on this device and are deleted after the selected period.",
+  "resumeSnapshotRetentionDescription":
+      "Pause-frame previews stay on this device and are deleted after the selected period.",
   "resumeSnapshotDays30": "30 days",
   "resumeSnapshotDays20": "20 days",
   "resumeSnapshotDays10": "10 days",
@@ -964,6 +1092,12 @@ const Map<String, String> novaArabic = {
   "playerExitFullscreen": "الخروج من ملء الشاشة",
   "playerPreviousEpisode": "الحلقة السابقة",
   "playerChangeSource": "تغيير المصدر",
+  "playerEpisodePlay": "تشغيل",
+  "playerCurrentEpisode": "يعمل الآن",
+  "playerNoEpisodes": "لا توجد حلقات في هذا الموسم",
+  "playerAutoSelectEpisodeSource": "اختيار مصدر الحلقة تلقائيًا",
+  "playerAutoSelectEpisodeSourceDescription":
+      "تشغيل أفضل مصدر متاح عند بدء الحلقة. يمكنك اختيار مصدر آخر يدويًا في أي وقت.",
   "addonUrlHint": "https://addon.example/manifest.json",
   "logicalPixelValue": "{value} نقطة",
   "retry": "إعادة المحاولة",
@@ -978,29 +1112,35 @@ const Map<String, String> novaArabic = {
   "errorTitle": "حدث خطأ غير متوقع",
   "errorBody": "ارجع وحاول مرة أخرى.",
   "welcomeTitle": "قصتك القادمة.\nعالمك الخاص.",
-  "welcomeBody": "أفلام ومسلسلات وأنمي، مع إضافاتك ومكتباتك المتصلة في مكان واحد.",
+  "welcomeBody":
+      "أفلام ومسلسلات وأنمي، مع إضافاتك ومكتباتك المتصلة في مكان واحد.",
   "language": "اللغة",
   "appearance": "المظهر",
   "navigationBarStyle": "نمط شريط التنقل",
   "navigationBarStyleSubtitle": "اختر مظهر شريط التنقل السفلي.",
-  "navigationBarStyleDescription": "اضغط على نمط لمعاينته وتطبيقه فوراً. يُحفظ اختيارك ضمن الإعدادات.",
+  "navigationBarStyleDescription":
+      "اضغط على نمط لمعاينته وتطبيقه فوراً. يُحفظ اختيارك ضمن الإعدادات.",
   "navigationBarPreview": "معاينة مباشرة",
   "navigationBarOptions": "اختر نمطاً",
   "navigationBarClassic": "كلاسيكي",
-  "navigationBarClassicDescription": "الشريط الزجاجي الحالي مع الأيقونات وتسمياتها أسفلها.",
+  "navigationBarClassicDescription":
+      "الشريط الزجاجي الحالي مع الأيقونات وتسمياتها أسفلها.",
   "navigationBarCompact": "أيقونات مدمجة",
   "navigationBarCompactDescription": "الشكل والمسافات نفسها، مع الأيقونات فقط.",
   "navigationBarMini": "مصغّر",
-  "navigationBarMiniDescription": "شريط عائم أنحف بأيقونات فقط ومسافة واضحة عن الحافتين.",
+  "navigationBarMiniDescription":
+      "شريط عائم أنحف بأيقونات فقط ومسافة واضحة عن الحافتين.",
   "dark": "داكن",
   "light": "فاتح",
   "system": "النظام",
   "startExploring": "ابدأ الاستكشاف",
-  "welcomePrivacy": "مكتبتك تبقى ملكك. اربط الخدمات عندما تكون جاهزًا من الإعدادات.",
+  "welcomePrivacy":
+      "مكتبتك تبقى ملكك. اربط الخدمات عندما تكون جاهزًا من الإعدادات.",
   "parentGate": "للوالدين",
   "parentExplain": "أدخل رمز الوالدين لمغادرة قسم الأطفال.",
   "createPin": "إنشاء رمز للوالدين",
-  "createPinBody": "اختر من 4 إلى 8 أرقام. يحمي هذا الرمز الخروج من قسم الأطفال وإعدادات الوالدين على هذا الجهاز.",
+  "createPinBody":
+      "اختر من 4 إلى 8 أرقام. يحمي هذا الرمز الخروج من قسم الأطفال وإعدادات الوالدين على هذا الجهاز.",
   "pin": "رمز الوالدين",
   "confirmPin": "تأكيد الرمز",
   "pinInvalid": "أدخل من 4 إلى 8 أرقام وتأكد من تطابق الإدخالين.",
@@ -1011,7 +1151,8 @@ const Map<String, String> novaArabic = {
   "downloads": "التنزيلات",
   "downloadIntro": "قصصك، جاهزة معك.",
   "downloadsEmpty": "خذ قصة معك",
-  "downloadsEmptyBody": "افتح عنوانًا، واختر تنزيل، ثم حدد مصدر فيديو مباشرًا. شغّل التنزيلات المكتملة هنا دون اتصال.",
+  "downloadsEmptyBody":
+      "افتح عنوانًا، واختر تنزيل، ثم حدد مصدر فيديو مباشرًا. شغّل التنزيلات المكتملة هنا دون اتصال.",
   "downloading": "جارٍ التنزيل",
   "downloadComplete": "جاهز دون اتصال",
   "downloadFailed": "توقف التنزيل",
@@ -1020,8 +1161,10 @@ const Map<String, String> novaArabic = {
   "downloadDelete": "حذف التنزيل؟",
   "downloadDeleteBody": "سيُحذف الفيديو المحفوظ من هذا الجهاز. ستبقى مكتبتك.",
   "playOffline": "تشغيل دون اتصال",
-  "downloadForeground": "أبقِ NOVA مفتوحًا أثناء التنزيل. لا يمكن حفظ البث المحمي وقوائم البث المباشر كملفات دون اتصال.",
+  "downloadForeground":
+      "أبقِ NOVA مفتوحًا أثناء التنزيل. لا يمكن حفظ البث المحمي وقوائم البث المباشر كملفات دون اتصال.",
   "downloadError": "تعذر تنزيل هذا المصدر. جرّب مصدرًا آخر.",
+  "subtitleLoadFailed": "تعذر تحميل هذه الترجمة. جرّب مسارًا آخر.",
   "downloadBytes": "{received} من {total}",
   "message1": "{p0}{p1} ث",
   "message2": "افتراضي",
@@ -1037,7 +1180,8 @@ const Map<String, String> novaArabic = {
   "message12": "تم تخطي المقدمة",
   "message13": "تم تخطي الخاتمة",
   "message14": "التحكم مقفل",
-  "message15": "لا يستجيب هذا البث على هذا الجهاز — قد يكون متوقفًا أو بطيئًا أو غير قابل لفك الترميز. جرّب مصدرًا آخر من صفحة المصادر.",
+  "message15":
+      "لا يستجيب هذا البث على هذا الجهاز — قد يكون متوقفًا أو بطيئًا أو غير قابل لفك الترميز. جرّب مصدرًا آخر من صفحة المصادر.",
   "message16": "السطوع",
   "message17": "الصوت",
   "message18": "استئناف",
@@ -1095,7 +1239,8 @@ const Map<String, String> novaArabic = {
   "message70": " قنوات",
   "message71": "افتراضي",
   "message72": "بدون تأخير",
-  "message73": "لا توجد مسارات صوتية قابلة للاختيار في هذا المصدر. قد يتوفر الدبلاج ضمن مصادر أخرى.",
+  "message73":
+      "لا توجد مسارات صوتية قابلة للاختيار في هذا المصدر. قد يتوفر الدبلاج ضمن مصادر أخرى.",
   "message74": "تأخير الصوت",
   "message75": "ترجمة إضافة",
   "message76": "داخل الملف",
@@ -1194,7 +1339,8 @@ const Map<String, String> novaArabic = {
   "message169": "عرض شبكة",
   "message170": "{p0} دقيقة",
   "message171": "لم تُعرض بعد",
-  "message172": "لم يتم العثور على العنوان. قد لا يكون موجوداً في Cinemeta أو في إضافاتك.",
+  "message172":
+      "لم يتم العثور على العنوان. قد لا يكون موجوداً في Cinemeta أو في إضافاتك.",
   "message173": "نعرض المعلومات المحفوظة. تعذّر تحديث التفاصيل.",
   "message174": "حاول مجددًا",
   "message175": "متابعة S{p0}:E{p1}",
@@ -1204,8 +1350,10 @@ const Map<String, String> novaArabic = {
   "message179": "تمت الإضافة إلى التنزيلات",
   "message180": "تعذّر بدء التنزيل",
   "message181": "تم نسخ الرابط",
-  "message182": "تعذّرت خدمة Debrid حل هذا التورنت، وهذا الجهاز لا يدعم محرك التورنت المدمج.",
-  "message183": "البث عبر التورنت يحتاج خدمة Debrid (Real-Debrid / AllDebrid / TorBox) أو جهازًا يدعم محرك التورنت المدمج.",
+  "message182":
+      "تعذّرت خدمة Debrid حل هذا التورنت، وهذا الجهاز لا يدعم محرك التورنت المدمج.",
+  "message183":
+      "البث عبر التورنت يحتاج خدمة Debrid (Real-Debrid / AllDebrid / TorBox) أو جهازًا يدعم محرك التورنت المدمج.",
   "message184": "تقييم",
   "message185": "اقتراحات مشابهة",
   "message186": "لا تتوفر اقتراحات مشابهة حاليًا.",
@@ -1250,8 +1398,10 @@ const Map<String, String> novaArabic = {
   "message225": "تثبيت الإضافة",
   "message226": "المثبتة · {p0}",
   "message227": "اسحب المقبض لتغيير أولوية الكتالوجات والمصادر.",
-  "message228": "ابدأ بكتالوج من الأعلى أو ألصق رابط إضافة مصادر لبدء المشاهدة.",
-  "message229": "الإضافات خدمات مستقلة. يعرض NOVA كتالوجاتها ويشغّل المصادر التي تختارها.",
+  "message228":
+      "ابدأ بكتالوج من الأعلى أو ألصق رابط إضافة مصادر لبدء المشاهدة.",
+  "message229":
+      "الإضافات خدمات مستقلة. يعرض NOVA كتالوجاتها ويشغّل المصادر التي تختارها.",
   "message230": "الأولوية {p0} · {p1} كتالوجات",
   "message231": "تفعيل {p0}",
   "message232": "مفعّلة",
@@ -1270,7 +1420,8 @@ const Map<String, String> novaArabic = {
   "message245": "نسخ رابط manifest",
   "message246": "تم نسخ الرابط.",
   "message247": "الكتالوجات المتاحة",
-  "message248": "لا توفّر هذه الإضافة صفحة تهيئة معلنة. تظهر أدوات التحكم المتاحة أعلاه.",
+  "message248":
+      "لا توفّر هذه الإضافة صفحة تهيئة معلنة. تظهر أدوات التحكم المتاحة أعلاه.",
   "message249": "إزالة الإضافة",
   "message250": "إزالة الإضافة؟",
   "message251": "إزالة {p0} وكتالوجاتها من NOVA؟",
@@ -1283,7 +1434,8 @@ const Map<String, String> novaArabic = {
   "message258": "مزوّد تقييمات مدمج",
   "message259": "التشغيل السحابي",
   "message260": "Real-Debrid أو AllDebrid أو TorBox",
-  "message261": "تُحفظ مفاتيح الخدمات الشخصية بأمان على هذا الجهاز وتُستثنى من المزامنة السحابية.",
+  "message261":
+      "تُحفظ مفاتيح الخدمات الشخصية بأمان على هذا الجهاز وتُستثنى من المزامنة السحابية.",
   "message262": "متصل · إدارة الحساب",
   "message263": "غير متصل · ربط الحساب",
   "message264": "اجمع الحكايات التي تحبها وتقدم مشاهدتك في مكان واحد.",
@@ -1291,7 +1443,8 @@ const Map<String, String> novaArabic = {
   "message266": "تفاصيل أكثر لاكتشافك القادم.",
   "message267": "قوائم الأنمي وتقدم الحلقات والتقييمات.",
   "message268": "قوائم المشاهدة والسجل وتقدم التشغيل.",
-  "message269": "يوفّر MDBList تقييمات العناوين عبر تكامل البيانات المدمج في NOVA. لا يدعم هذا الإصدار ربط حساب MDBList أو مزامنة قوائمه الشخصية.",
+  "message269":
+      "يوفّر MDBList تقييمات العناوين عبر تكامل البيانات المدمج في NOVA. لا يدعم هذا الإصدار ربط حساب MDBList أو مزامنة قوائمه الشخصية.",
   "message270": "المزامنة التلقائية",
   "message271": "مزامنة نشاط التشغيل",
   "message272": "إرسال تقدم التشغيل أثناء المشاهدة.",
@@ -1301,9 +1454,11 @@ const Map<String, String> novaArabic = {
   "message276": "تحديث تقدم الأنمي تلقائيًا بعد التشغيل.",
   "message277": "المتاح عبر هذا الاتصال",
   "message278": "استيراد المكتبة",
-  "message279": "استخدم مزامنة المكتبة أعلاه لاستيراد القوائم وسجلات المشاهدة المتاحة.",
+  "message279":
+      "استخدم مزامنة المكتبة أعلاه لاستيراد القوائم وسجلات المشاهدة المتاحة.",
   "message280": "تتبع التشغيل",
-  "message281": "تُدار قوائم الأنمي والتقدم والتقييمات من أدوات التتبع في صفحة العنوان.",
+  "message281":
+      "تُدار قوائم الأنمي والتقدم والتقييمات من أدوات التتبع في صفحة العنوان.",
   "message282": "يُرسل تقدم التشغيل تلقائيًا ما دامت الخدمة متصلة.",
   "message283": "تم التحقق من مفتاح TMDB وحفظه بأمان على هذا الجهاز.",
   "message284": "إزالة مفتاح TMDB؟",
@@ -1319,9 +1474,12 @@ const Map<String, String> novaArabic = {
   "message294": "ألصق المفتاح أو رمز القراءة",
   "message295": "التحقق والحفظ",
   "message296": "تم ربط الحساب.",
-  "message297": "رفض الموقع بيانات التطبيق — حدّث NOVA إلى أحدث نسخة وأعد المحاولة.",
-  "message298": "رُفض رمز الوصول — انسخه من جديد من صفحة AniList وأعد المحاولة.",
-  "message299": "انتهت صلاحية هذا الرمز — ابدأ ربطًا جديدًا والصق الرمز الحديث.",
+  "message297":
+      "رفض الموقع بيانات التطبيق — حدّث NOVA إلى أحدث نسخة وأعد المحاولة.",
+  "message298":
+      "رُفض رمز الوصول — انسخه من جديد من صفحة AniList وأعد المحاولة.",
+  "message299":
+      "انتهت صلاحية هذا الرمز — ابدأ ربطًا جديدًا والصق الرمز الحديث.",
   "message300": "تعذر الإكمال بهذا الرمز — تحقق منه أو أعد بدء الربط.",
   "message301": "تعذر بدء الربط.",
   "message302": "تعذر بدء ربط Trakt.",
@@ -1338,17 +1496,23 @@ const Map<String, String> novaArabic = {
   "message313": "حلقات",
   "message314": "متوسط التقييم",
   "message315": "مزامنة المكتبة",
-  "message316": "وافق على الربط في تبويب {p0} بالمتصفح — سيعيدك المتصفح إلى التطبيق فور الموافقة (Redirect URI ‏app.noor.mobile://callback).",
+  "message316":
+      "وافق على الربط في تبويب {p0} بالمتصفح — سيعيدك المتصفح إلى التطبيق فور الموافقة (Redirect URI ‏app.noor.mobile://callback).",
   "message317": "بانتظار الموافقة…",
-  "message318": "المتصفح متوقف عند صفحة الرمز؟ الصق الرابط كاملًا أو رمز الوصول هنا:",
+  "message318":
+      "المتصفح متوقف عند صفحة الرمز؟ الصق الرابط كاملًا أو رمز الوصول هنا:",
   "message319": "المتصفح متوقف أو يُظهر رمز تفويض؟ الصقه هنا:",
   "message320": "رمز التفويض",
   "message321": "إكمال",
   "message322": "لا حاجة لأي إعداد — يأتي NOVA ببيانات تطبيق {p0} مدمجةً.",
-  "message323": "أكمل الموافقة في تبويب Trakt بالمتصفح — سيعيدك Trakt إلى التطبيق فور الموافقة مباشرة (بدون أي موقع وسيط).",
-  "message324": "أكمل الموافقة في تبويب Trakt بالمتصفح — سيُكمل التطبيق الربط تلقائيًا فور الموافقة (قد تحتاج للعودة إلى التطبيق يدويًا).",
-  "message325": "إن ظهرت رسالة خطأ من Trakt بعد الموافقة، أضف noor://callback إلى قائمة Redirect URIs في لوحة Trakt (مرة واحدة) — أو بدّل الطريقة إلى «عبر الموقع».",
-  "message326": "لا حاجة لأي إعداد — يعيد Trakt الموافقة إلى التطبيق تلقائيًا عبر موقع NOVA المصاحب.",
+  "message323":
+      "أكمل الموافقة في تبويب Trakt بالمتصفح — سيعيدك Trakt إلى التطبيق فور الموافقة مباشرة (بدون أي موقع وسيط).",
+  "message324":
+      "أكمل الموافقة في تبويب Trakt بالمتصفح — سيُكمل التطبيق الربط تلقائيًا فور الموافقة (قد تحتاج للعودة إلى التطبيق يدويًا).",
+  "message325":
+      "إن ظهرت رسالة خطأ من Trakt بعد الموافقة، أضف noor://callback إلى قائمة Redirect URIs في لوحة Trakt (مرة واحدة) — أو بدّل الطريقة إلى «عبر الموقع».",
+  "message326":
+      "لا حاجة لأي إعداد — يعيد Trakt الموافقة إلى التطبيق تلقائيًا عبر موقع NOVA المصاحب.",
   "message327": "افتح {p0} وأدخل رمز التفعيل:",
   "message328": "تم نسخ الرمز.",
   "message329": "نسخ الرمز",
@@ -1356,8 +1520,10 @@ const Map<String, String> novaArabic = {
   "message331": "ربط {p0}",
   "message332": "مباشر للتطبيق",
   "message333": "عبر الموقع",
-  "message334": "وافق في Trakt ويعيدك المتصفح إلى التطبيق مباشرة — بدون أي موقع وسيط. إعداد لمرة واحدة: أضف noor://callback إلى قائمة Redirect URIs في لوحة مطوّر Trakt (trakt.tv/oauth/applications).",
-  "message335": "يفتح المتصفح — تعود الموافقة إلى التطبيق تلقائيًا عبر موقع NOVA المصاحب. لا حاجة لأي إعداد في لوحة Trakt.",
+  "message334":
+      "وافق في Trakt ويعيدك المتصفح إلى التطبيق مباشرة — بدون أي موقع وسيط. إعداد لمرة واحدة: أضف noor://callback إلى قائمة Redirect URIs في لوحة مطوّر Trakt (trakt.tv/oauth/applications).",
+  "message335":
+      "يفتح المتصفح — تعود الموافقة إلى التطبيق تلقائيًا عبر موقع NOVA المصاحب. لا حاجة لأي إعداد في لوحة Trakt.",
   "message336": "تم التحقق من المفتاح وحفظه بأمان.",
   "message337": "فصل التشغيل السحابي؟",
   "message338": "سيُحذف مفتاح المزوّد المحفوظ من هذا الجهاز.",
@@ -1375,12 +1541,14 @@ const Map<String, String> novaArabic = {
   "message350": "بياناتك تحت سيطرتك.",
   "message351": "راجع الملفات المحلية وتحكّم في الذاكرة المؤقتة.",
   "message352": "احتفظ بقوائمك وسجلّك وتفضيلاتك متزامنة مع جهازك المرتبط.",
-  "message353": "انسخ مكتبتك احتياطيًا أو استعدها أو اختر البيانات التي تريد إزالتها.",
+  "message353":
+      "انسخ مكتبتك احتياطيًا أو استعدها أو اختر البيانات التي تريد إزالتها.",
   "message354": "تصدير نسخة احتياطية",
   "message355": "{p0} عنوان محفوظ · {p1} سجل مشاهدة",
   "message356": "تم نسخ النسخة الاحتياطية بصيغة JSON.",
   "message357": "استعادة نسخة احتياطية",
-  "message358": "الصق نسخة NOVA الاحتياطية بصيغة JSON لاستعادتها على هذا الجهاز.",
+  "message358":
+      "الصق نسخة NOVA الاحتياطية بصيغة JSON لاستعادتها على هذا الجهاز.",
   "message359": "مسح سجل المشاهدة",
   "message360": "{p0} سجل",
   "message361": "مسح سجل المشاهدة؟",
@@ -1389,7 +1557,8 @@ const Map<String, String> novaArabic = {
   "message364": "إزالة العناوين المحفوظة وسجلات التشغيل من هذا الجهاز.",
   "message365": "مسح مكتبتك؟",
   "message366": "ستبقى الإضافات مثبتة على هذا الجهاز.",
-  "message367": "تُحفظ مفاتيح الخدمات على هذا الجهاز ولا تدخل ضمن المزامنة السحابية.",
+  "message367":
+      "تُحفظ مفاتيح الخدمات على هذا الجهاز ولا تدخل ضمن المزامنة السحابية.",
   "message368": "مسح",
   "message369": "تمت المزامنة.",
   "message370": "تعذّرت المزامنة — تحقّق من الاتصال.",
@@ -1420,23 +1589,27 @@ const Map<String, String> novaArabic = {
   "message395": "استعادة النسخة",
   "message396": "الصق نص JSON هنا",
   "message397": "استعادة",
-  "message398": "إعادة التعيين التلقائية معطّلة — يمكنك المسح يدويًا من هذه الشاشة.",
+  "message398":
+      "إعادة التعيين التلقائية معطّلة — يمكنك المسح يدويًا من هذه الشاشة.",
   "message399": "تُعاد تعيين ملفات التورنت المؤقتة وذاكرة الصور {p0}",
   "message400": "إعادة تعيين الذاكرة المؤقتة",
-  "message401": "تمسح ملفات التورنت المؤقتة وذاكرة الصور عند انتهاء المدة المحددة، ولا تُمس ملفات التورنت الذي يُبث الآن.",
+  "message401":
+      "تمسح ملفات التورنت المؤقتة وذاكرة الصور عند انتهاء المدة المحددة، ولا تُمس ملفات التورنت الذي يُبث الآن.",
   "message402": "إعادة التعيين الآن",
   "message403": "تم مسح الذاكرة المؤقتة — تم تحرير {p0} م.ب.",
   "message404": "تم مسح الذاكرة المؤقتة — لا يوجد ما يُحرَّر.",
   "message405": "حول NOVA",
   "message406": "الإصدار {p0}",
   "message407": "عالم كامل من الحكايات.",
-  "message408": "مركز وسائط مستقل ومفتوح المصدر يعمل ببروتوكول إضافات Stremio. اربط خدماتك وأضف إضافاتك واكتشف حكايتك القادمة.",
+  "message408":
+      "مركز وسائط مستقل ومفتوح المصدر يعمل ببروتوكول إضافات Stremio. اربط خدماتك وأضف إضافاتك واكتشف حكايتك القادمة.",
   "message409": "المصدر المفتوح والإسناد",
   "message410": "تراخيص المصدر المفتوح",
   "message411": "ترخيص MIT وإسناد الحزم",
   "message412": "مبني على مشروع Harbor لسطح المكتب.",
   "message413": "قد تُقدَّم بيانات الأفلام وصورها عبر TMDB.",
-  "message414": "لا يرتبط NOVA بمنصة Stremio ولا يستضيف أو يوزّع المحتوى. يدير مزوّدو الإضافات محتواهم وخدماتهم بأنفسهم.",
+  "message414":
+      "لا يرتبط NOVA بمنصة Stremio ولا يستضيف أو يوزّع المحتوى. يدير مزوّدو الإضافات محتواهم وخدماتهم بأنفسهم.",
   "updateSection": "تحديثات التطبيق",
   "updateDescription": "تحقق من أحدث إصدار من NOVA وثبّته.",
   "updateCheckAction": "التحقق من وجود تحديث",
@@ -1448,23 +1621,35 @@ const Map<String, String> novaArabic = {
   "updateDownloadAction": "تنزيل التحديث",
   "updateDownloadProgressTitle": "جارٍ تنزيل التحديث",
   "updateDownloadProgress": "{percent}٪",
-  "updateDownloadFailed": "لم يكتمل تنزيل التحديث. تحقق من اتصال الإنترنت ثم حاول مجددًا.",
+  "updateDownloadFailed":
+      "لم يكتمل تنزيل التحديث. تحقق من اتصال الإنترنت ثم حاول مجددًا.",
   "updateCheckFailed": "تعذر على NOVA التحقق من التحديثات. حاول مجددًا.",
-  "updateInstallerFailed": "تعذر بدء التثبيت في Android. تأكد من توافق APK مع جهازك واستخدام مفتاح التوقيع نفسه للتطبيق المثبت.",
-  "updateConnectionFailed": "تعذر الاتصال بخدمة تحديث NOVA. تحقق من الإنترنت ثم حاول مجددًا.",
-  "updateServiceUnavailable": "خدمة التحديث غير متاحة الآن. حاول مجددًا لاحقًا.",
-  "updateManifestInvalid": "بيانات التحديث غير مكتملة أو غير صالحة. حاول مجددًا لاحقًا.",
+  "updateInstallerFailed":
+      "تعذر بدء التثبيت في Android. تأكد من توافق APK مع جهازك واستخدام مفتاح التوقيع نفسه للتطبيق المثبت.",
+  "updateConnectionFailed":
+      "تعذر الاتصال بخدمة تحديث NOVA. تحقق من الإنترنت ثم حاول مجددًا.",
+  "updateServiceUnavailable":
+      "خدمة التحديث غير متاحة الآن. حاول مجددًا لاحقًا.",
+  "updateManifestInvalid":
+      "بيانات التحديث غير مكتملة أو غير صالحة. حاول مجددًا لاحقًا.",
   "updateLinkInvalid": "رابط التنزيل غير صالح. تواصل مع الدعم.",
-  "updateStorageFailed": "تعذر حفظ التحديث. أفرغ مساحة في الجهاز ثم حاول مجددًا.",
-  "updateApkUnavailable": "لم يُرفق ملف APK بالإصدار الأخير بعد. حاول مجددًا لاحقًا.",
-  "updateApkInvalid": "ملف APK الذي نُزّل غير مكتمل أو غير صالح. احذفه ونزّل التحديث مجددًا.",
+  "updateStorageFailed":
+      "تعذر حفظ التحديث. أفرغ مساحة في الجهاز ثم حاول مجددًا.",
+  "updateApkUnavailable":
+      "لم يُرفق ملف APK بالإصدار الأخير بعد. حاول مجددًا لاحقًا.",
+  "updateApkInvalid":
+      "ملف APK الذي نُزّل غير مكتمل أو غير صالح. احذفه ونزّل التحديث مجددًا.",
   "updateApkMissing": "تعذر العثور على ملف APK. نزّل التحديث مجددًا.",
-  "updateInstallerPermission": "منع Android التثبيت. اسمح لـ NOVA بتثبيت التطبيقات غير المعروفة من إعدادات النظام ثم حاول مجددًا.",
+  "updateInstallerPermission":
+      "منع Android التثبيت. اسمح لـ NOVA بتثبيت التطبيقات غير المعروفة من إعدادات النظام ثم حاول مجددًا.",
   "updateInstallerUnavailable": "لا يتوفر مثبّت حزم Android لفتح ملف APK هذا.",
   "updateIosUnavailable": "لا يتوفر رابط تحديث iOS لهذا الإصدار.",
-  "updateIosOpenFailed": "تعذر فتح رابط تحديث iOS. تحقق من الاتصال ثم حاول مجددًا.",
-  "updateUnsupportedPlatform": "التحديث من داخل التطبيق غير مدعوم على هذا الجهاز.",
-  "updateInstallerOpened": "فُتح مثبّت Android. اتبع التعليمات الظاهرة لإكمال التثبيت.",
+  "updateIosOpenFailed":
+      "تعذر فتح رابط تحديث iOS. تحقق من الاتصال ثم حاول مجددًا.",
+  "updateUnsupportedPlatform":
+      "التحديث من داخل التطبيق غير مدعوم على هذا الجهاز.",
+  "updateInstallerOpened":
+      "فُتح مثبّت Android. اتبع التعليمات الظاهرة لإكمال التثبيت.",
   "updateIosOpened": "فُتحت صفحة تحديث iOS. اتبع خطواتها لإكمال التثبيت.",
   "updateErrorTitle": "تعذر إكمال التحديث",
   "updateDismiss": "إغلاق",
@@ -1503,7 +1688,8 @@ const Map<String, String> novaArabic = {
   "message447": "صغير",
   "message448": "تعيين رمز الوالدين أو تغييره",
   "message449": "مطلوب للخروج من وضع الأطفال.",
-  "message450": "يستخدم قسم الأطفال فلاتر للمحتوى المناسب للعمر. ينبغي للوالدين مراجعة الإضافات المثبتة وأي مصادر خارجية.",
+  "message450":
+      "يستخدم قسم الأطفال فلاتر للمحتوى المناسب للعمر. ينبغي للوالدين مراجعة الإضافات المثبتة وأي مصادر خارجية.",
   "message451": "استدارة زوايا الملصق",
   "message452": "جهازك ومكتبتك في كل مكان",
   "message453": "التشغيل",
@@ -1538,7 +1724,8 @@ const Map<String, String> novaArabic = {
   "message482": "واجهة من اليمين إلى اليسار",
   "message483": "لغة المحتوى",
   "message484": "الملصقات والأوصاف وأسماء الحلقات، عندما تدعمها الخدمة.",
-  "message485": "يعرض NOVA حاليًا نتائج الاتصال والمزامنة والتنزيل داخل التطبيق. لا يطلب هذا الإصدار إشعارات فورية ولا يرسل تنبيهات ترويجية.",
+  "message485":
+      "يعرض NOVA حاليًا نتائج الاتصال والمزامنة والتنزيل داخل التطبيق. لا يطلب هذا الإصدار إشعارات فورية ولا يرسل تنبيهات ترويجية.",
   "message486": "نمط الألوان",
   "message487": "داكن سينمائي",
   "message488": "نهاري",
@@ -1548,7 +1735,8 @@ const Map<String, String> novaArabic = {
   "message492": "انتقالات أهدأ وحركة أقل في الواجهة.",
   "message493": "تقليل الشفافية",
   "message494": "أسطح تنقل أكثر وضوحًا بتباين أعلى وأداء أخف.",
-  "message495": "يتبع NOVA حجم النص وإعدادات قارئ الشاشة في جهازك، ويحترم تفضيلات النظام لتقليل الحركة تلقائيًا.",
+  "message495":
+      "يتبع NOVA حجم النص وإعدادات قارئ الشاشة في جهازك، ويحترم تفضيلات النظام لتقليل الحركة تلقائيًا.",
   "message496": "اللغات",
   "message497": "النص والنمط",
   "message498": "التوقيت",
@@ -1560,8 +1748,10 @@ const Map<String, String> novaArabic = {
   "message504": "المشاهدة على طريقتك.",
   "message505": "اختر المسارات التي توفرها إضافاتك واجعل قراءتها مريحة.",
   "message506": "اضبط الصوت والصورة والانتقال من حلقة إلى أخرى.",
-  "message507": "تختار تفضيلات اللغة مسارات الترجمة المتاحة. لا يترجم NOVA ملفات الترجمة تلقائيًا.",
-  "message508": "تعمل المصادر مباشرة على هذا الجهاز، ويعتمد توفرها على الإضافات المثبتة والخدمات المرتبطة.",
+  "message507":
+      "تختار تفضيلات اللغة مسارات الترجمة المتاحة. لا يترجم NOVA ملفات الترجمة تلقائيًا.",
+  "message508":
+      "تعمل المصادر مباشرة على هذا الجهاز، ويعتمد توفرها على الإضافات المثبتة والخدمات المرتبطة.",
   "message509": "لم يتم التحديد",
   "message510": "حكايتك حتى الآن.",
   "message511": "نظرة على وقتك وحكاياتك مع NOVA.",
@@ -1576,7 +1766,8 @@ const Map<String, String> novaArabic = {
   "message520": "سيؤدي هذا أيضًا إلى إزالة تقدم متابعة المشاهدة.",
   "message521": "NOVA / الأنمي",
   "message522": "عالم يتجاوز المألوف",
-  "message523": "اكتشف الأنمي وتابع أعمالك المفضلة واحتفظ برحلتك متزامنة مع AniList.",
+  "message523":
+      "اكتشف الأنمي وتابع أعمالك المفضلة واحتفظ برحلتك متزامنة مع AniList.",
   "message524": "ابحث عن أنمي",
   "message525": "لك",
   "message526": "أفلام",
@@ -1587,7 +1778,8 @@ const Map<String, String> novaArabic = {
   "message531": "لا تتوفر عناوين أنمي حاليًا.",
   "message532": "مسلسلات الأنمي",
   "message533": "اربط حساب AniList",
-  "message534": "قوائم «أتابعها الآن» و«أخطط لمشاهدتها» من حسابك تظهر هنا بعد الربط مباشرةً.",
+  "message534":
+      "قوائم «أتابعها الآن» و«أخطط لمشاهدتها» من حسابك تظهر هنا بعد الربط مباشرةً.",
   "message535": "ربط الحساب",
   "message536": "اكتشف الأنمي",
   "message537": "ابحث عن عنوان أنمي",
@@ -1599,7 +1791,8 @@ const Map<String, String> novaArabic = {
   "message543": "تعذر الوصول للموقع — أعد المحاولة.",
   "message544": "تم تحديث قائمة الأنمي.",
   "message545": "إزالة من مواقع التتبع؟",
-  "message546": "سيزيل هذا إدخال التخطيط من مواقع التتبع المرتبطة التي تدعم الإزالة.",
+  "message546":
+      "سيزيل هذا إدخال التخطيط من مواقع التتبع المرتبطة التي تدعم الإزالة.",
   "message547": "تمت الإزالة من قوائمك.",
   "message548": "أشاهده",
   "message549": "أكملته",
@@ -1651,13 +1844,15 @@ const Map<String, String> novaArabic = {
   "message595": "لا توجد عناوين في هذا الكتالوج.",
   "message596": "NOVA للأطفال",
   "message597": "حكايات كبيرة.\nمستكشفون صغار.",
-  "message598": "مساحة للمغامرات المصنّفة للعائلة. يتطلب الخروج موافقة أحد الوالدين.",
+  "message598":
+      "مساحة للمغامرات المصنّفة للعائلة. يتطلب الخروج موافقة أحد الوالدين.",
   "message599": "اكتشف الكل",
   "message600": "وقت الأفلام",
   "message601": "مغامرة أخرى",
   "message602": "المغامرات في استراحة قصيرة",
   "message603": "الحكايات الآمنة في الطريق",
-  "message604": "تظهر هنا العناوين ذات التصنيف العمري العائلي فقط. تبقى العناوين غير المصنفة مخفية.",
+  "message604":
+      "تظهر هنا العناوين ذات التصنيف العمري العائلي فقط. تبقى العناوين غير المصنفة مخفية.",
   "message605": "مجموعة جديدة",
   "message606": "استيراد مجموعة",
   "message607": "عناوين",
@@ -1709,7 +1904,8 @@ const Map<String, String> novaArabic = {
   "message653": "تعذر تحميل قوائم القنوات. تحقق من الروابط ثم أعد المحاولة.",
   "message654": "قائمة {p0}",
   "message655": "إزالة قائمة القنوات؟",
-  "message656": "ستختفي قنواتها من البث المباشر. يمكنك إضافة الرابط مرة أخرى لاحقًا.",
+  "message656":
+      "ستختفي قنواتها من البث المباشر. يمكنك إضافة الرابط مرة أخرى لاحقًا.",
   "message657": "عام",
   "message658": "البث المباشر",
   "message659": "يحدث الآن",
@@ -1759,7 +1955,8 @@ const Map<String, String> novaArabic = {
   "message703": "تعذر إكمال الربط مع {p0}.",
   "message704": "تم ربط حساب Trakt.",
   "message705": "تم ربط حساب {p0}.",
-  "message706": "البث عبر التورنت يحتاج جهازًا يدعم محرك التورنت المدمج (أندرويد) أو خدمة Debrid متصلة.",
+  "message706":
+      "البث عبر التورنت يحتاج جهازًا يدعم محرك التورنت المدمج (أندرويد) أو خدمة Debrid متصلة.",
   "message707": "الصق رابط magnet أو معرّف info hash بطول 40 حرفًا.",
   "message708": "لا توجد ملفات فيديو قابلة للتشغيل في هذا التورنت.",
   "message709": "تعذّر جلب معلومات التورنت: {p0}",
@@ -1781,7 +1978,8 @@ const Map<String, String> novaArabic = {
   "message725": "كل قصة تبدأ هنا.",
   "message726": "رمز لون مخصص",
   "message727": "استخدم ست خانات للون.",
-  "downloadStorageError": "تعذر حفظ بيانات التنزيل. تحقق من المساحة المتاحة وحاول مجددًا.",
+  "downloadStorageError":
+      "تعذر حفظ بيانات التنزيل. تحقق من المساحة المتاحة وحاول مجددًا.",
   "downloadInterrupted": "انقطع التنزيل. أعد المحاولة لتنزيل الملف من جديد.",
   "downloadMissingFile": "لم يعد الملف المنزّل موجودًا على هذا الجهاز.",
   "downloadInvalidSource": "لا يوفر هذا المصدر ملف فيديو مستقلًا مدعومًا.",
@@ -1843,11 +2041,16 @@ const Map<String, String> novaArabic = {
   "invalidBackup": "ملف النسخة الاحتياطية غير صالح.",
   "customListNameRequired": "أدخل اسمًا لهذه القائمة.",
   "customListLimitReached": "وصلت إلى الحد الأقصى للقوائم.",
-  "torrentPeerTimeout": "تعذر العثور على مشاركي التورنت في الوقت المناسب. قد تحجب شبكتك اتصالات P2P أو تكون البذور قليلة. أعد المحاولة أو اختر مصدرًا مباشرًا.",
-  "torrentInvalidMagnet": "لا يحتوي هذا المصدر على معرّف تورنت صالح. اختر مصدرًا آخر.",
-  "torrentUnavailable": "يتطلب البث عبر التورنت جهازًا يدعم المحرك المدمج أو خدمة Debrid متصلة.",
-  "torrentServerFailed": "تعذر تشغيل خادم البث المحلي. أعد المحاولة أو اختر مصدرًا آخر.",
-  "torrentNoFiles": "لا يحتوي هذا التورنت على ملفات قابلة للتشغيل. اختر مصدرًا آخر.",
+  "torrentPeerTimeout":
+      "تعذر العثور على مشاركي التورنت في الوقت المناسب. قد تحجب شبكتك اتصالات P2P أو تكون البذور قليلة. أعد المحاولة أو اختر مصدرًا مباشرًا.",
+  "torrentInvalidMagnet":
+      "لا يحتوي هذا المصدر على معرّف تورنت صالح. اختر مصدرًا آخر.",
+  "torrentUnavailable":
+      "يتطلب البث عبر التورنت جهازًا يدعم المحرك المدمج أو خدمة Debrid متصلة.",
+  "torrentServerFailed":
+      "تعذر تشغيل خادم البث المحلي. أعد المحاولة أو اختر مصدرًا آخر.",
+  "torrentNoFiles":
+      "لا يحتوي هذا التورنت على ملفات قابلة للتشغيل. اختر مصدرًا آخر.",
   "torrentStartFailed": "تعذر بدء هذا البث. جرّب مصدرًا آخر أو تحقق من اتصالك.",
   "upcomingInDays": "يُعرض بعد {days} {unit}",
   "upcomingTwoDays": "يُعرض بعد يومين",
@@ -1877,25 +2080,38 @@ const Map<String, String> novaArabic = {
   "urduLanguage": "الأردية",
   "persianLanguage": "الفارسية",
   "hebrewLanguage": "العبرية",
-  "settingsSearchAccountKeywords": "account cloud sync device backup حساب مزامنة",
-  "settingsSearchPlaybackKeywords": "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة لقطة توقف صورة مدة احتفاظ",
-  "settingsSearchSubtitleKeywords": "subtitle font size offset translation ترجمة خط حجم تأخير",
-  "settingsSearchDownloadKeywords": "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
-  "settingsSearchAppearanceKeywords": "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
-  "settingsSearchDisplayKeywords": "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
-  "settingsSearchLanguageKeywords": "language arabic english content لغة عربي انجليزي محتوى",
+  "settingsSearchAccountKeywords":
+      "account cloud sync device backup حساب مزامنة",
+  "settingsSearchPlaybackKeywords":
+      "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة لقطة توقف صورة مدة احتفاظ",
+  "settingsSearchSubtitleKeywords":
+      "subtitle font size offset translation ترجمة خط حجم تأخير",
+  "settingsSearchDownloadKeywords":
+      "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
+  "settingsSearchAppearanceKeywords":
+      "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
+  "settingsSearchDisplayKeywords":
+      "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
+  "settingsSearchLanguageKeywords":
+      "language arabic english content لغة عربي انجليزي محتوى",
   "settingsSearchNotificationsKeywords": "notifications alerts إشعارات تنبيهات",
-  "settingsSearchPrivacyKeywords": "privacy backup restore history delete أمن خصوصية نسخ استعادة سجل حذف",
-  "settingsSearchAddonKeywords": "addons install url manifest priority إضافات تثبيت رابط أولوية",
-  "settingsSearchServiceKeywords": "trakt simkl anilist myanimelist mal tmdb mdblist debrid services خدمات",
+  "settingsSearchPrivacyKeywords":
+      "privacy backup restore history delete أمن خصوصية نسخ استعادة سجل حذف",
+  "settingsSearchAddonKeywords":
+      "addons install url manifest priority إضافات تثبيت رابط أولوية",
+  "settingsSearchServiceKeywords":
+      "trakt simkl anilist myanimelist mal tmdb mdblist debrid services خدمات",
   "settingsSearchKidsKeywords": "kids pin parental children أطفال رقابة رمز",
-  "settingsSearchStatsKeywords": "stats statistics activity history إحصائيات نشاط سجل",
-  "settingsSearchAboutKeywords": "about support license version nova حول دعم ترخيص إصدار",
+  "settingsSearchStatsKeywords":
+      "stats statistics activity history إحصائيات نشاط سجل",
+  "settingsSearchAboutKeywords":
+      "about support license version nova حول دعم ترخيص إصدار",
   "forwardSeconds": "تقديم {p0} ثوانٍ",
   "rewindSeconds": "إرجاع {p0} ثوانٍ",
   "linkedProgress": "تقدم المشاهدة من حساباتك المرتبطة",
   "resumeSnapshotRetention": "مدة الاحتفاظ بلقطة الاستئناف",
-  "resumeSnapshotRetentionDescription": "تُحفظ صور التوقف على هذا الجهاز فقط، وتُحذف بعد المدة المحددة.",
+  "resumeSnapshotRetentionDescription":
+      "تُحفظ صور التوقف على هذا الجهاز فقط، وتُحذف بعد المدة المحددة.",
   "resumeSnapshotDays30": "30 يومًا",
   "resumeSnapshotDays20": "20 يومًا",
   "resumeSnapshotDays10": "10 أيام",

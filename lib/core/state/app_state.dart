@@ -44,7 +44,8 @@ class AppState extends ChangeNotifier {
     'posterScale': 1.0, 'posterRadius': 12, 'hidePosterTitles': false,
     'posterEffect': 'off', 'episodesView': 'auto',
     'blurEpisodeThumbnails': false, 'instantPlay': true,
-    'autoPlayNextEpisode': true, 'resumePlayback': true,
+    'autoPlayNextEpisode': true, 'autoSelectEpisodeSource': false,
+    'resumePlayback': true,
     'resumePrompt': false, 'playerConfirmLeave': true,
     'resumeSnapshotRetentionDays': 30,
     'seekBackStepSec': 10, 'seekForwardStepSec': 10, 'subFontSize': 28,
@@ -56,7 +57,7 @@ class AppState extends ChangeNotifier {
     // used to miss (parity gap): explicit defaults keep cloud-synced
     // payloads round-trip stable. Must match SubtitleStyle.fromMap's own
     // fallbacks (bottom position, bundled Netflix Sans).
-    'subPos': 100, 'subFontFamily': 'NetflixSans',
+    'subPos': 100, 'subFontFamily': 'NetflixSans', 'audioDelayMs': 0,
     'customPlaybackSpeeds': <double>[], 'showQualityInfo': false,
     'videoFill': 'fit', 'playerTheme': 'auto',
     'pickerLayout': 'stremio', 'streamSort': 'addon',

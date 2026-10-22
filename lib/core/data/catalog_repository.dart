@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/nova_strings.dart';
 import '../api/noor_api.dart';
+import 'anime_subtitle_ids.dart';
 import 'content_classifier.dart';
 import '../models/addon.dart';
 import '../models/anime_airing.dart';
@@ -76,6 +77,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   final Map<String, FeaturedArtwork> _featuredArtworkCache = {};
   final Map<String, Map<String, dynamic>> _detailEnrichmentCache = {};
   final Map<String, Future<FeaturedArtwork?>> _featuredArtworkRequests = {};
+  final Map<String, Future<Map<String, dynamic>?>> _animeSubtitleMappings = {};
 
   Future<List<MediaItem>> catalog(
     String type,
@@ -803,6 +805,53 @@ query ($weekStart: Int!, $weekEnd: Int!) {
       }
     }));
     return result.expand((rows) => rows).toList();
+  }
+
+  /// Keep the normal add-on lookup first. Only an empty anime result permits
+  /// alternate IDs, and only when AniZip confirms this exact season/episode.
+  Future<List<Map<String, dynamic>>> subtitlesForEpisode(
+    MediaItem item,
+    String videoId,
+    List<Addon> addons,
+  ) async {
+    final primary = await subtitles(item.type, videoId, addons);
+    if (primary.isNotEmpty) return primary;
+
+    final query = AnimeSubtitleIds.mappingQuery(item);
+    if (query == null) return primary;
+    final mapping = await _animeSubtitleMappings.putIfAbsent(query, () async {
+      try {
+        final body = await api
+            .proxyGet('https://api.ani.zip/mappings?$query')
+            .timeout(const Duration(seconds: 5));
+        final decoded = body is String ? jsonDecode(body) : body;
+        return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+      } catch (_) {
+        return null;
+      }
+    });
+    if (mapping == null) {
+      _animeSubtitleMappings.remove(query);
+      return primary;
+    }
+
+    final ids = AnimeSubtitleIds.fromMapping(
+      item: item,
+      videoId: videoId,
+      mapping: mapping,
+    );
+    if (ids.isEmpty) return primary;
+
+    final candidates = ids.where((id) => addons.any((addon) =>
+        addon.enabled && addon.supports('subtitles', item.type, id)));
+    final responses = await Future.wait(
+      candidates.map((id) => subtitles(item.type, id, addons)),
+    );
+    final urls = <String>{};
+    return responses
+        .expand((rows) => rows)
+        .where((row) => urls.add(row['url'] as String))
+        .toList();
   }
 
   Future<Map<String, dynamic>> manifest(String rawUrl,

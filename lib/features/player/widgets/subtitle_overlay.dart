@@ -114,7 +114,7 @@ class SubtitleStyle {
   /// subBorderColor, subBorderSize, subBackgroundOpacity, subPos,
   /// subFontFamily).
   factory SubtitleStyle.fromMap(Map<String, Object?> map) => SubtitleStyle(
-        fontSize: _int(map, 'subFontSize', 28, 14, 44),
+        fontSize: _int(map, 'subFontSize', 28, 14, 64),
         color: _color(map['subFontColor'], NovaColors.white),
         borderColor: _color(map['subBorderColor'], NovaColors.ink),
         borderSize: _int(map, 'subBorderSize', 0, 0, 8),

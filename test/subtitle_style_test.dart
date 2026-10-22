@@ -108,8 +108,9 @@ void main() {
   });
 
   group('SubtitleStyle.fromMap — clamping', () {
-    test('fontSize stays inside the settings slider range (14..44)', () {
-      expect(SubtitleStyle.fromMap({'subFontSize': 99}).fontSize, 44);
+    test('fontSize stays inside the settings range (14..64)', () {
+      expect(SubtitleStyle.fromMap({'subFontSize': 99}).fontSize, 64);
+      expect(SubtitleStyle.fromMap({'subFontSize': 64}).fontSize, 64);
       expect(SubtitleStyle.fromMap({'subFontSize': 1}).fontSize, 14);
     });
 

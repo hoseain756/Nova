@@ -6,18 +6,28 @@ import '../../l10n/nova_strings.dart';
 
 /// Palette-first subtitle colour editor. Custom colours are user content.
 Future<String?> showNoorColorPicker(BuildContext context,
-        {required String initialHex, String? title, bool english = false}) =>
+        {required String initialHex,
+        String? title,
+        bool english = false,
+        bool previewAsOutline = false}) =>
     showDialog<String>(
         context: context,
         builder: (_) => _NovaColorPicker(
-            initialHex: initialHex, title: title, english: english));
+            initialHex: initialHex,
+            title: title,
+            english: english,
+            previewAsOutline: previewAsOutline));
 
 class _NovaColorPicker extends StatefulWidget {
   const _NovaColorPicker(
-      {required this.initialHex, this.title, required this.english});
+      {required this.initialHex,
+      this.title,
+      required this.english,
+      required this.previewAsOutline});
   final String initialHex;
   final String? title;
   final bool english;
+  final bool previewAsOutline;
   @override
   State<_NovaColorPicker> createState() => _NovaColorPickerState();
 }
@@ -72,12 +82,30 @@ class _NovaColorPickerState extends State<_NovaColorPicker> {
                     decoration: BoxDecoration(
                         color: NovaColors.ink,
                         borderRadius: BorderRadius.circular(16)),
-                    child: Text(NovaStrings.lookup(english, 'message725'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: _color,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600))),
+                    child: widget.previewAsOutline
+                        ? Stack(alignment: Alignment.center, children: [
+                            Text(NovaStrings.lookup(english, 'message725'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    foreground: Paint()
+                                      ..style = PaintingStyle.stroke
+                                      ..strokeWidth = 3
+                                      ..color = _color,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600)),
+                            Text(NovaStrings.lookup(english, 'message725'),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: scheme.onInverseSurface,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600)),
+                          ])
+                        : Text(NovaStrings.lookup(english, 'message725'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: _color,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600))),
                 const SizedBox(height: 24),
                 Wrap(spacing: 12, runSpacing: 12, children: [
                   for (final color in _presets)

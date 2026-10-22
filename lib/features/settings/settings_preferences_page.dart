@@ -45,6 +45,15 @@ class _Preference {
 }
 
 final _playerPreferences = <_Preference>[
+  _Preference(
+      key: 'autoSelectEpisodeSource',
+      arabic: NovaStrings.lookup(false, 'playerAutoSelectEpisodeSource'),
+      english: NovaStrings.lookup(true, 'playerAutoSelectEpisodeSource'),
+      descriptionArabic:
+          NovaStrings.lookup(false, 'playerAutoSelectEpisodeSourceDescription'),
+      descriptionEnglish:
+          NovaStrings.lookup(true, 'playerAutoSelectEpisodeSourceDescription'),
+      control: _Control.toggle),
   // Task 139: 'instantPlay' removed — watching ALWAYS lands on the sources
   // page now (user mandate); the legacy stored key stays harmless in prefs.
   _Preference(
@@ -86,6 +95,15 @@ final _playerPreferences = <_Preference>[
       arabic: NovaStrings.lookup(false, 'message731'),
       english: NovaStrings.lookup(true, 'message731'),
       control: _Control.toggle),
+  _Preference(
+      key: 'audioDelayMs',
+      arabic: NovaStrings.lookup(false, 'message74'),
+      english: NovaStrings.lookup(true, 'message74'),
+      control: _Control.slider,
+      min: -10000,
+      max: 10000,
+      step: 100,
+      suffix: ' ms'),
   _Preference(
       key: 'seekBackStepSec',
       arabic: NovaStrings.lookup(false, 'message732'),
@@ -276,7 +294,7 @@ final _subtitlePreferences = <_Preference>[
       english: NovaStrings.lookup(true, 'message53'),
       control: _Control.slider,
       min: 14,
-      max: 44,
+      max: 64,
       step: 2,
       suffix: ' px'),
   _Preference(
@@ -284,6 +302,15 @@ final _subtitlePreferences = <_Preference>[
       arabic: NovaStrings.lookup(false, 'message52'),
       english: NovaStrings.lookup(true, 'message52'),
       control: _Control.color),
+  _Preference(
+      key: 'subPos',
+      arabic: NovaStrings.lookup(false, 'message54'),
+      english: NovaStrings.lookup(true, 'message54'),
+      control: _Control.slider,
+      min: 0,
+      max: 100,
+      step: 5,
+      suffix: '%'),
   _Preference(
       key: 'subStyle',
       arabic: NovaStrings.lookup(false, 'message64'),
@@ -348,6 +375,7 @@ class SettingsPreferencesPage extends StatelessWidget {
             app.tr('message497'): [
               'subFontSize',
               'subFontColor',
+              'subPos',
               'subStyle',
               'subBorderColor',
               'subBorderSize',
@@ -365,6 +393,7 @@ class SettingsPreferencesPage extends StatelessWidget {
             ],
             app.tr('message500'): [
               'defaultAudioLanguage',
+              'audioDelayMs',
               'preferredQuality',
               'videoFill',
               'showQualityInfo'
@@ -375,6 +404,7 @@ class SettingsPreferencesPage extends StatelessWidget {
               'customPlaybackSpeeds'
             ],
             app.tr('message502'): [
+              'autoSelectEpisodeSource',
               'pickerLayout',
               'streamSort',
               'playableOnly',
@@ -602,7 +632,11 @@ class _PreferenceTile extends StatelessWidget {
       return;
     }
     if (item.control == _Control.slider) {
-      var sliderValue = (current as num?)?.toDouble() ?? item.min;
+      var sliderValue =
+          ((current as num?)?.toDouble() ?? item.min).clamp(item.min, item.max);
+      if (item.key == 'subFontSize' && sliderValue.round().isOdd) {
+        sliderValue -= 1;
+      }
       final next = await showDialog<double>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -611,14 +645,34 @@ class _PreferenceTile extends StatelessWidget {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Slider(
-                    value: sliderValue.clamp(item.min, item.max),
-                    min: item.min,
-                    max: item.max,
-                    divisions: ((item.max - item.min) / item.step).round(),
-                    label: _shownNumber(sliderValue, item),
-                    onChanged: (next) => setState(() => sliderValue = next)),
-                Text(_shownNumber(sliderValue, item)),
+                if (item.key == 'subPos')
+                  Slider(
+                      value: sliderValue.clamp(item.min, item.max),
+                      min: item.min,
+                      max: item.max,
+                      divisions: ((item.max - item.min) / item.step).round(),
+                      label: _shownNumber(sliderValue, item),
+                      onChanged: (next) => setState(() => sliderValue = next))
+                else
+                  Row(children: [
+                    IconButton(
+                        onPressed: sliderValue <= item.min
+                            ? null
+                            : () => setState(() => sliderValue =
+                                (sliderValue - item.step)
+                                    .clamp(item.min, item.max)),
+                        icon: const Icon(LucideIcons.minus)),
+                    Expanded(
+                        child: Text(_shownNumber(sliderValue, item),
+                            textAlign: TextAlign.center)),
+                    IconButton(
+                        onPressed: sliderValue >= item.max
+                            ? null
+                            : () => setState(() => sliderValue =
+                                (sliderValue + item.step)
+                                    .clamp(item.min, item.max)),
+                        icon: const Icon(LucideIcons.plus)),
+                  ]),
               ],
             ),
             actions: [

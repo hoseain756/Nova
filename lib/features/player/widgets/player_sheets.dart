@@ -9,6 +9,7 @@ import '../../../core/state/app_state.dart';
 import '../../../core/theme/nova_theme.dart';
 import '../../../shared/widgets/color_picker_dialog.dart';
 import '../engine/playback_engine.dart';
+import 'precise_delay_value.dart';
 import 'subtitle_overlay.dart' show SubtitleStyle;
 
 /// Dark-glass bottom sheets used by the player (settings, episodes,
@@ -317,7 +318,7 @@ class _DelayButton extends StatelessWidget {
   });
 
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool english;
 
   @override
@@ -462,8 +463,9 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
         _numOf(st[key])?.toInt() ?? fallback;
     double doubleVal(String key, double fallback) =>
         _numOf(st[key])?.toDouble() ?? fallback;
+    final savedFontSize = intVal('subFontSize', 28).clamp(14, 64).toInt();
     return <String, Object?>{
-      'subFontSize': intVal('subFontSize', 28),
+      'subFontSize': savedFontSize.isOdd ? savedFontSize - 1 : savedFontSize,
       'subFontColor': (st['subFontColor'] as String?) ?? '#FFFFFF',
       'subStyle': (st['subStyle'] as String?) ?? 'shadow',
       'subBorderColor': (st['subBorderColor'] as String?) ?? '#000000',
@@ -489,14 +491,6 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
     final hex = raw.trim().replaceFirst('#', '');
     final parsed = int.tryParse(hex, radix: 16) ?? 0xFFFFFF;
     return Color(0xFF000000 | parsed);
-  }
-
-  String _offsetLabel(int ms) {
-    if (ms == 0) return NovaStrings.lookup(widget.english, 'message46');
-    final abs = ms.abs();
-    return ms < 0
-        ? (NovaStrings.lookup(widget.english, 'message47', {'p0': abs}))
-        : (NovaStrings.lookup(widget.english, 'message48', {'p0': abs}));
   }
 
   /// mpv sub-pos: 100 = bottom of the frame (default), 0 = top.
@@ -533,7 +527,6 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
   void _shiftDelay(int delta) {
     final next =
         (((_v['subtitleOffsetMs'] as int) + delta).clamp(-5000, 5000)).toInt();
-    _preview('subtitleOffsetMs', next);
     _commit('subtitleOffsetMs', next);
   }
 
@@ -552,19 +545,16 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             hex: _v['subFontColor']! as String,
             onPick: (hex) => _commit('subFontColor', hex),
           ),
-          _sliderRow(
+          _stepperRow(
             label: NovaStrings.lookup(english, 'message53'),
-            value: (_v['subFontSize'] as int).toDouble(),
+            value: _v['subFontSize'] as int,
             min: 14,
-            max: 44,
-            divisions: 15,
+            max: 64,
+            step: 2,
             display: '${_v['subFontSize']} px',
-            onChanged: (v) => _preview('subFontSize', v.round()),
-            onChangeEnd: (v) => _commit('subFontSize', v.round()),
+            onChanged: (v) => _commit('subFontSize', v),
           ),
-          // Position: quick chips + fine slider (spec §4: أعلى/وسط/أسفل +
-          // رفع وخفض دقيق).
-          _posChips(),
+          // Position is the one control that remains a slider.
           _sliderRow(
             label: NovaStrings.lookup(english, 'message54'),
             value: (_v['subPos'] as int).toDouble(),
@@ -580,41 +570,30 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             icon: LucideIcons.paintBucket,
             label: NovaStrings.lookup(english, 'message55'),
             hex: _v['subBorderColor']! as String,
+            previewAsOutline: true,
             onPick: (hex) => _commit('subBorderColor', hex),
           ),
-          _sliderRow(
+          _stepperRow(
             label: NovaStrings.lookup(english, 'message56'),
-            value: (_v['subBorderSize'] as int).toDouble(),
+            value: _v['subBorderSize'] as int,
             min: 0,
             max: 8,
-            divisions: 8,
+            step: 1,
             display: '${_v['subBorderSize']} px',
-            onChanged: (v) => _preview('subBorderSize', v.round()),
-            onChangeEnd: (v) => _commit('subBorderSize', v.round()),
+            onChanged: (v) => _commit('subBorderSize', v),
           ),
-          _sliderRow(
+          _stepperRow(
             label: NovaStrings.lookup(english, 'message57'),
-            value: _v['subBackgroundOpacity']! as double,
+            value: ((_v['subBackgroundOpacity']! as double) * 100).round(),
             min: 0,
-            max: 1,
-            divisions: 20,
+            max: 100,
+            step: 5,
             display:
                 '${((_v['subBackgroundOpacity']! as double) * 100).round()}%',
-            onChanged: (v) => _preview('subBackgroundOpacity', v),
-            onChangeEnd: (v) => _commit('subBackgroundOpacity', v),
+            onChanged: (v) => _commit('subBackgroundOpacity', v / 100),
           ),
-          // Timing offset: ±100 ms buttons (spec §4) + coarse slider.
+          // Timing uses 100 ms buttons and 10 ms vertical precision.
           _delayButtons(),
-          _sliderRow(
-            label: NovaStrings.lookup(english, 'message58'),
-            value: (_v['subtitleOffsetMs'] as int).toDouble(),
-            min: -5000,
-            max: 5000,
-            divisions: 40,
-            display: _offsetLabel(_v['subtitleOffsetMs']! as int),
-            onChanged: (v) => _preview('subtitleOffsetMs', v.round()),
-            onChangeEnd: (v) => _commit('subtitleOffsetMs', v.round()),
-          ),
           SizedBox(height: 6),
           Center(
             child: TextButton.icon(
@@ -659,38 +638,6 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
     });
   }
 
-  Widget _posChips() {
-    final english = widget.english;
-    final pos = _v['subPos'] as int;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(top: 2, bottom: 4),
-      child: Row(
-        children: [
-          for (final option in [
-            (0, NovaStrings.lookup(english, 'message50')),
-            (50, NovaStrings.lookup(english, 'message61')),
-            (100, NovaStrings.lookup(english, 'message49')),
-          ])
-            Expanded(
-              child: Padding(
-                padding: EdgeInsetsDirectional.only(
-                  end: option.$1 == 100 ? 0 : 6,
-                ),
-                child: SheetSelectChip(
-                  label: option.$2,
-                  selected: (pos - option.$1).abs() <= 2,
-                  onTap: () {
-                    _preview('subPos', option.$1);
-                    _commit('subPos', option.$1);
-                  },
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   Widget _delayButtons() => Padding(
       padding: const EdgeInsetsDirectional.only(top: 16, bottom: 8),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -703,16 +650,55 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
               icon: LucideIcons.minus,
               onTap: () => _shiftDelay(-100)),
           Expanded(
-              child: Text(_offsetLabel(_v['subtitleOffsetMs'] as int),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.secondary))),
+            child: PreciseDelayValue(
+              valueMs: _v['subtitleOffsetMs'] as int,
+              english: widget.english,
+              semanticLabel: NovaStrings.lookup(widget.english, 'message62'),
+              onDeltaMs: _shiftDelay,
+            ),
+          ),
           _DelayButton(
               english: widget.english,
               icon: LucideIcons.plus,
               onTap: () => _shiftDelay(100)),
         ]),
       ]));
+
+  Widget _stepperRow({
+    required String label,
+    required int value,
+    required int min,
+    required int max,
+    required int step,
+    required String display,
+    required ValueChanged<int> onChanged,
+  }) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.only(bottom: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            Row(children: [
+              _DelayButton(
+                english: widget.english,
+                icon: LucideIcons.minus,
+                onTap: value <= min
+                    ? null
+                    : () => onChanged((value - step).clamp(min, max)),
+              ),
+              Expanded(child: Text(display, textAlign: TextAlign.center)),
+              _DelayButton(
+                english: widget.english,
+                icon: LucideIcons.plus,
+                onTap: value >= max
+                    ? null
+                    : () => onChanged((value + step).clamp(min, max)),
+              ),
+            ]),
+          ],
+        ),
+      );
 
   // ── Pieces ────────────────────────────────────────────────────────────────
 
@@ -821,6 +807,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
     required String label,
     required String hex,
     required ValueChanged<String> onPick,
+    bool previewAsOutline = false,
   }) =>
       ListTile(
         contentPadding: EdgeInsets.zero,
@@ -846,6 +833,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             initialHex: hex,
             title: label,
             english: widget.english,
+            previewAsOutline: previewAsOutline,
           );
           if (picked != null && mounted) onPick(picked);
         },
@@ -908,22 +896,21 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
                     fontSize: 13,
                     fontWeight: FontWeight.w600)),
             SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 for (final option in [
                   ('shadow', NovaStrings.lookup(widget.english, 'message65')),
                   ('outline', NovaStrings.lookup(widget.english, 'message66')),
                   ('box', NovaStrings.lookup(widget.english, 'message67')),
                 ])
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsetsDirectional.only(
-                          end: option.$1 == 'box' ? 0 : 6),
-                      child: SheetSelectChip(
-                        label: option.$2,
-                        selected: _v['subStyle'] == option.$1,
-                        onTap: () => _commit('subStyle', option.$1),
-                      ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: 84),
+                    child: SheetSelectChip(
+                      label: option.$2,
+                      selected: _v['subStyle'] == option.$1,
+                      onTap: () => _commit('subStyle', option.$1),
                     ),
                   ),
               ],

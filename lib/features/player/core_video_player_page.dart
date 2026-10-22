@@ -17,6 +17,7 @@ import '../../core/torrent/torrent_service.dart';
 import '../media/sources_page.dart';
 import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
+import 'engine/external_subtitle_loader.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
@@ -29,6 +30,7 @@ import 'temporary_speed_hold.dart';
 import 'widgets/player_session_surface.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
+import 'widgets/player_episodes_sheet.dart';
 import 'widgets/player_side_panel.dart';
 import 'widgets/player_sheets.dart';
 import 'widgets/subtitle_overlay.dart';
@@ -182,6 +184,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // writes from OUTSIDE the player (settings page, cloud-sync merge, backup
   // restore) restyle a live player instantly.
   Map<String, Object?> _lastSubValues = const {};
+  int _lastAudioDelayMs = 0;
 
   // Workstream B: timing segments resolved once per page instance, plus the
   // guards against double next-episode navigation.
@@ -228,6 +231,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       SubtitleStyle.fromMap(context.read<AppState>().webSettings),
     );
     _lastSubValues = SubtitleStyle.valuesFrom(_app.webSettings);
+    _lastAudioDelayMs =
+        (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0;
     // Workstream C: the player now listens to AppState so every subtitle
     // write reaches the running video (see [_onAppSettingsChanged]).
     _app.addListener(_onAppSettingsChanged);
@@ -264,6 +269,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// [_lastSubValues] keeps sheet previews authoritative and avoids
   /// redundant notifier writes.
   void _onAppSettingsChanged() {
+    final audioDelayMs =
+        (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0;
+    if (audioDelayMs != _lastAudioDelayMs) {
+      _lastAudioDelayMs = audioDelayMs;
+      unawaited(_engine?.setAudioDelayMs(audioDelayMs));
+    }
     final values = SubtitleStyle.valuesFrom(_app.webSettings);
     if (mapEquals(values, _lastSubValues)) return;
     final oldOffset =
@@ -704,18 +715,24 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _closing = true;
     _temporarySpeed.invalidate();
     _engine?.cancelResolution();
-    _scrobble('stop');
-    _stopScrobbled = true;
     try {
-      await _engine?.close();
-    } catch (_) {
-      _closing = false;
-      if (mounted) {
-        setState(
-            () => _engineInitError = NovaStrings.lookup(english, 'message15'));
-      }
-      return;
+      _scrobble('stop');
+      _stopScrobbled = true;
+    } catch (error) {
+      debugPrint('[NOVA] stop scrobble failed while leaving: $error');
     }
+
+    try {
+      // Native disposal or a queued engine command can stall indefinitely on
+      // some platform/source combinations. Keep session.close running so it
+      // can retire native playback before releasing any torrent lease, while
+      // bounding how long the route itself waits to leave the dead surface.
+      await _engine?.close().timeout(const Duration(seconds: 3));
+    } catch (error) {
+      debugPrint(
+          '[NOVA] player cleanup timed out or failed while leaving: $error');
+    }
+
     if (!mounted) return;
     setState(() => _allowRoutePop = true);
     await WidgetsBinding.instance.endOfFrame;
@@ -992,6 +1009,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           title: NovaStrings.lookup(english, 'message6'),
           english: english,
           onClose: _closePanel,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           // The engine is the audio data source — a refresh re-reads its
           // track list (genuinely useful on slow devices where track
           // enumeration lands after the panel opened).
@@ -1009,6 +1030,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             onDelayChanged: (ms) async {
               await engine?.setAudioDelayMs(ms);
               if (!mounted) return;
+              _lastAudioDelayMs = ms;
               await _app.setSetting('audioDelayMs', ms);
             },
           ),
@@ -1018,24 +1040,20 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           title: NovaStrings.lookup(english, 'message7'),
           english: english,
           onClose: _closePanel,
-          // Refresh re-fetches the add-on subtitles in place.
-          onRefresh: () => unawaited(_loadPanelData(refresh: true)),
-          refreshing: _panelRefreshing,
-          headerAction: PanelSettingsButton(onTap: _openSubtitleStyleSheet),
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: SubtitleTracksPanelBody(
             english: english,
             embedded: engine?.subtitleTracks ?? const [],
             selected: engine?.selectedSubtitle ?? SubtitleTrack.no(),
-            onPick: (track) {
-              _preferenceSession.markSubtitleSelectedManually();
-              if (track.uri && track.id.isNotEmpty) {
-                unawaited(engine?.setSubtitleUri(track.id, title: track.title));
-              } else {
-                unawaited(engine?.selectSubtitle(track));
-              }
-            },
+            onPick: (track) => unawaited(_pickSubtitleTrack(track)),
             external: _panelExternalSubs,
             loadingExternal: _panelLoading,
+            onOpenSettings: _openSubtitleStyleSheet,
+            onRefresh: () => unawaited(_loadPanelData(refresh: true)),
+            refreshing: _panelRefreshing,
           ),
         );
       case PlayerPanelKind.streams:
@@ -1047,13 +1065,16 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           title: NovaStrings.lookup(english, 'message8'),
           english: english,
           onClose: _closePanel,
-          // Refresh re-runs the full add-on query + ranking in place.
-          onRefresh: () => unawaited(_loadPanelData(refresh: true)),
-          refreshing: _panelRefreshing,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: StreamsPanelBody(
             english: english,
             streams: _panelStreams,
             currentStream: currentStream,
+            onRefresh: () => unawaited(_loadPanelData(refresh: true)),
+            refreshing: _panelRefreshing,
             onPick: (stream) => unawaited(_switchToStream(stream)),
           ),
         );
@@ -1065,6 +1086,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           title: NovaStrings.lookup(english, 'message9'),
           english: english,
           onClose: _closePanel,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: PlayerSettingsPanelBody(
             english: english,
             speed: _engine?.rate ?? 1.0,
@@ -1150,10 +1175,27 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     try {
       final app = _app;
       final subs = await app.catalogs
-          .subtitles(widget.item.type, widget.videoId, app.addons);
+          .subtitlesForEpisode(widget.item, widget.videoId, app.addons);
       return subs.where((sub) => sub['url'] is String).toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  Future<void> _pickSubtitleTrack(SubtitleTrack track) async {
+    final target = _engine;
+    if (target == null) return;
+    _preferenceSession.markSubtitleSelectedManually();
+    try {
+      final resolved = await loadExternalSubtitleTrack(_app.api, track);
+      if (!mounted || !identical(_engine, target)) return;
+      await target.selectSubtitle(resolved);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(NovaStrings.lookup(english, 'subtitleLoadFailed'))),
+      );
     }
   }
 
@@ -1186,14 +1228,18 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   }
 
   Future<void> _openEpisodesSheet() => _openSheet(() async {
-        if (_episodes.isEmpty) return;
         await showPlayerSheet<void>(
           context,
-          builder: (_) => EpisodesSheet(
+          builder: (_) => PlayerEpisodesSheet(
             english: english,
             episodes: _episodes,
             currentVideoId: widget.videoId,
-            onPick: (episode) => unawaited(_switchEpisode(episode)),
+            fallbackArtwork: widget.item.background ?? widget.item.poster,
+            onPick: (episode) => unawaited(
+              _app.webSettings['autoSelectEpisodeSource'] == true
+                  ? _switchEpisode(episode)
+                  : _startEpisodeSources(episode),
+            ),
           ),
         );
       });
@@ -1232,7 +1278,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   Future<void> _switchEpisode(Map<String, dynamic> episode) async {
     final episodeId = (episode['id'] ?? widget.item.id).toString();
-    if (episodeId == widget.videoId) return;
+    if (episodeId == widget.videoId || _episodeTransitionBusy) return;
+    _episodeTransitionBusy = true;
     try {
       final playable = await _fetchPlayableStreams(episodeId);
       if (!mounted) return;
@@ -1265,6 +1312,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           ),
         );
       }
+    } finally {
+      _episodeTransitionBusy = false;
     }
   }
 
@@ -2132,9 +2181,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                           side: AxisSide.left,
                           topInset: railTopInset,
                           children: [
-                            // Task 139 (user mandate): the vertical rail is
-                            // LOCK + SPEED only — the video-fit and episodes
-                            // entries moved into the settings sheet.
+                            // Keep episodes directly below the lock.
                             PlayerRailButton(
                               icon: LucideIcons.lockKeyhole,
                               semanticLabel: NovaStrings.lookup(
@@ -2143,6 +2190,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                               ),
                               onTap: _lock,
                             ),
+                            if (widget.item.type == 'series')
+                              PlayerRailButton(
+                                icon: LucideIcons.listVideo,
+                                semanticLabel: NovaStrings.lookup(
+                                  english,
+                                  'message43',
+                                ),
+                                onTap: _openEpisodesSheet,
+                              ),
                             PlayerSpeedPill(
                               label: _speedLabel,
                               semanticLabel: NovaStrings.lookup(

@@ -1,6 +1,16 @@
-# Gate C — playback core candidate, awaiting physical-device acceptance
+# Gate C — playback core candidate, approved for Station 11
 
-**NOT APPROVED. Station 10 is not complete. Android runtime NOT-VERIFIED; performance NOT MEASURED.**
+## Decision — APPROVED, 2026-10-22
+
+The user replied **«نعم انتقل وأكمل إلى المحطة التالية»** to the explicit Gate C decision request. This approves proceeding to Station 11 on the recorded one-source functional evidence. It does not convert unmeasured performance into a gain, approve a release or LKG promotion, or approve Gates D/E. The earlier HOLD language below is historical. The legacy player remains the default and the opt-in Core remains selectable.
+
+## Latest phone report and seek follow-up — 2026-10-22
+
+The user confirmed the seek-fix build supports both dragging and tapping the timeline with continuing video/audio, and confirmed the requested direction on the updated phone build: Arabic starts on the physical left; English starts on the right. The shared progress row sets this from the app-language flag. Full `flutter pub get`, full analysis (no issues), full test suite (532 PASS), Profile APK build and ADB install/launch all PASS. The user tested playback and confirmed the direction is correct on `RF8NA2NNVNY`. Artifact SHA-256: `0926A76A36DE69A1E8D4B3AD68CDB96C5FF51FD10CF06A2504E9E8C1E2434D57`. Gate C awaits the user's explicit decision to approve this functional evidence and proceed; performance remains NOT MEASURED under the accepted waiver.
+
+Prior phone report: the surface-adjusted opt-in Profile build showed smooth video on the Samsung SM-A217F, but its progress bar could not be controlled. The Core session had cached a paused-open `seekable` result; a bounded post-duration recheck and startup-resume wait require positive native seek capability without permanently disabling a late-seekable source. Focused tests PASS 36/36, scoped analysis PASS, opt-in Profile APK build and ADB install PASS. Installed test artifact SHA-256: `72E1706347A9029A1B13B7D3CF77ACDA832B7A486A549FB88B050D7FEFB0537F`. The user's successful drag/tap follow-up is recorded above. The user's additional window, subtitle, 2× hold, settings and episodes requests are recorded in `10_STATION.md` for subsequent UI stations after this gate. Performance remains NOT MEASURED under the Station-10 waiver.
+
+**AWAITING USER GATE C DECISION.** One user-selected Android source is confirmed for visible video, smooth playback, drag/tap seeking and the requested language direction. Broader source/codec/runtime behavior and performance remain NOT-VERIFIED / NOT MEASURED.
 
 ## User decisions already recorded
 

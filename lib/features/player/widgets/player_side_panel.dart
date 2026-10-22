@@ -28,14 +28,14 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../engine/playback_engine.dart';
 import '../../../shared/widgets/shimmer_box.dart';
+import 'precise_delay_value.dart';
 import 'player_sheets.dart'
     show SheetSelectChip, SubtitleChoice, subtitleLanguageName;
 
 /// Which picker the side panel currently hosts.
 enum PlayerPanelKind { audio, subtitles, streams, settings }
 
-/// Panel width: exactly HALF the screen, clamped for readability — narrow
-/// landscape phones never go below 300dp, large tablets never past 640dp.
+/// Keep the side panel readable on landscape phones without crowding tablets.
 double playerPanelWidth(double screenWidth) =>
     (screenWidth * .48).clamp(360.0, 560.0).clamp(0.0, screenWidth);
 
@@ -52,6 +52,10 @@ class PlayerSidePanel extends StatelessWidget {
     this.onRefresh,
     this.refreshing = false,
     this.headerAction,
+    this.currentKind,
+    this.onOpenSubtitles,
+    this.onOpenAudio,
+    this.onOpenStreams,
   });
 
   final String title;
@@ -61,6 +65,10 @@ class PlayerSidePanel extends StatelessWidget {
   final VoidCallback? onRefresh;
   final bool refreshing;
   final Widget? headerAction;
+  final PlayerPanelKind? currentKind;
+  final VoidCallback? onOpenSubtitles;
+  final VoidCallback? onOpenAudio;
+  final VoidCallback? onOpenStreams;
 
   @override
   Widget build(BuildContext context) {
@@ -79,9 +87,9 @@ class PlayerSidePanel extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: EdgeInsetsDirectional.fromSTEB(
-            24,
+            size.width < 720 ? 12 : 24,
             portrait ? 12 : padding.top + 16,
-            24 +
+            (size.width < 720 ? 12 : 24) +
                 (portrait
                     ? 0
                     : rtl
@@ -99,19 +107,9 @@ class PlayerSidePanel extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4)))),
             const SizedBox(height: 16)
           ],
-          Row(children: [
-            Expanded(
-                child: Text(title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge)),
-            _PanelIconButton(
-                icon: LucideIcons.x,
-                semanticLabel: NovaStrings.lookup(english, 'close'),
-                onTap: onClose),
-          ]),
-          if (headerAction != null || onRefresh != null)
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          LayoutBuilder(builder: (context, constraints) {
+            final compact = constraints.maxWidth < 520;
+            final utilityActions = <Widget>[
               if (headerAction != null) headerAction!,
               if (onRefresh != null)
                 _PanelIconButton(
@@ -119,8 +117,56 @@ class PlayerSidePanel extends StatelessWidget {
                     spinning: refreshing,
                     semanticLabel: NovaStrings.lookup(english, 'message68'),
                     onTap: refreshing ? null : onRefresh),
-            ]),
-          const SizedBox(height: 16),
+            ];
+            final navigation = <Widget>[
+              if (onOpenSubtitles != null)
+                _PanelIconButton(
+                    icon: LucideIcons.captions,
+                    semanticLabel: NovaStrings.lookup(english, 'message7'),
+                    selected: currentKind == PlayerPanelKind.subtitles,
+                    onTap: onOpenSubtitles),
+              if (onOpenAudio != null)
+                _PanelIconButton(
+                    icon: LucideIcons.audioLines,
+                    semanticLabel: NovaStrings.lookup(english, 'message87'),
+                    selected: currentKind == PlayerPanelKind.audio,
+                    onTap: onOpenAudio),
+              if (onOpenStreams != null)
+                _PanelIconButton(
+                    icon: LucideIcons.arrowLeftRight,
+                    semanticLabel:
+                        NovaStrings.lookup(english, 'playerChangeSource'),
+                    selected: currentKind == PlayerPanelKind.streams,
+                    onTap: onOpenStreams),
+            ];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Expanded(
+                      child: Text(title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge)),
+                  if (!compact) ...utilityActions,
+                  ...navigation,
+                  _PanelIconButton(
+                      icon: LucideIcons.x,
+                      semanticLabel: NovaStrings.lookup(english, 'close'),
+                      onTap: onClose),
+                ]),
+                if (compact && utilityActions.isNotEmpty)
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: utilityActions,
+                    ),
+                  ),
+              ],
+            );
+          }),
+          const SizedBox(height: 8),
           Expanded(child: child),
         ]),
       ),
@@ -134,16 +180,19 @@ class _PanelIconButton extends StatelessWidget {
     required this.semanticLabel,
     required this.onTap,
     this.spinning = false,
+    this.selected = false,
   });
 
   final IconData icon;
   final String semanticLabel;
   final VoidCallback? onTap;
   final bool spinning;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
+        selected: selected,
         label: semanticLabel,
         child: InkWell(
           customBorder: CircleBorder(),
@@ -161,7 +210,9 @@ class _PanelIconButton extends StatelessWidget {
                   )
                 : Icon(icon,
                     size: 18,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    color: selected
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ),
       );
@@ -257,6 +308,14 @@ class AudioTracksPanelBody extends StatefulWidget {
 class _AudioTracksPanelBodyState extends State<AudioTracksPanelBody> {
   late int _delayMs = widget.delayMs;
 
+  @override
+  void didUpdateWidget(covariant AudioTracksPanelBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.delayMs != oldWidget.delayMs && widget.delayMs != _delayMs) {
+      _delayMs = widget.delayMs;
+    }
+  }
+
   void _shift(int delta) {
     final next = (_delayMs + delta).clamp(-10000, 10000);
     setState(() => _delayMs = next);
@@ -302,14 +361,6 @@ class _AudioTracksPanelBodyState extends State<AudioTracksPanelBody> {
     }
     final name = subtitleLanguageName(code);
     return name.isEmpty ? code : '$name · $code';
-  }
-
-  String _delayLabel(int ms) {
-    if (ms == 0) return NovaStrings.lookup(widget.english, 'message72');
-    final abs = ms.abs();
-    return ms < 0
-        ? (NovaStrings.lookup(widget.english, 'message47', {'p0': abs}))
-        : (NovaStrings.lookup(widget.english, 'message48', {'p0': abs}));
   }
 
   @override
@@ -396,11 +447,10 @@ class _AudioTracksPanelBodyState extends State<AudioTracksPanelBody> {
                 _StepperButton(
                     icon: LucideIcons.minus, onTap: () => _shift(-100)),
                 Expanded(
-                    child: Text(_delayLabel(_delayMs),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary,
-                            fontWeight: FontWeight.w700))),
+                    child: PreciseDelayValue(
+                        valueMs: _delayMs,
+                        english: widget.english,
+                        onDeltaMs: _shift)),
                 _StepperButton(
                     icon: LucideIcons.plus, onTap: () => _shift(100)),
               ]),
@@ -446,6 +496,8 @@ class SubtitleTracksPanelBody extends StatefulWidget {
     required this.external,
     required this.loadingExternal,
     this.onOpenSettings,
+    this.onRefresh,
+    this.refreshing = false,
   });
 
   final bool english;
@@ -461,8 +513,10 @@ class SubtitleTracksPanelBody extends StatefulWidget {
   final List<Map<String, dynamic>> external;
   final bool loadingExternal;
 
-  /// Subtitle style/timing shortcut (tune icon in the panel header).
+  /// Subtitle style/timing shortcut beside the search field.
   final VoidCallback? onOpenSettings;
+  final VoidCallback? onRefresh;
+  final bool refreshing;
 
   @override
   State<SubtitleTracksPanelBody> createState() =>
@@ -689,41 +743,53 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TextField(
-          controller: _search,
-          onChanged: (_) => setState(() {}),
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            isDense: true,
-            prefixIcon: Icon(LucideIcons.search, size: 20),
-            suffixIcon: _search.text.isEmpty
-                ? null
-                : IconButton(
-                    visualDensity: VisualDensity.compact,
-                    icon: Icon(LucideIcons.x, size: 16),
-                    onPressed: () {
-                      _search.clear();
-                      setState(() {});
-                    },
-                  ),
-            hintText: NovaStrings.lookup(widget.english, 'message78'),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant),
+        Row(children: [
+          Expanded(
+              child: TextField(
+            controller: _search,
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(LucideIcons.search, size: 20),
+              suffixIcon: _search.text.isEmpty
+                  ? null
+                  : IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(LucideIcons.x, size: 16),
+                      onPressed: () {
+                        _search.clear();
+                        setState(() {});
+                      },
+                    ),
+              hintText: NovaStrings.lookup(widget.english, 'message78'),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: Theme.of(context).colorScheme.primary, width: 1.4),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant),
+          )),
+          if (widget.onOpenSettings != null)
+            PanelSettingsButton(onTap: widget.onOpenSettings!),
+          if (widget.onRefresh != null)
+            _PanelIconButton(
+              icon: LucideIcons.refreshCw,
+              semanticLabel: NovaStrings.lookup(widget.english, 'message68'),
+              onTap: widget.refreshing ? null : widget.onRefresh,
+              spinning: widget.refreshing,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.primary, width: 1.4),
-            ),
-          ),
-        ),
+        ]),
         SizedBox(height: 10),
         Divider(
             color: Theme.of(context).colorScheme.outlineVariant, height: 14),
@@ -790,11 +856,15 @@ class StreamsPanelBody extends StatefulWidget {
       required this.english,
       required this.streams,
       required this.currentStream,
-      required this.onPick});
+      required this.onPick,
+      this.onRefresh,
+      this.refreshing = false});
   final bool english;
   final List<Map<String, dynamic>> streams;
   final Map<String, dynamic>? currentStream;
   final ValueChanged<Map<String, dynamic>> onPick;
+  final VoidCallback? onRefresh;
+  final bool refreshing;
   @override
   State<StreamsPanelBody> createState() => _StreamsPanelBodyState();
 }
@@ -811,11 +881,22 @@ class _StreamsPanelBodyState extends State<StreamsPanelBody> {
                 .contains(_query.trim().toLowerCase()))
         .toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      TextField(
-          onChanged: (value) => setState(() => _query = value),
-          decoration: InputDecoration(
-              prefixIcon: const Icon(LucideIcons.search),
-              hintText: NovaStrings.lookup(widget.english, 'message677'))),
+      Row(children: [
+        Expanded(
+            child: TextField(
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                    prefixIcon: const Icon(LucideIcons.search),
+                    hintText:
+                        NovaStrings.lookup(widget.english, 'message677')))),
+        if (widget.onRefresh != null)
+          _PanelIconButton(
+            icon: LucideIcons.refreshCw,
+            semanticLabel: NovaStrings.lookup(widget.english, 'message68'),
+            onTap: widget.refreshing ? null : widget.onRefresh,
+            spinning: widget.refreshing,
+          ),
+      ]),
       const SizedBox(height: 16),
       Text(
           NovaStrings.lookup(
@@ -934,15 +1015,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8),
-        GridView.count(
-          crossAxisCount:
-              MediaQuery.textScalerOf(context).scale(16) > 24 ? 2 : 3,
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 1.6,
-          padding: EdgeInsets.zero,
+        _CompactOptionGrid(
           children: [
             for (final value in speeds)
               SheetSelectChip(
@@ -966,15 +1039,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8),
-        GridView.count(
-          crossAxisCount:
-              MediaQuery.textScalerOf(context).scale(16) > 24 ? 2 : 3,
-          shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 6,
-          crossAxisSpacing: 6,
-          childAspectRatio: 1.6,
-          padding: EdgeInsets.zero,
+        _CompactOptionGrid(
           children: [
             SheetSelectChip(
               label: NovaStrings.lookup(english, 'message84'),
@@ -1071,4 +1136,35 @@ class PlayerSettingsPanelBody extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Fixed-height rows prevent wide landscape panels from stretching three
+/// small choices into large tiles while retaining a 48 dp touch target.
+class _CompactOptionGrid extends StatelessWidget {
+  const _CompactOptionGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final scaler = MediaQuery.textScalerOf(context);
+          final columns =
+              scaler.scale(16) > 24 || constraints.maxWidth < 280 ? 2 : 3;
+          final scaledHeight = scaler.scale(18) * 2.5;
+          final height = scaledHeight > 48 ? scaledHeight : 48.0;
+          final tileWidth =
+              (constraints.maxWidth - (columns - 1) * 6) / columns;
+          return GridView.count(
+            crossAxisCount: columns,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 6,
+            childAspectRatio: tileWidth / height,
+            padding: EdgeInsets.zero,
+            children: children,
+          );
+        },
+      );
 }

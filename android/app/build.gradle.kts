@@ -60,6 +60,13 @@ android {
     }
 
     buildTypes {
+        getByName("profile") {
+            signingConfig = if (hasLocalSigningCredentials) {
+                signingConfigs.getByName("upload")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
         release {
             // Use the existing debug fallback until a complete local upload-key config exists.
             signingConfig = if (hasLocalSigningCredentials) {

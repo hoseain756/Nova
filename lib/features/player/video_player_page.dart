@@ -17,6 +17,7 @@ import '../../core/torrent/torrent_service.dart';
 import '../media/sources_page.dart';
 import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
+import 'engine/external_subtitle_loader.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
@@ -26,6 +27,7 @@ import 'session/playback_progress_binding.dart';
 import 'stream_headers.dart';
 import 'temporary_speed_hold.dart';
 import 'widgets/player_chrome.dart';
+import 'widgets/player_episodes_sheet.dart';
 import 'widgets/player_session_surface.dart';
 import 'widgets/player_side_panel.dart';
 import 'widgets/player_sheets.dart';
@@ -196,6 +198,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   // writes from OUTSIDE the player (settings page, cloud-sync merge, backup
   // restore) restyle a live player instantly.
   Map<String, Object?> _lastSubValues = const {};
+  int _lastAudioDelayMs = 0;
 
   // Workstream B: timing segments resolved once per page instance, plus the
   // guards against double next-episode navigation.
@@ -247,6 +250,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       SubtitleStyle.fromMap(context.read<AppState>().webSettings),
     );
     _lastSubValues = SubtitleStyle.valuesFrom(_app.webSettings);
+    _lastAudioDelayMs =
+        (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0;
     // Workstream C: the player now listens to AppState so every subtitle
     // write reaches the running video (see [_onAppSettingsChanged]).
     _app.addListener(_onAppSettingsChanged);
@@ -283,6 +288,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// [_lastSubValues] keeps sheet previews authoritative and avoids
   /// redundant notifier writes.
   void _onAppSettingsChanged() {
+    final audioDelayMs =
+        (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0;
+    if (audioDelayMs != _lastAudioDelayMs) {
+      _lastAudioDelayMs = audioDelayMs;
+      unawaited(_engine?.setAudioDelayMs(audioDelayMs));
+    }
     final values = SubtitleStyle.valuesFrom(_app.webSettings);
     if (mapEquals(values, _lastSubValues)) return;
     final oldOffset =
@@ -840,17 +851,40 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (_closing || _allowRoutePop) return;
     _closing = true;
     _temporarySpeed.invalidate();
+    const leaveOperationTimeout = Duration(seconds: 2);
     try {
       final engine = _engine;
-      if (engine?.playing == true) await engine!.pause();
-      _scrobble('stop');
-      _stopScrobbled = true;
-      await _captureResumeSnapshot();
-      await _saveProgress();
+      if (engine?.playing == true) {
+        await engine!.pause().timeout(leaveOperationTimeout);
+      }
     } catch (error) {
       debugPrint(
-          '[NoorPlayback] failed to save progress while leaving: $error');
+          '[NoorPlayback] pause timed out or failed while leaving: $error');
     }
+
+    try {
+      _scrobble('stop');
+      _stopScrobbled = true;
+    } catch (error) {
+      debugPrint('[NoorPlayback] stop scrobble failed while leaving: $error');
+    }
+
+    // Snapshot capture and progress persistence are best-effort on exit. A
+    // stuck platform/storage Future must never strand the user on a dead
+    // player surface after the leave confirmation has been accepted.
+    try {
+      await _captureResumeSnapshot().timeout(leaveOperationTimeout);
+    } catch (error) {
+      debugPrint(
+          '[NoorPlayback] resume snapshot timed out while leaving: $error');
+    }
+    try {
+      await _saveProgress().timeout(leaveOperationTimeout);
+    } catch (error) {
+      debugPrint(
+          '[NoorPlayback] progress save timed out while leaving: $error');
+    }
+
     if (!mounted) return;
     setState(() => _allowRoutePop = true);
     await WidgetsBinding.instance.endOfFrame;
@@ -1119,6 +1153,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           title: NovaStrings.lookup(english, 'message6'),
           english: english,
           onClose: _closePanel,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           // The engine is the audio data source — a refresh re-reads its
           // track list (genuinely useful on slow devices where track
           // enumeration lands after the panel opened).
@@ -1136,6 +1174,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             onDelayChanged: (ms) async {
               await engine?.setAudioDelayMs(ms);
               if (!mounted) return;
+              _lastAudioDelayMs = ms;
               await _app.setSetting('audioDelayMs', ms);
             },
           ),
@@ -1145,24 +1184,20 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           title: NovaStrings.lookup(english, 'message7'),
           english: english,
           onClose: _closePanel,
-          // Refresh re-fetches the add-on subtitles in place.
-          onRefresh: () => unawaited(_loadPanelData(refresh: true)),
-          refreshing: _panelRefreshing,
-          headerAction: PanelSettingsButton(onTap: _openSubtitleStyleSheet),
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: SubtitleTracksPanelBody(
             english: english,
             embedded: engine?.subtitleTracks ?? const [],
             selected: engine?.selectedSubtitle ?? SubtitleTrack.no(),
-            onPick: (track) {
-              _preferenceSession.markSubtitleSelectedManually();
-              if (track.uri && track.id.isNotEmpty) {
-                unawaited(engine?.setSubtitleUri(track.id, title: track.title));
-              } else {
-                unawaited(engine?.selectSubtitle(track));
-              }
-            },
+            onPick: (track) => unawaited(_pickSubtitleTrack(track)),
             external: _panelExternalSubs,
             loadingExternal: _panelLoading,
+            onOpenSettings: _openSubtitleStyleSheet,
+            onRefresh: () => unawaited(_loadPanelData(refresh: true)),
+            refreshing: _panelRefreshing,
           ),
         );
       case PlayerPanelKind.streams:
@@ -1174,13 +1209,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           title: NovaStrings.lookup(english, 'message8'),
           english: english,
           onClose: _closePanel,
-          // Refresh re-runs the full add-on query + ranking in place.
-          onRefresh: () => unawaited(_loadPanelData(refresh: true)),
-          refreshing: _panelRefreshing,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: StreamsPanelBody(
             english: english,
             streams: _panelStreams,
             currentStream: currentStream,
+            onRefresh: () => unawaited(_loadPanelData(refresh: true)),
+            refreshing: _panelRefreshing,
             onPick: (stream) => unawaited(_switchToStream(stream)),
           ),
         );
@@ -1192,6 +1230,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           title: NovaStrings.lookup(english, 'message9'),
           english: english,
           onClose: _closePanel,
+          currentKind: kind,
+          onOpenAudio: _openAudioPanel,
+          onOpenSubtitles: _openSubtitlesPanel,
+          onOpenStreams: _openStreamsPanel,
           child: PlayerSettingsPanelBody(
             english: english,
             speed: _engine?.rate ?? 1.0,
@@ -1277,10 +1319,27 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     try {
       final app = _app;
       final subs = await app.catalogs
-          .subtitles(widget.item.type, widget.videoId, app.addons);
+          .subtitlesForEpisode(widget.item, widget.videoId, app.addons);
       return subs.where((sub) => sub['url'] is String).toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  Future<void> _pickSubtitleTrack(SubtitleTrack track) async {
+    final target = _engine;
+    if (target == null) return;
+    _preferenceSession.markSubtitleSelectedManually();
+    try {
+      final resolved = await loadExternalSubtitleTrack(_app.api, track);
+      if (!mounted || !identical(_engine, target)) return;
+      await target.selectSubtitle(resolved);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(NovaStrings.lookup(english, 'subtitleLoadFailed'))),
+      );
     }
   }
 
@@ -1313,14 +1372,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   Future<void> _openEpisodesSheet() => _openSheet(() async {
-        if (_episodes.isEmpty) return;
         await showPlayerSheet<void>(
           context,
-          builder: (_) => EpisodesSheet(
+          builder: (_) => PlayerEpisodesSheet(
             english: english,
             episodes: _episodes,
             currentVideoId: widget.videoId,
-            onPick: (episode) => unawaited(_switchEpisode(episode)),
+            fallbackArtwork: widget.item.background ?? widget.item.poster,
+            onPick: (episode) => unawaited(
+              _app.webSettings['autoSelectEpisodeSource'] == true
+                  ? _switchEpisode(episode)
+                  : _startEpisodeSources(episode),
+            ),
           ),
         );
       });
@@ -1356,7 +1419,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   Future<void> _switchEpisode(Map<String, dynamic> episode) async {
     final episodeId = (episode['id'] ?? widget.item.id).toString();
-    if (episodeId == widget.videoId) return;
+    if (episodeId == widget.videoId || _episodeTransitionBusy) return;
+    _episodeTransitionBusy = true;
     try {
       final playable = await _fetchPlayableStreams(episodeId);
       if (!mounted) return;
@@ -1389,6 +1453,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           ),
         );
       }
+    } finally {
+      _episodeTransitionBusy = false;
     }
   }
 
@@ -2165,9 +2231,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                           side: AxisSide.left,
                           topInset: railTopInset,
                           children: [
-                            // Task 139 (user mandate): the vertical rail is
-                            // LOCK + SPEED only — the video-fit and episodes
-                            // entries moved into the settings sheet.
+                            // Keep episodes directly below the lock.
                             PlayerRailButton(
                               icon: LucideIcons.lockKeyhole,
                               semanticLabel: NovaStrings.lookup(
@@ -2176,6 +2240,15 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                               ),
                               onTap: _lock,
                             ),
+                            if (widget.item.type == 'series')
+                              PlayerRailButton(
+                                icon: LucideIcons.listVideo,
+                                semanticLabel: NovaStrings.lookup(
+                                  english,
+                                  'message43',
+                                ),
+                                onTap: _openEpisodesSheet,
+                              ),
                             PlayerSpeedPill(
                               label: _speedLabel,
                               semanticLabel: NovaStrings.lookup(
