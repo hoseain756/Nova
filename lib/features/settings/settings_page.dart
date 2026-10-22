@@ -10,6 +10,7 @@ import 'settings_preferences_page.dart';
 import 'settings_data_page.dart';
 import 'settings_display_page.dart';
 import 'settings_personalization_page.dart';
+import 'catalog_settings_page.dart';
 import 'widgets/settings_tiles.dart';
 
 class _Destination {
@@ -81,6 +82,13 @@ class _SettingsPageState extends State<SettingsPage> {
             app.tr('message458'),
             app.tr('settingsSearchDisplayKeywords'),
             const SettingsDisplayPage()),
+        _Destination(
+            'catalogs',
+            LucideIcons.listFilter,
+            app.tr('catalogManagement'),
+            app.tr('catalogManagementDescription'),
+            app.tr('catalogManagementKeywords'),
+            const CatalogSettingsPage()),
         _Destination(
             'language',
             LucideIcons.languages,

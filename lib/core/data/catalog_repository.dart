@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../l10n/nova_strings.dart';
 import '../api/noor_api.dart';
 import 'anime_subtitle_ids.dart';
-import 'content_classifier.dart';
 import '../models/addon.dart';
 import '../models/anime_airing.dart';
 import '../models/featured_artwork.dart';
@@ -26,11 +25,18 @@ class AddonCatalogRow {
   String get subtitle => addon.name;
 }
 
+typedef SeasonEpisodeArtwork = ({Map<int, String> stills, String? poster});
+
 class CatalogRepository {
   CatalogRepository(this.api);
 
   final NoorApi api;
   static const _cinemeta = 'https://v3-cinemeta.strem.io';
+
+  static bool isKidsCatalog(AddonCatalogRow row) => RegExp(
+        r'kids?|children|family|طفل|أطفال|اطفال|عائل',
+        caseSensitive: false,
+      ).hasMatch('${row.catalog.id} ${row.title}');
   static const _animeQuery = r'''
 query ($page: Int, $perPage: Int, $sort: [MediaSort], $isAdult: Boolean) {
   Page(page: $page, perPage: $perPage) {
@@ -77,6 +83,8 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   final Map<String, FeaturedArtwork> _featuredArtworkCache = {};
   final Map<String, Map<String, dynamic>> _detailEnrichmentCache = {};
   final Map<String, Future<FeaturedArtwork?>> _featuredArtworkRequests = {};
+  final Map<String, String> _tmdbSeriesIds = {};
+  final Map<String, Future<SeasonEpisodeArtwork>> _seasonArtworkRequests = {};
   final Map<String, Future<Map<String, dynamic>?>> _animeSubtitleMappings = {};
 
   Future<List<MediaItem>> catalog(
@@ -259,6 +267,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
         language: language,
       );
       _detailEnrichmentCache['${item.type}:${item.id}:$language'] = details;
+      if (kind == 'tv') _tmdbSeriesIds[item.id] = tmdbId.toString();
       final images = details['images'] is Map
           ? Map<String, dynamic>.from(details['images'] as Map)
           : const <String, dynamic>{};
@@ -361,7 +370,103 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     if (item.originCountry == null) {
       json['countries'] = details['production_countries'];
     }
+    if (item.type == 'series' &&
+        item.videos.isNotEmpty &&
+        details['id'] != null) {
+      final seasons = item.videos
+          .map((video) => (video['season'] as num?)?.toInt())
+          .whereType<int>()
+          .where((season) => season > 0)
+          .toSet()
+          .toList()
+        ..sort();
+      final artwork = <int, Map<int, String>>{};
+      final seasonPosters = <int, String>{};
+      // Bounded requests keep long-running shows responsive and give every
+      // season a chance to supply its own images.
+      for (var start = 0; start < seasons.length; start += 4) {
+        await Future.wait(seasons.skip(start).take(4).map((season) async {
+          final art =
+              await seasonEpisodeArtwork(item.id, season, language: language);
+          artwork[season] = art.stills;
+          if (art.poster != null) seasonPosters[season] = art.poster!;
+        }));
+      }
+      json['videos'] =
+          applySeasonEpisodeArtwork(item.videos, artwork, seasonPosters);
+    }
     return MediaItem.fromJson(json);
+  }
+
+  /// Fetch one season independently of full detail enrichment so the player
+  /// can show later-season stills as soon as its episode sheet is opened.
+  Future<SeasonEpisodeArtwork> seasonEpisodeArtwork(String itemId, int season,
+      {String language = 'en-US'}) async {
+    if (season <= 0 || !RegExp(r'^tt\d+$').hasMatch(itemId)) {
+      return (stills: const <int, String>{}, poster: null);
+    }
+    final key = '$itemId:$season:$language';
+    return _seasonArtworkRequests.putIfAbsent(key, () async {
+      try {
+        var tmdbId = _tmdbSeriesIds[itemId];
+        if (tmdbId == null) {
+          final lookup = await api.tmdbGet(
+            '/find/${Uri.encodeComponent(itemId)}',
+            query: const {'external_source': 'imdb_id'},
+            language: language,
+          );
+          final match = (lookup['tv_results'] as List? ?? const [])
+              .whereType<Map>()
+              .firstOrNull;
+          tmdbId = match?['id']?.toString();
+          if (tmdbId == null) {
+            return (stills: const <int, String>{}, poster: null);
+          }
+          _tmdbSeriesIds[itemId] = tmdbId;
+        }
+        final data =
+            await api.tmdbGet('/tv/$tmdbId/season/$season', language: language);
+        final images = <int, String>{};
+        for (final episode
+            in (data['episodes'] as List? ?? const []).whereType<Map>()) {
+          final number = (episode['episode_number'] as num?)?.toInt();
+          final path = episode['still_path']?.toString();
+          if (number != null && path != null && path.isNotEmpty) {
+            images[number] = _tmdbImage(path, 'w500')!;
+          }
+        }
+        final posterPath = data['poster_path']?.toString();
+        return (
+          stills: images,
+          poster: posterPath == null || posterPath.isEmpty
+              ? null
+              : _tmdbImage(posterPath, 'w500'),
+        );
+      } catch (_) {
+        _seasonArtworkRequests.remove(key);
+        return (stills: const <int, String>{}, poster: null);
+      }
+    });
+  }
+
+  /// Prefer the actual season's TMDB still for later seasons. The episode id
+  /// and playback metadata remain exactly as supplied by the add-on.
+  static List<Map<String, dynamic>> applySeasonEpisodeArtwork(
+      List<Map<String, dynamic>> videos,
+      Map<int, Map<int, String>> stills,
+      Map<int, String> posters) {
+    return videos.map((video) {
+      final season = (video['season'] as num?)?.toInt();
+      final episode = (video['episode'] as num?)?.toInt();
+      final still = stills[season]?[episode];
+      final current = (video['thumbnail'] ?? video['thumb'])?.toString();
+      final replacement = still ?? posters[season];
+      if (replacement == null ||
+          (season == 1 && current != null && current.isNotEmpty)) {
+        return video;
+      }
+      return {...video, 'thumbnail': replacement};
+    }).toList(growable: false);
   }
 
   static String? _localizedLogoPath(
@@ -679,12 +784,10 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     if (results.every((result) => result.$2 != null)) {
       throw const CatalogLoadException('Could not load Kids catalogs.');
     }
-    final safeItems = _merge(results.map((result) => result.$1).toList())
-        .where(ContentClassifier.isKidSuitable)
-        .toList();
-    assert(safeItems.every(ContentClassifier.isKidSuitable));
-    assert(safeItems.every((item) => !ContentClassifier.isAnime(item)));
-    return safeItems;
+    // Keep incomplete catalog entries for the Kids page to resolve through
+    // metadata before the final suitability check. Filtering here can empty
+    // the page when the catalog omits genres or age ratings.
+    return _merge(results.map((result) => result.$1).toList());
   }
 
   Future<List<MediaItem>> addonCatalogs(
@@ -706,32 +809,44 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   /// Pure selection of add-on catalogs that deserve their own home row —
   /// ported from the Harbor web home `addonRows` memo: enabled add-ons only,
   /// movie/series catalogs only, catalogs that REQUIRE a search term are
-  /// skipped, one row per normalized catalog name (first add-on wins), and
-  /// `type:id` pairs already rendered as anchor rails are skipped.
+  /// skipped, and `type:id` pairs already rendered as anchor rails are skipped. Catalogs
+  /// from different add-ons remain distinct even when their names match.
   static List<AddonCatalogRow> selectAddonCatalogRows(
     List<Addon> addons, {
     Set<String> anchorKeys = const {},
-    int limit = 8,
+    int? limit,
+    List<String> order = const [],
+    Set<String> hidden = const {},
   }) {
-    final seenNames = <String>{};
     final rows = <AddonCatalogRow>[];
     for (final addon in addons) {
-      if (rows.length >= limit) break;
       if (!addon.enabled) continue;
       for (final catalog in addon.catalogs) {
-        if (rows.length >= limit) break;
         if (catalog.type != 'movie' && catalog.type != 'series') continue;
         if (anchorKeys.contains('${catalog.type}:${catalog.id}')) continue;
         final requiresSearch = catalog.extra.any(
           (entry) => entry['name'] == 'search' && entry['isRequired'] == true,
         );
         if (requiresSearch) continue;
-        final name = catalog.name.toLowerCase().trim();
-        if (!seenNames.add(name)) continue;
-        rows.add(AddonCatalogRow(addon: addon, catalog: catalog));
+        final row = AddonCatalogRow(addon: addon, catalog: catalog);
+        if (!hidden.contains(row.key)) rows.add(row);
       }
     }
-    return rows;
+    final positions = <String, int>{
+      for (var index = 0; index < order.length; index++) order[index]: index,
+    };
+    final discovery = <String, int>{
+      for (var index = 0; index < rows.length; index++) rows[index].key: index,
+    };
+    rows.sort((a, b) {
+      final first = positions[a.key] ?? order.length;
+      final second = positions[b.key] ?? order.length;
+      final preference = first.compareTo(second);
+      return preference != 0
+          ? preference
+          : discovery[a.key]!.compareTo(discovery[b.key]!);
+    });
+    return limit == null ? rows : rows.take(limit).toList(growable: false);
   }
 
   Future<List<Map<String, dynamic>>> streams(

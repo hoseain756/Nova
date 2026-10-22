@@ -46,9 +46,6 @@ class SettingsDisplayPage extends StatelessWidget {
                                 'classic': app.tr('message424')
                               }),
                           _SettingToggle(
-                              settingKey: 'homeShowAllAddonRows',
-                              title: app.tr('message425')),
-                          _SettingToggle(
                               settingKey: 'hideWatchedInCatalogs',
                               title: app.tr('message426')),
                           _HideContentToggle(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/image_decode.dart';
 
 /// Shared editorial hierarchy for NOVA's browse destinations. The generous
@@ -112,7 +113,8 @@ class NovaBrowseSkeleton extends StatelessWidget {
   }
 }
 
-/// An editorial lead title, sized by its content even with enlarged text.
+/// A landscape feature card that keeps the same 16:9 artwork frame on phones
+/// and tablets. Text stays outside the image semantics; the whole card opens.
 class NovaBrowseFeature extends StatelessWidget {
   const NovaBrowseFeature(
       {super.key,
@@ -131,73 +133,100 @@ class NovaBrowseFeature extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
       child: LayoutBuilder(builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 640;
         final hasLandscapeArtwork = item.background?.trim().isNotEmpty == true;
-        final artworkUrl =
-            hasLandscapeArtwork ? item.background! : (item.poster ?? '');
-        final artwork = ClipRRect(
+        final artworkUrl = hasLandscapeArtwork ? item.background : item.poster;
+        final width = constraints.maxWidth;
+        final compact = width < 600;
+        final showLabel = width * 9 / 16 >= 180 ||
+            MediaQuery.textScalerOf(context).scale(16) <= 22;
+        return AspectRatio(
+          key: const ValueKey('nova-browse-hero'),
+          aspectRatio: 16 / 9,
+          child: Material(
+            color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(24),
-            child: AspectRatio(
-                aspectRatio: wide ? 1.45 : 16 / 9,
-                child: Transform.scale(
-                  // Poster art is portrait-shaped inside this landscape
-                  // feature. A restrained zoom closes the side gutters while
-                  // keeping the full poster recognizable instead of cropping
-                  // it aggressively to 16:9.
-                  scale: hasLandscapeArtwork ? 1.03 : 1.1,
-                  child: SizedBox.expand(
-                    child: NovaNetworkImage(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onOpen,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (artworkUrl != null && artworkUrl.trim().isNotEmpty)
+                    NovaNetworkImage(
                       artworkUrl,
                       width: double.infinity,
                       height: double.infinity,
                       fit: hasLandscapeArtwork ? BoxFit.cover : BoxFit.contain,
-                      cacheWidth: imageCacheWidth(
-                          context,
-                          wide
-                              ? constraints.maxWidth * .5
-                              : constraints.maxWidth),
-                      errorBuilder: (_, __, ___) => ColoredBox(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        child: Icon(LucideIcons.film,
-                            size: 64, color: theme.colorScheme.secondary),
+                      cacheWidth: imageCacheWidth(context, width),
+                      excludeFromSemantics: true,
+                    )
+                  else
+                    Center(
+                      child: Icon(LucideIcons.film,
+                          size: 64, color: theme.colorScheme.secondary),
+                    ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          NovaColors.ink.withValues(alpha: .72),
+                          NovaColors.ink.withValues(alpha: .08),
+                          NovaColors.ink.withValues(alpha: .92),
+                        ],
+                        stops: const [0, .35, 1],
                       ),
                     ),
                   ),
-                )));
-        final copy = Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(
-              wide ? 32 : 0, wide ? 8 : 20, 0, 8),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label,
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: theme.colorScheme.secondary)),
-            const SizedBox(height: 8),
-            Text(item.name,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.w800)),
-            if (item.description?.isNotEmpty == true) ...[
-              const SizedBox(height: 12),
-              Text(item.description!,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ],
-            const SizedBox(height: 16),
-            FilledButton.icon(
-                onPressed: onOpen,
-                icon: const Icon(LucideIcons.play, size: 18),
-                label: Text(actionLabel)),
-          ]),
+                  Padding(
+                    padding: EdgeInsets.all(compact ? 16 : 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (showLabel)
+                          Text(label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: NovaColors.white,
+                                fontWeight: FontWeight.w700,
+                              )),
+                        const Spacer(),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Text(item.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: (compact
+                                          ? theme.textTheme.titleLarge
+                                          : theme.textTheme.headlineLarge)
+                                      ?.copyWith(
+                                          color: NovaColors.white,
+                                          fontWeight: FontWeight.w800)),
+                            ),
+                            const SizedBox(width: 12),
+                            Tooltip(
+                              message: actionLabel,
+                              child: CircleAvatar(
+                                radius: 24,
+                                backgroundColor: theme.colorScheme.primary,
+                                child: Icon(LucideIcons.arrowUpRight,
+                                    color: theme.colorScheme.onPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
-        return wide
-            ? Row(children: [Expanded(child: artwork), Expanded(child: copy)])
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [artwork, copy]);
       }),
     );
   }

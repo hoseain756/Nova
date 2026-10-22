@@ -1,0 +1,28 @@
+# 54A. AGENT ROSTER & BUDGET (V2.2 addition — paste after Section 54; if it conflicts with Section 54/55, this section wins)
+
+Plan: the user has a ChatGPT PLUS plan with limited usage. Agents are used sparingly.
+
+Rules
+- Agents are defined in .codex/agents/. Spawn an agent ONLY when this section says so, and only by explicit request from the primary agent.
+- HARD LIMIT: never more than 3 agents running at once. Default is ONE agent at a time; run 3 in parallel ONLY for the Station 04/05/06 reference trio. Everything else runs one at a time. Agents must not spawn agents.
+- ALL agents are read-only. They return findings as their final message. The PRIMARY agent writes any resulting files (this replaces the earlier idea that research agents write into research/<agent-name>/).
+- Agents never touch the device (no adb), never run builds, never commit.
+- Every agent task must name: scope, exact paths it may read, exact questions, and the required return format.
+- Never delegate implementation. Stations 10–16 are done by the primary agent alone, with no agents.
+- Do not re-spawn an agent for something it already answered; ask the user instead of burning quota.
+
+Roster and allowed uses
+| Agent | Allowed when | Max invocations |
+|---|---|---|
+| reference_researcher | Stations 04, 05, 06 (up to 3 in parallel), then 06A and 06B (one each) | 5 total |
+| nova_player_auditor | Station 02 | 1 |
+| perf_log_analyst | after Station 03, after Station 10, and at Station 19 (saved logs only) | 3 total |
+| ios_static_reviewer | Station 18, and once per Codemagic log the user pastes | 1 + per log |
+| gate_reviewer | once before each Gate A, B, C, D, E | 5 total |
+
+If any limit would be exceeded, stop and ask the user. Report the number of agent invocations used in FINAL_REPORT.md.
+
+Model/effort guidance (the user switches the main session model; agents inherit it unless pinned)
+- Stations 01–07: main session on GPT-6 Luna; agents inherit Luna.
+- Stations 08–10, 17, 19, 20 and every Gate: main session on GPT-6.1 Sol. Reasoning "high" only for Stations 08 and 09; "medium" otherwise.
+- Stations 11–16: Sol medium, or Luna for simple UI work when the user chooses.

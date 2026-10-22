@@ -4,6 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/data/content_classifier.dart';
+import '../../core/data/catalog_repository.dart';
 import '../../core/state/app_state.dart';
 import '../../shared/widgets/poster_card.dart';
 import '../media/media_detail_page.dart';
@@ -36,25 +38,49 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
   void refreshCachedCatalogs() => _retry();
 
   late Future<List<MediaItem>> _content;
+  String? _catalogSignature;
   String _filter = 'all';
   @override
-  void initState() {
-    super.initState();
-    _content = _loadContent();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = context.watch<AppState>();
+    final signature = app.addons
+        .map((addon) =>
+            '${addon.id}:${addon.enabled}:${addon.catalogs.map((catalog) => '${catalog.type}:${catalog.id}:${catalog.name}').join(',')}')
+        .join('|');
+    if (_catalogSignature != signature) {
+      _catalogSignature = signature;
+      _content = _loadContent();
+    }
   }
 
   Future<List<MediaItem>> _loadContent() async {
     final app = context.read<AppState>();
-    final groups = await Future.wait(
-        [app.catalogs.kids(), app.catalogs.kids(series: true)]);
+    final familyRows = CatalogRepository.selectAddonCatalogRows(app.addons)
+        .where((row) => RegExp(
+                r'anime|animation|kids|family|children|طفل|أطفال|عائل',
+                caseSensitive: false)
+            .hasMatch('${row.catalog.id} ${row.title}'))
+        .where((row) => !RegExp(r'anime|أنمي', caseSensitive: false)
+            .hasMatch('${row.catalog.id} ${row.title}'));
+    final groups = await Future.wait([
+      app.catalogs.kids().catchError((Object _) => <MediaItem>[]),
+      app.catalogs.kids(series: true).catchError((Object _) => <MediaItem>[]),
+      for (final row in familyRows)
+        app.catalogs
+            .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
+            .catchError((Object _) => <MediaItem>[]),
+    ]);
     final seen = <String>{};
     final candidates = groups
         .expand((group) => group)
         .where((item) => seen.add(item.id))
         .toList();
-    final safe = candidates.where(novaIsChildRated).toList();
+    final safe = candidates.where(ContentClassifier.isKidSuitable).toList();
     final unknown = candidates
-        .where((item) => item.certification == null)
+        .where((item) =>
+            item.certification == null &&
+            !ContentClassifier.isKidSuitable(item))
         .take(36)
         .toList();
     // Bounded concurrency; an incomplete catalog can supply its certificate
@@ -67,9 +93,10 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
           return null;
         }
       }));
-      safe.addAll(batch.whereType<MediaItem>().where(novaIsChildRated));
+      safe.addAll(
+          batch.whereType<MediaItem>().where(ContentClassifier.isKidSuitable));
     }
-    return safe;
+    return {for (final item in safe) item.id: item}.values.toList();
   }
 
   void _retry() => setState(() => _content = _loadContent());
@@ -93,6 +120,10 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
           final items = all
               .where((item) => _filter == 'all' || item.type == _filter)
               .toList();
+          final featuredItem = items
+                  .where((item) => item.background?.trim().isNotEmpty == true)
+                  .firstOrNull ??
+              items.firstOrNull;
           return CustomScrollView(slivers: [
             SliverToBoxAdapter(
                 child: ColoredBox(
@@ -150,6 +181,22 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
                             onSelected: (_) =>
                                 setState(() => _filter = filter.$1))
                     ]))),
+            if (featuredItem != null)
+              SliverToBoxAdapter(
+                child: NovaBrowseFeature(
+                  item: featuredItem,
+                  label: app.tr('message596'),
+                  actionLabel: app.tr('message131'),
+                  onOpen: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => MediaDetailPage(
+                        item: featuredItem,
+                        kidsMode: true,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (snapshot.connectionState == ConnectionState.waiting &&
                 all.isEmpty)
               const SliverToBoxAdapter(

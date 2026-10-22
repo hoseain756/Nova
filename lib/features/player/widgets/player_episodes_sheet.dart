@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/data/catalog_repository.dart';
+import '../../../core/state/app_state.dart';
 import '../../../l10n/nova_strings.dart';
 import '../../../shared/widgets/nova_network_image.dart';
 import 'player_sheets.dart' show SheetScaffold;
 
 /// Season and episode picker shared by the legacy and Core player routes.
-/// The episode rows use only the metadata already supplied by the media item.
+/// Episode rows keep the supplied playback metadata and can enrich artwork.
 class PlayerEpisodesSheet extends StatefulWidget {
   const PlayerEpisodesSheet({
     super.key,
@@ -15,6 +20,7 @@ class PlayerEpisodesSheet extends StatefulWidget {
     required this.currentVideoId,
     required this.onPick,
     this.fallbackArtwork,
+    this.titleId,
     this.loading = false,
   });
 
@@ -23,6 +29,7 @@ class PlayerEpisodesSheet extends StatefulWidget {
   final String currentVideoId;
   final ValueChanged<Map<String, dynamic>> onPick;
   final String? fallbackArtwork;
+  final String? titleId;
   final bool loading;
 
   @override
@@ -31,6 +38,28 @@ class PlayerEpisodesSheet extends StatefulWidget {
 
 class _PlayerEpisodesSheetState extends State<PlayerEpisodesSheet> {
   int? _selectedSeason;
+  final Map<int, SeasonEpisodeArtwork> _seasonArtwork = {};
+  final Set<int> _requestedSeasons = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _activeSeason != null) {
+        unawaited(_loadSeasonArtwork(_activeSeason!));
+      }
+    });
+  }
+
+  Future<void> _loadSeasonArtwork(int season) async {
+    final titleId = widget.titleId;
+    if (titleId == null || !_requestedSeasons.add(season)) return;
+    final app = context.read<AppState>();
+    if (app.webSettings['tmdbEnabled'] == false) return;
+    final art = await app.catalogs
+        .seasonEpisodeArtwork(titleId, season, language: app.contentTmdbLocale);
+    if (mounted) setState(() => _seasonArtwork[season] = art);
+  }
 
   int _seasonOf(Map<String, dynamic> episode) =>
       (episode['season'] as num?)?.toInt() ?? 0;
@@ -87,7 +116,10 @@ class _PlayerEpisodesSheetState extends State<PlayerEpisodesSheet> {
                           widget.english, 'message45', {'p0': value})),
                     ),
                 ],
-                onChanged: (value) => setState(() => _selectedSeason = value),
+                onChanged: (value) {
+                  setState(() => _selectedSeason = value);
+                  if (value != null) unawaited(_loadSeasonArtwork(value));
+                },
               ),
             ),
           const SizedBox(height: 8),
@@ -112,6 +144,9 @@ class _PlayerEpisodesSheetState extends State<PlayerEpisodesSheet> {
                           episode: visible[index],
                           currentVideoId: widget.currentVideoId,
                           fallbackArtwork: widget.fallbackArtwork,
+                          seasonStill: _seasonArtwork[season]
+                              ?.stills[_episodeOf(visible[index])],
+                          seasonPoster: _seasonArtwork[season]?.poster,
                           onPick: widget.onPick,
                         ),
                       ),
@@ -128,6 +163,8 @@ class _EpisodeRow extends StatelessWidget {
     required this.episode,
     required this.currentVideoId,
     required this.fallbackArtwork,
+    required this.seasonStill,
+    required this.seasonPoster,
     required this.onPick,
   });
 
@@ -135,6 +172,8 @@ class _EpisodeRow extends StatelessWidget {
   final Map<String, dynamic> episode;
   final String currentVideoId;
   final String? fallbackArtwork;
+  final String? seasonStill;
+  final String? seasonPoster;
   final ValueChanged<Map<String, dynamic>> onPick;
 
   @override
@@ -149,9 +188,13 @@ class _EpisodeRow extends StatelessWidget {
     final rating = ratingRaw is num
         ? ratingRaw.toDouble()
         : double.tryParse(ratingRaw?.toString() ?? '');
-    final artwork =
-        (episode['thumbnail'] ?? episode['thumb'] ?? fallbackArtwork ?? '')
-            .toString();
+    final existing =
+        (episode['thumbnail'] ?? episode['thumb'] ?? '').toString();
+    final artwork = ((season > 1 || existing.isEmpty)
+            ? (seasonStill ?? seasonPoster)
+            : null) ??
+        (existing.isNotEmpty ? existing : fallbackArtwork) ??
+        '';
     final current = (episode['id'] ?? '').toString() == currentVideoId;
     final imageWidth = MediaQuery.sizeOf(context).width < 420 ? 112.0 : 140.0;
 

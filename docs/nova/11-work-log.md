@@ -195,3 +195,23 @@ Validation: flutter test --no-pub test/app_update_service_test.dart passed 3 tes
 - Focused updater/version tests: **7 passed**. `flutter analyze --no-pub`: **No issues found** (171.1s).
 - Android Release APK built in 259.5s. Gradle metadata reports applicationId `app.nova.mobile`, versionName `1.0.3`, and versionCode `66`. APK: **142,520,139 bytes**; SHA-256 `6610E286EA182BBBFDBE140787E119E3453282D946F259BC9E83EE9D192F6757`.
 - The updated manifest is included in the main-branch publication and tag `v1.0.3` is pushed for update discovery. The user will upload the matching-signed `app-release.apk` to that GitHub Release; this task does not upload APK assets. Physical-phone check remains pending. No emulator was launched.
+
+## Milestone 17 — About NOVA visual refinement (20 October 2026)
+
+- Replaced the tall launcher image/title/version stack with a compact horizontal identity surface: the supplied NOVA red SVG symbol, NOVA name, and installed version. The surface uses the current theme and directional spacing; the image is excluded from semantics because the visible app name already provides the label.
+- Kept the current update check/download behavior, localized app description, license viewer, Harbor attribution, TMDB credit, and disclaimer unchanged.
+- Updated the settings specification and `AGENTS.md` project map to identify the About implementation and shared brand widget. No dependencies or settings keys changed.
+- `dart format lib/features/settings/settings_data_page.dart` made no further changes. Scoped Flutter analysis found no issues (273.9s), and `flutter test --no-pub test/nova_settings_test.dart` passed **7 tests**, covering live RTL/LTR switching and 200% text at 360 px and 1200 px. The About page itself was not visually inspected on a physical device; no emulator was launched.
+
+## Milestone 18 — Brand asset inventory
+
+- Audited all **87** files under `assets/brand/`: 10 SVG marks/lockups/wordmarks, 36 Android resources (33 PNGs, two adaptive-icon XML definitions, one palette XML), and 41 iOS PNG variants.
+- Added a complete grouped inventory and usage guidance to `AGENTS.md`, including every SVG name, Android density/resource filename, iOS size family, and the two iOS 18 variants.
+- No app code, dependencies, or platform resources were modified.
+
+## Milestone 19 — Prepare release 1.0.4+67 (22 October 2026)
+
+- Synchronized `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` at version `1.0.4+67`; retained `min_build: 60` and the existing GitHub latest-release APK URL.
+- Updated updater regression coverage so an installed build 66 detects build 67 and build 67 is current.
+- Prepared bilingual release notes in `docs/releases/v1.0.4.md` for the player, catalog and browsing, Android downloads, linked progress, episode artwork, and settings/localization changes.
+- Publication is pending. No APK was built or attached, and no tests, analyzer, or device checks were run for this release preparation.

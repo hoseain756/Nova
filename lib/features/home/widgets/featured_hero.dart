@@ -13,6 +13,8 @@ import '../../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../shared/widgets/image_decode.dart';
 
+const _heroSlideDuration = Duration(seconds: 6);
+
 /// The featured hero carousel (home's top slot): full-bleed autoplaying
 /// artwork with TMDB-enriched logo / portrait / landscape picks, the bottom
 /// scrim ladder, metadata row, "View details" pill and page dots — plus the
@@ -158,7 +160,7 @@ class _FeaturedCardState extends State<FeaturedHero>
         widget.items.length < 2) {
       return;
     }
-    _autoplayTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+    _autoplayTimer = Timer.periodic(_heroSlideDuration, (_) {
       if (!mounted || _touching) return;
       _setActiveSlide((_activeIndex + 1) % widget.items.length);
     });
@@ -301,23 +303,38 @@ class _FeaturedArtwork extends StatelessWidget {
     return SizedBox.expand(
       child: url == null
           ? ColoredBox(color: scheme.surfaceContainerHighest)
-          : NovaNetworkImage(
-              url,
-              width: double.infinity,
-              height: double.infinity,
-              fit: BoxFit.cover,
-              cacheWidth: imageCacheWidth(context, size.width),
-              alignment: Alignment.topCenter,
-              excludeFromSemantics: true,
-              frameBuilder: (context, child, frame, sync) => AnimatedOpacity(
-                opacity: frame == null ? 0 : 1,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 320),
-                child: child,
+          : ClipRect(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(
+                  begin: 1,
+                  end: MediaQuery.disableAnimationsOf(context) ? 1 : 1.05,
+                ),
+                duration: _heroSlideDuration,
+                curve: Curves.linear,
+                builder: (context, scale, child) => Transform.scale(
+                  scale: scale,
+                  child: child,
+                ),
+                child: NovaNetworkImage(
+                  url,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.cover,
+                  cacheWidth: imageCacheWidth(context, size.width),
+                  alignment: Alignment.topCenter,
+                  excludeFromSemantics: true,
+                  frameBuilder: (context, child, frame, sync) =>
+                      AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : const Duration(milliseconds: 320),
+                    child: child,
+                  ),
+                  errorBuilder: (_, __, ___) =>
+                      ColoredBox(color: scheme.surfaceContainerHighest),
+                ),
               ),
-              errorBuilder: (_, __, ___) =>
-                  ColoredBox(color: scheme.surfaceContainerHighest),
             ),
     );
   }
@@ -533,9 +550,6 @@ class FeaturedSkeleton extends StatelessWidget {
 double featuredHeroHeight(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
   final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-  final landscape = size.width > size.height;
-  final base = landscape
-      ? (size.height * .95).clamp(420.0, 620.0)
-      : (size.height * .78).clamp(540.0, 760.0);
+  final base = size.height * .68;
   return base + (scale - 1).clamp(0.0, 2.0) * 160;
 }

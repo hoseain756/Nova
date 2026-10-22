@@ -962,5 +962,11 @@
   "message919": "تنزيل الحلقة",
   "message920": "تحديد هذه الحلقة وما قبلها كمشاهدة",
   "playerProgressSaveFailed": "تعذر حفظ تقدّم المشاهدة.",
-  "playerNativeRetirementFailed": "تعذّر إغلاق المشغّل السابق. أغلق NOVA وافتحه مجددًا قبل تشغيل هذه الحلقة."
+  "playerNativeRetirementFailed": "تعذّر إغلاق المشغّل السابق. أغلق NOVA وافتحه مجددًا قبل تشغيل هذه الحلقة.",
+  "catalogManagement": "الكتالوجات",
+  "catalogManagementDescription": "اسحب الكتالوجات لترتيبها، أو أخفِ الصفوف التي لا تريد عرضها.",
+  "catalogManagementKeywords": "كتالوج ترتيب إخفاء إضافات أنمي أطفال صفوف",
+  "hideKidsCatalogsHome": "إخفاء كتالوجات الأطفال من الرئيسية",
+  "hideKidsCatalogsHomeDescription": "تبقى كتالوجات الأطفال متاحة في تبويب الأطفال.",
+  "noAddonCatalogs": "ثبّت إضافة كتالوج للتحكم في صفوفها."
 }

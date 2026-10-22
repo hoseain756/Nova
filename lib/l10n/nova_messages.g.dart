@@ -963,6 +963,12 @@ const Map<String, String> novaEnglish = {
   "message920": "Mark through this episode as watched",
   "playerProgressSaveFailed": "Could not save playback progress.",
   "playerNativeRetirementFailed": "The previous player could not close. Close NOVA and open it again before playing this episode.",
+  "catalogManagement": "Catalogs",
+  "catalogManagementDescription": "Drag catalogs to reorder them, or turn off rows you do not want to see.",
+  "catalogManagementKeywords": "catalog order reorder hide addon anime kids rows",
+  "hideKidsCatalogsHome": "Hide Kids catalogs on Home",
+  "hideKidsCatalogsHomeDescription": "Kids catalogs stay available in the Kids tab.",
+  "noAddonCatalogs": "Install a catalog add-on to manage its rows.",
 };
 const Map<String, String> novaArabic = {
   "appName": "NOVA",
@@ -1928,4 +1934,10 @@ const Map<String, String> novaArabic = {
   "message920": "تحديد هذه الحلقة وما قبلها كمشاهدة",
   "playerProgressSaveFailed": "تعذر حفظ تقدّم المشاهدة.",
   "playerNativeRetirementFailed": "تعذّر إغلاق المشغّل السابق. أغلق NOVA وافتحه مجددًا قبل تشغيل هذه الحلقة.",
+  "catalogManagement": "الكتالوجات",
+  "catalogManagementDescription": "اسحب الكتالوجات لترتيبها، أو أخفِ الصفوف التي لا تريد عرضها.",
+  "catalogManagementKeywords": "كتالوج ترتيب إخفاء إضافات أنمي أطفال صفوف",
+  "hideKidsCatalogsHome": "إخفاء كتالوجات الأطفال من الرئيسية",
+  "hideKidsCatalogsHomeDescription": "تبقى كتالوجات الأطفال متاحة في تبويب الأطفال.",
+  "noAddonCatalogs": "ثبّت إضافة كتالوج للتحكم في صفوفها.",
 };

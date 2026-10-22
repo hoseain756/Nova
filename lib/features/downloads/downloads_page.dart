@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/downloads/download_manager.dart';
@@ -41,10 +42,27 @@ class _AccessibleDownloadAction extends StatelessWidget {
 class _DownloadsPageState extends State<DownloadsPage> {
   late final DownloadManager _manager =
       widget.manager ?? DownloadManager.instance;
+  Timer? _refreshTimer;
   @override
   void initState() {
     super.initState();
-    _manager.initialize();
+    unawaited(_refresh());
+    _refreshTimer = Timer.periodic(
+        const Duration(seconds: 2), (_) => unawaited(_refresh()));
+  }
+
+  Future<void> _refresh() async {
+    try {
+      await _manager.refreshSystemDownloads();
+    } catch (_) {
+      // The view remains usable and the next poll can recover.
+    }
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   String _size(int bytes) => bytes < 1

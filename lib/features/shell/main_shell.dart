@@ -9,6 +9,7 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/system_bars.dart';
 import '../../shared/widgets/glass_navigation.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
+import '../../shared/widgets/nova_brand.dart';
 import '../anime/anime_page.dart';
 import '../calendar/calendar_page.dart';
 import '../catalog/catalog_browser_page.dart';
@@ -341,14 +342,10 @@ class _TabletNavigation extends StatelessWidget {
               child: ListView(children: [
             Padding(
                 padding: const EdgeInsetsDirectional.fromSTEB(16, 24, 16, 24),
-                child: Image.asset(
-                    'assets/brand/android/play_store/no_background_red_512.png',
-                    height: 32,
-                    errorBuilder: (_, __, ___) => Text(expanded ? 'NOVA' : 'N',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: theme.colorScheme.secondary)))),
+                child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: NovaBrand(
+                        symbolOnly: !expanded, width: expanded ? 144 : 40))),
             if (onSearch != null)
               destination(
                   LucideIcons.search, app.tr('message679'), false, onSearch!),

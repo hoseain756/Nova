@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,13 +18,17 @@ class NovaDownload {
       this.status = 'queued',
       this.received = 0,
       this.total = 0,
-      this.error});
+      this.error,
+      this.systemId});
   final String id, title, path;
   String status;
   int received, total;
 
   /// Stable diagnostic code; never contains a provider URL or credential.
   String? error;
+
+  /// Android DownloadManager id. Null for legacy and non-Android jobs.
+  int? systemId;
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -31,7 +36,8 @@ class NovaDownload {
         'status': status,
         'received': received,
         'total': total,
-        if (error != null) 'error': error
+        if (error != null) 'error': error,
+        if (systemId != null) 'systemId': systemId,
       };
   factory NovaDownload.fromJson(Map<String, dynamic> json) => NovaDownload(
       id: json['id'] as String,
@@ -40,7 +46,8 @@ class NovaDownload {
       status: json['status'] as String? ?? 'failed',
       received: (json['received'] as num?)?.toInt() ?? 0,
       total: (json['total'] as num?)?.toInt() ?? 0,
-      error: json['error'] as String?);
+      error: json['error'] as String?,
+      systemId: (json['systemId'] as num?)?.toInt());
 }
 
 /// Standalone video downloads. Sources stay in secure storage; metadata is local.
@@ -50,7 +57,11 @@ class DownloadManager extends ChangeNotifier {
   DownloadManager._()
       : this._withDependencies(
           downloadDirectory: () async {
-            final root = await getApplicationDocumentsDirectory();
+            final root = Platform.isAndroid
+                ? await getExternalStorageDirectory() ??
+                    (throw const FileSystemException(
+                        'External storage unavailable'))
+                : await getApplicationDocumentsDirectory();
             return Directory(
                 '${root.path}${Platform.pathSeparator}nova_downloads');
           },
@@ -108,6 +119,7 @@ class DownloadManager extends ChangeNotifier {
   static final instance = DownloadManager._();
   static const _secure = FlutterSecureStorage();
   static const _metadataKey = 'nova.downloads.v1';
+  static const _systemChannel = MethodChannel('nova/downloads');
   static final _idPattern = RegExp(
       r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
       caseSensitive: false);
@@ -125,6 +137,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> _operations = Future<void>.value();
   Future<void> _persistence = Future<void>.value();
   Directory? _root;
+  Directory? _legacyRoot;
   CancelToken? _token;
   String? _activeId;
   Completer<void>? _activeDone;
@@ -167,6 +180,15 @@ class DownloadManager extends ChangeNotifier {
             'Download root cannot be a symbolic link');
       }
       _root = Directory(resolved);
+      if (Platform.isAndroid && identical(this, instance)) {
+        try {
+          final documents = await getApplicationDocumentsDirectory();
+          _legacyRoot = Directory(
+              '${documents.path}${Platform.pathSeparator}nova_downloads');
+        } catch (_) {
+          // New system-managed downloads remain available.
+        }
+      }
       final raw = await _readMetadata();
       final loaded = <NovaDownload>[];
       var repaired = false;
@@ -200,7 +222,10 @@ class DownloadManager extends ChangeNotifier {
               job.error = 'metadata';
               repaired = true;
             }
-            if (job.status == 'queued' || job.status == 'downloading') {
+            if (job.systemId != null) {
+              await _refreshSystemJob(job);
+              repaired = true;
+            } else if (job.status == 'queued' || job.status == 'downloading') {
               job.status = 'failed';
               job.error = 'interrupted';
               repaired = true;
@@ -272,7 +297,37 @@ class DownloadManager extends ChangeNotifier {
           rethrow;
         }
         _notify();
-        _startPump();
+        if (_usesAndroidSystem(job)) {
+          try {
+            job.systemId = await _systemChannel.invokeMethod<int>('enqueue', {
+              'url': url,
+              'title': title,
+              'fileName': job.path.split(Platform.pathSeparator).last,
+              'headers': headers,
+            });
+            if (job.systemId == null) {
+              throw StateError('Download was not queued');
+            }
+            job.status = 'downloading';
+            await _persist();
+            _notify();
+          } catch (_) {
+            if (job.systemId != null) {
+              try {
+                await _systemChannel
+                    .invokeMethod<int>('remove', {'id': job.systemId});
+              } catch (_) {/* Keep the original failure. */}
+              job.systemId = null;
+            }
+            job.status = 'failed';
+            job.error = 'network';
+            await _persistSafely();
+            _notify();
+            rethrow;
+          }
+        } else {
+          _startPump();
+        }
       });
 
   Future<void> retry(NovaDownload job) => _serial(() async {
@@ -283,6 +338,12 @@ class DownloadManager extends ChangeNotifier {
           return;
         }
         await _settleActive(job);
+        if (job.systemId != null) {
+          await _systemChannel
+              .invokeMethod<int>('remove', {'id': job.systemId});
+          job.systemId = null;
+          await _deleteManagedFile(job);
+        }
         if (!await _managedPath(job)) {
           throw const FileSystemException('Unsafe download destination');
         }
@@ -299,7 +360,43 @@ class DownloadManager extends ChangeNotifier {
           rethrow;
         }
         _notify();
-        _startPump();
+        if (_usesAndroidSystem(job)) {
+          try {
+            final raw = await _readSecret('nova.download.${job.id}');
+            if (raw == null) {
+              throw const FormatException('Missing download source');
+            }
+            final source = jsonDecode(raw) as Map;
+            job.systemId = await _systemChannel.invokeMethod<int>('enqueue', {
+              'url': source['url'],
+              'title': job.title,
+              'fileName': job.path.split(Platform.pathSeparator).last,
+              'headers': Map<String, String>.from(
+                  source['headers'] as Map? ?? const {}),
+            });
+            if (job.systemId == null) {
+              throw StateError('Download was not queued');
+            }
+            job.status = 'downloading';
+            await _persist();
+            _notify();
+          } catch (_) {
+            if (job.systemId != null) {
+              try {
+                await _systemChannel
+                    .invokeMethod<int>('remove', {'id': job.systemId});
+              } catch (_) {/* Keep the original failure. */}
+              job.systemId = null;
+            }
+            job.status = 'failed';
+            job.error = 'network';
+            await _persistSafely();
+            _notify();
+            rethrow;
+          }
+        } else {
+          _startPump();
+        }
       });
 
   Future<void> cancel(NovaDownload job) => _serial(() async {
@@ -308,6 +405,11 @@ class DownloadManager extends ChangeNotifier {
         job.error = null;
         _notify();
         await _settleActive(job);
+        if (job.systemId != null) {
+          await _systemChannel
+              .invokeMethod<int>('remove', {'id': job.systemId});
+          job.systemId = null;
+        }
         await _persist();
         _notify();
       });
@@ -317,6 +419,11 @@ class DownloadManager extends ChangeNotifier {
         final previous = job.status;
         if (previous != 'complete') job.status = 'cancelled';
         await _settleActive(job);
+        if (job.systemId != null) {
+          await _systemChannel
+              .invokeMethod<int>('remove', {'id': job.systemId});
+          job.systemId = null;
+        }
         // Validate the actual parent and reject links before every disk mutation.
         if (!await _managedPath(job)) {
           throw const FileSystemException('Unsafe download destination');
@@ -351,6 +458,72 @@ class DownloadManager extends ChangeNotifier {
     final done = _activeDone;
     _token?.cancel();
     if (done != null) await done.future;
+  }
+
+  bool _usesAndroidSystem(NovaDownload job) =>
+      Platform.isAndroid &&
+      identical(this, instance) &&
+      _root != null &&
+      _normalized(job.path)
+          .startsWith(_normalized('${_root!.path}${Platform.pathSeparator}'));
+
+  /// Poll the OS-owned transfer while the Downloads screen is visible.
+  /// Completion still happens and raises a system notification after exit.
+  Future<void> refreshSystemDownloads() => _serial(() async {
+        var changed = false;
+        for (final job in _jobs.where((job) =>
+            job.systemId != null &&
+            (job.status == 'queued' || job.status == 'downloading'))) {
+          changed = await _refreshSystemJob(job) || changed;
+        }
+        if (changed) {
+          await _persistSafely();
+          _notify();
+        }
+      });
+
+  Future<bool> _refreshSystemJob(NovaDownload job) async {
+    final id = job.systemId;
+    if (id == null) return false;
+    final previous = (job.status, job.received, job.total, job.error);
+    try {
+      final row = await _systemChannel
+          .invokeMapMethod<String, dynamic>('query', {'id': id});
+      if (row == null) {
+        if (await _isVideoFile(File(job.path))) {
+          job.status = 'complete';
+          job.error = null;
+        } else {
+          job.status = 'failed';
+          job.error = 'interrupted';
+        }
+      } else {
+        job.received =
+            ((row['received'] as num?)?.toInt() ?? 0).clamp(0, 1 << 60).toInt();
+        job.total =
+            ((row['total'] as num?)?.toInt() ?? 0).clamp(0, 1 << 60).toInt();
+        final status = (row['status'] as num?)?.toInt();
+        if (status == 8) {
+          if (await _isVideoFile(File(job.path))) {
+            job.status = 'complete';
+            job.error = null;
+          } else {
+            job.status = 'failed';
+            job.error = 'invalidSource';
+          }
+        } else if (status == 16) {
+          job.status = 'failed';
+          job.error = 'network';
+        } else {
+          job.status = status == 1 || status == 4 ? 'queued' : 'downloading';
+          job.error = null;
+        }
+      }
+    } catch (_) {
+      // The OS transfer continues even if a UI status query fails.
+      return false;
+    }
+    return previous != (job.status, job.received, job.total, job.error);
   }
 
   void _startPump() {
@@ -479,14 +652,18 @@ class DownloadManager extends ChangeNotifier {
   }
 
   Future<bool> _managedPath(NovaDownload job, {bool partial = false}) async {
-    final root = _root;
-    if (root == null || !_idPattern.hasMatch(job.id)) return false;
+    if (_root == null || !_idPattern.hasMatch(job.id)) return false;
     final extension =
         _filePattern.firstMatch(job.path)?.group(1)?.toLowerCase();
     if (extension == null) return false;
-    final expected =
-        '${root.path}${Platform.pathSeparator}${job.id}.$extension';
-    if (_normalized(job.path) != _normalized(expected)) return false;
+    final roots = [_root!, if (_legacyRoot != null) _legacyRoot!];
+    final root = roots
+        .where((candidate) =>
+            _normalized(job.path) ==
+            _normalized(
+                '${candidate.path}${Platform.pathSeparator}${job.id}.$extension'))
+        .firstOrNull;
+    if (root == null || !await root.exists()) return false;
     if (_normalized(await root.resolveSymbolicLinks()) !=
         _normalized(root.path)) {
       return false;

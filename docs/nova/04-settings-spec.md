@@ -79,7 +79,7 @@ Responsive summary metrics use Wrap with intrinsic height, followed by seven rea
 
 ### About and notifications
 
-About uses the supplied brand asset, exact existing build version, license viewer, Harbor attribution and TMDB metadata acknowledgement. Notifications accurately reports the current in-app-feedback behavior; no inoperative push toggles are provided.
+About keeps its existing update, license, Harbor attribution and TMDB acknowledgement flows, with a compact, theme-surface identity row using the supplied NOVA SVG mark and exact build version. Notifications accurately reports the current in-app-feedback behavior; no inoperative push toggles are provided.
 
 ## RTL, accessibility and motion
 

@@ -10,6 +10,7 @@ import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/features/anime/anime_page.dart';
+import 'package:nova_mobile/features/shell/nova_browse_widgets.dart';
 
 class _DeferredAnimeCatalog extends CatalogRepository {
   _DeferredAnimeCatalog(super.api);
@@ -57,6 +58,7 @@ void main() {
 
         expect(canvas().color, theme.scaffoldBackgroundColor);
         expect(find.text('NOVA Test Anime'), findsOneWidget);
+        expect(find.byType(NovaBrowseFeature), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );

@@ -2,7 +2,13 @@
 
 Updated: 20 October 2026. The redesign implementation and ordered design documents are in place. This records what has actually been checked; it is not a release certification.
 
+## Latest implementation update — Release 1.0.4+67 (22 October 2026)
 
+- Prepared version metadata consistently at `1.0.4+67` in `pubspec.yaml`, `lib/core/version.dart`, and `version.json`; build 66 remains eligible for the optional update and the minimum build stays 60.
+- Release notes cover the player, catalog and browsing, Android downloads, linked progress, episode artwork, settings, and Arabic/English updates. The core player remains opt-in; legacy remains the default.
+- Release publication and APK attachment are pending. The current workspace has not been built or tested for this version; device and performance verification are not claimed.
+
+## Earlier implementation update — About NOVA visual refinement (20 October 2026)
 ## Latest implementation update — Update discovery test release 1.0.3+66 (20 October 2026)
 
 - The app version, build constants, and public update manifest are synchronized at `1.0.3+66`; `min_build` and download metadata are preserved.

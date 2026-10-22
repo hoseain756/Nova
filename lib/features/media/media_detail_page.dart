@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/featured_artwork.dart';
+import '../../core/data/catalog_repository.dart';
 import '../../core/models/integration_cw.dart';
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
@@ -75,6 +76,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   FeaturedArtwork? _art;
   MediaItem? _enrichedItem;
   int _detailGeneration = 0;
+  final Set<int> _requestedEpisodeArtSeasons = {};
   bool _loadingStreams = false;
 
   /// Episodes subsystem state (season/sort/view) — Task 118. Created lazily
@@ -99,7 +101,33 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   }
 
   void _onEpisodesChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    unawaited(_loadSelectedSeasonArtwork());
+  }
+
+  Future<void> _loadSelectedSeasonArtwork() async {
+    final controller = _episodes;
+    if (controller == null) return;
+    final item = controller.item;
+    final season = controller.effectiveSeason;
+    if (season <= 0 || !RegExp(r'^tt\d+$').hasMatch(item.id)) return;
+    final app = context.read<AppState>();
+    if (app.webSettings['tmdbEnabled'] == false ||
+        !_requestedEpisodeArtSeasons.add(season)) {
+      return;
+    }
+    final generation = _detailGeneration;
+    final art = await app.catalogs
+        .seasonEpisodeArtwork(item.id, season, language: app.contentTmdbLocale);
+    if (!mounted || generation != _detailGeneration) return;
+    final current = _enrichedItem ?? _episodes?.item ?? item;
+    final videos = CatalogRepository.applySeasonEpisodeArtwork(current.videos,
+        {season: art.stills}, art.poster == null ? {} : {season: art.poster!});
+    if (art.stills.isNotEmpty || art.poster != null) {
+      setState(() => _enrichedItem =
+          MediaItem.fromJson({...current.toJson(), 'videos': videos}));
+    }
   }
 
   /// TMDB textless backdrop + transparent logo (in-memory cached inside the
@@ -152,6 +180,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final app = context.read<AppState>();
     setState(() {
       _enrichedItem = null;
+      _requestedEpisodeArtSeasons.clear();
       _detail = _loadDetail(app);
     });
   }
@@ -248,6 +277,12 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
         )..addListener(_onEpisodesChanged);
       } else {
         _episodes!.update(item: item, entries: entries, savedView: savedView);
+      }
+      if (_episodes!.effectiveSeason > 1 &&
+          !_requestedEpisodeArtSeasons.contains(_episodes!.effectiveSeason)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_loadSelectedSeasonArtwork());
+        });
       }
       episodeSlivers = buildEpisodeSlivers(
         controller: _episodes!,

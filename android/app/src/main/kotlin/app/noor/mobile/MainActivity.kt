@@ -208,6 +208,7 @@ class MainActivity :
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         MethodChannel(messenger, METHOD_CHANNEL).setMethodCallHandler(this)
+        NativeDownloads.register(this, messenger)
         EventChannel(messenger, EVENT_CHANNEL).setStreamHandler(this)
         EventChannel(messenger, LINK_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {

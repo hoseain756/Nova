@@ -69,11 +69,16 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     super.didChangeDependencies();
     final app = context.watch<AppState>();
     final signature = [
-      app.addons.map((e) => '${e.id}:${e.enabled}').join('|'),
+      app.addons
+          .map((e) =>
+              '${e.id}:${e.enabled}:${e.catalogs.map((c) => '${c.type}:${c.id}:${c.name}').join(',')}')
+          .join('|'),
       app.history
           .map((entry) => '${entry.item.id}:${entry.watchedAt}')
           .join(','),
-      app.webSettings['homeShowAllAddonRows'],
+      app.webSettings['catalogRowOrder'],
+      app.webSettings['catalogRowHidden'],
+      app.webSettings['hideKidsCatalogsHome'],
       app.webSettings['hideWatchedInCatalogs'],
       app.webSettings['hideContent'],
       app.webSettings['tmdbEnabled'],
@@ -124,19 +129,21 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     _newEpisodes = app.catalogs
         .catalog('series', 'last-videos')
         .then((items) => _visibleItems(app, items));
-    // Per-catalog rows (web AddonRail parity): eligible add-on catalogs each
-    // get their own rail; the "show all" setting lifts the row cap.
-    final showAllRows = app.webSettings['homeShowAllAddonRows'] == true;
+    // Every installed catalog is eligible; persisted preferences control
+    // visibility and order as soon as an add-on changes.
     _catalogRows = CatalogRepository.selectAddonCatalogRows(
       app.addons,
-      anchorKeys: const {
-        'movie:trailer',
-        'series:trailer',
-        'movie:top',
-        'series:last-videos',
-      },
-      limit: showAllRows ? 30 : 8,
-    );
+      order: (app.webSettings['catalogRowOrder'] as List? ?? const [])
+          .map((value) => value.toString())
+          .toList(),
+      hidden: (app.webSettings['catalogRowHidden'] as List? ?? const [])
+          .map((value) => value.toString())
+          .toSet(),
+    )
+        .where((row) =>
+            app.webSettings['hideKidsCatalogsHome'] != true ||
+            !CatalogRepository.isKidsCatalog(row))
+        .toList();
     _catalogRowFutures
       ..clear()
       ..addEntries(

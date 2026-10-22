@@ -7,8 +7,8 @@
 /// silently — every bump edits BOTH in the same commit.
 library;
 
-const String noorVersion = '1.0.3';
-const int noorBuild = 66;
+const String noorVersion = '1.0.4';
+const int noorBuild = 67;
 
 /// Display form, e.g. `1.2.38+42`.
 const String noorVersionLabel = '$noorVersion+$noorBuild';

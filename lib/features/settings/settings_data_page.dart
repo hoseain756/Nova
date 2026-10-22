@@ -17,6 +17,7 @@ import '../../core/torrent/torrent_service.dart';
 import '../../core/version.dart';
 import '../../core/update/app_update_service.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_brand.dart';
 import 'widgets/settings_tiles.dart';
 import '../downloads/downloads_page.dart';
 
@@ -957,11 +958,25 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
       builder: (dialogContext) => PopScope(
         canPop: false,
         child: AlertDialog(
-          title: Text(app.tr('updateRequiredTitle')),
-          content: Text(
-            app.english || status.manifest.messageAr.isEmpty
-                ? app.tr('updateRequiredBody')
-                : status.manifest.messageAr,
+          scrollable: true,
+          title: const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: NovaBrand(width: 152),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 372),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(app.tr('updateRequiredTitle'),
+                    style: Theme.of(dialogContext).textTheme.headlineSmall),
+                const SizedBox(height: 10),
+                Text(app.english || status.manifest.messageAr.isEmpty
+                    ? app.tr('updateRequiredBody')
+                    : status.manifest.messageAr),
+              ],
+            ),
           ),
           actions: [
             FilledButton.icon(
@@ -991,13 +1006,20 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
       builder: (dialogContext) => PopScope(
         canPop: false,
         child: AlertDialog(
-          title: Text(app.tr('updateDownloadProgressTitle')),
+          scrollable: true,
+          title: const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: NovaBrand(width: 132),
+          ),
           content: ValueListenableBuilder<double?>(
             valueListenable: progress,
             builder: (context, value, _) => Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(app.tr('updateDownloadProgressTitle'),
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 18),
                 LinearProgressIndicator(value: value),
                 const SizedBox(height: 12),
                 Text(
@@ -1156,6 +1178,32 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     );
   }
 
+  Widget _brandHeader(AppState app) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const NovaBrand(width: 184),
+          const SizedBox(height: 18),
+          Text(
+            app.tr('message406', {'p0': noorVersionLabel}),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
@@ -1168,31 +1216,7 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
           child: ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 48),
             children: [
-              Center(
-                child: Image.asset(
-                  'assets/brand/android/play_store/ic_launcher-playstore-512.png',
-                  width: 104,
-                  height: 104,
-                  filterQuality: FilterQuality.medium,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'NOVA',
-                textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .displaySmall
-                    ?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 8),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                app.tr('message406', {'p0': noorVersionLabel}),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.secondary,
-                    ),
-              ),
+              _brandHeader(app),
               const SizedBox(height: 20),
               _updateControl(app),
               const SizedBox(height: 24),
@@ -1203,6 +1227,7 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
               const SizedBox(height: 12),
               Text(app.tr('message408'),
                   style: Theme.of(context).textTheme.bodyLarge),
+              const SizedBox(height: 16),
               SettingsContentSection(
                 title: app.tr('message409'),
                 children: [

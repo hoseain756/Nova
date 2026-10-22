@@ -153,3 +153,25 @@ Preserve existing functionality and compatibility keys. Keep all user-facing cop
 - [x] Pass focused updater/version tests, full Flutter analysis, and Android Release build; inspect APK metadata for versionName `1.0.3` and versionCode `66`.
 - [x] Publish the manifest on `main` and create/push tag `v1.0.3` so the installed app can discover the update.
 - [ ] Verify the update notice on the physical Android phone. The user will attach the matching-signed APK as `app-release.apk` to the v1.0.3 GitHub Release before using in-app download. Never launch an emulator.
+
+## Major Milestone 14 — About NOVA visual refinement (20 October 2026)
+
+**Status: Implemented as a small layout refinement; functional and device checks are tracked below.**
+
+- [x] Replace the oversized launcher-art/title stack with a compact, direction-aware NOVA mark, name, and version row using the existing SVG brand widget and theme surfaces.
+- [x] Preserve the update checker, app description, open-source license viewer, Harbor attribution, TMDB acknowledgement, and disclaimer.
+- [x] Keep the change localized to the About page and document it in the settings spec and project map.
+- [x] Format and analyze the changed About page; `flutter analyze --no-pub lib/features/settings/settings_data_page.dart` found no issues (273.9s), and `flutter test --no-pub test/nova_settings_test.dart` passed all 7 tests, including 200% text and RTL/LTR layouts at phone/tablet sizes.
+- [ ] Inspect the About header in Light/Dark and Arabic/English on a physical device; no emulator was launched.
+
+## Major Milestone 15 — Brand asset inventory
+
+- [x] Inventory every file under `assets/brand/` and document all SVG, Android, and iOS icon names and variants in `AGENTS.md`.
+- [x] Explain which artwork is for in-app branding, store listings, native launchers, notifications, and iOS variants; identify the Android color XML as metadata rather than an icon.
+- [x] Keep Lucide as the icon set for general UI controls.
+
+## Major Milestone 16 — Prepare release 1.0.4+67 (22 October 2026)
+
+- [x] Synchronize `pubspec.yaml`, `lib/core/version.dart`, and root `version.json` at version `1.0.4+67`; retain `min_build: 60` and the direct latest-release APK URL.
+- [x] Prepare bilingual release notes covering the player work, browsing/catalog controls, downloads, linked progress, episode artwork, and settings/localization updates.
+- [ ] Publish the release tag and matching `version.json` on `main`; the user will attach the matching-signed APK. No build, test, or device verification is claimed for this prepared release.

@@ -7,11 +7,15 @@ import 'package:nova_mobile/core/data/catalog_repository.dart';
 import 'package:nova_mobile/core/models/addon.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
+import 'package:nova_mobile/core/update/app_update_service.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/features/settings/addons_page.dart';
 import 'package:nova_mobile/features/settings/integrations_page.dart';
 import 'package:nova_mobile/features/settings/settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_display_page.dart';
+import 'package:nova_mobile/features/settings/settings_data_page.dart';
+import 'package:nova_mobile/shared/widgets/nova_brand.dart';
+import 'package:nova_mobile/features/settings/catalog_settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_personalization_page.dart';
 import 'package:nova_mobile/features/settings/settings_preferences_page.dart';
 import 'package:nova_mobile/features/settings/stats_page.dart';
@@ -79,6 +83,69 @@ Widget _harness(_SettingsApp app, Widget page,
         }));
 
 void main() {
+  testWidgets('required update dialog keeps the lockup and action reachable',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final app = _SettingsApp(NoorApi());
+    const status = AppUpdateStatus(
+      manifest: AppUpdateManifest(
+        latestVersion: '1.0.4',
+        latestBuild: 67,
+        minBuild: 67,
+        messageAr: 'تحديث مطلوب',
+        androidUrl: 'https://example.com/nova.apk',
+        iosUrl: '',
+      ),
+      currentVersion: '1.0.3',
+      currentBuild: 66,
+    );
+    await tester.pumpWidget(_harness(
+        app, const SettingsAboutPage(initialStatus: status),
+        scale: 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(NovaBrand), findsWidgets);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('catalog settings keep Kids tab and persist Home visibility',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final app = _SettingsApp(NoorApi());
+    app.addons = [
+      Addon(
+        id: 'family',
+        name: 'Family add-on',
+        transportUrl: 'https://family.example/manifest.json',
+        manifest: const {
+          'catalogs': [
+            {'id': 'kids', 'type': 'movie', 'name': 'Kids'},
+            {'id': 'anime', 'type': 'series', 'name': 'Anime'},
+          ],
+        },
+      ),
+    ];
+    await tester
+        .pumpWidget(_harness(app, const CatalogSettingsPage(), scale: 2));
+    await tester.tap(find.text('Hide Kids catalogs on Home'));
+    await tester.pump();
+    expect(app.webSettings['hideKidsCatalogsHome'], true);
+    await tester.scrollUntilVisible(find.text('Kids'), 160,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Kids'), findsOneWidget);
+    await app.setLanguage(false);
+    await tester.pumpAndSettle();
+    expect(Directionality.of(tester.element(find.byType(CatalogSettingsPage))),
+        TextDirection.rtl);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'search finds a setting category and language changes direction live',
       (tester) async {

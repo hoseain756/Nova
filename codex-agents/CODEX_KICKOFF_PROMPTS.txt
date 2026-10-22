@@ -1,0 +1,52 @@
+############################################################
+# BEFORE YOU START (user checklist — not for Codex)
+############################################################
+1. Run CODEX_SETUP_AGENTS_PROMPT.txt first and wait for its short report.
+2. Phone connected by USB, unlocked, USB debugging authorized, "stay awake" ON, battery saver OFF.
+3. Have your test streams/sources ready (direct HTTP, HLS, embedded subs, external subs, multiple audio). Without them the matrix stays NOT MEASURED.
+4. Close other heavy apps on the phone. Keep it charged.
+5. Use a NEW Codex thread for each session below.
+
+############################################################
+# SESSION 1 — Stations 00–07 (preflight + investigation)
+# Model: GPT-6 Luna | Reasoning: medium
+############################################################
+
+Execute NOVA_PLAYER_PROMPT_V2_1.md as the authoritative engineering specification.
+
+First locate it (search the NOVA root, docs/, docs/player-reengineering/, then Downloads) and read it completely from disk. Section 0 overrides anything that conflicts with it. The agent roster and budget in Section 54A and the agents in .codex/agents/ are part of the specification.
+
+Do now:
+1. Station 00: perform ALL mandatory preflight checks (Section 0.3). Create the persistent execution plan and station tracking files under docs/player-reengineering/ BEFORE modifying anything. Create the safety branch and baseline tag (Section 0.6).
+2. Continue autonomously through Stations 01 to 07, strictly in order, following every rule in the specification.
+
+Constraints for this session:
+- Do NOT change any production player code. Investigation, documentation, measurements and plan files only.
+- Physical USB Android device only. NEVER start an emulator. There is no Mac; iOS is only static review plus Codemagic later.
+- If no usable device is connected, mark Station 03 BLOCKED per Section 0.3 and continue with the other stations. Do not stop for it.
+- Never fabricate measurements. Never modify reference repositories. Follow the licensing rules.
+- Agents: only as allowed by Section 54A. HARD LIMIT of 3 at once; default ONE at a time; three in parallel only for the Station 04/05/06 reference trio.
+- I have a ChatGPT Plus plan with limited usage: do not paste large logs into the conversation, write them to files and summarize; avoid repeated re-reading of large files.
+
+STOP after Station 07 (this is a usage checkpoint, not a review gate). Do NOT start Station 08. Before stopping:
+- update 00_MASTER_PLAN.md and every station file
+- write docs/player-reengineering/SESSION_1_HANDOFF.md: status of each station, blockers, device facts, files produced, current last-known-good commit, and the exact next step
+- commit the documentation checkpoint on the feature branch per Section 0.6
+- then send me a summary of at most 10 lines.
+
+############################################################
+# SESSION 2 — Station 08 and Gate A
+# Model: GPT-6.1 Sol | Reasoning: HIGH
+############################################################
+
+Continue the NOVA player mission. Read completely from disk: NOVA_PLAYER_PROMPT_V2_1.md (authoritative; Section 0 overrides conflicts), 00_MASTER_PLAN.md, docs/player-reengineering/SESSION_1_HANDOFF.md and all station files.
+
+First verify the current state: git status, current branch, last-known-good commit hash, and that Stations 00–07 are really complete as recorded (do not trust old checkmarks blindly).
+
+Then:
+1. Execute Station 08 (Root-Cause Analysis) with maximum rigor and evidence labels.
+2. If Station 03 is BLOCKED and a device is now connected, handle the baseline per Section 0.3 and 0.4A BEFORE finalizing the diagnosis.
+3. Run the gate_reviewer agent once, then fix the plan/evidence issues it finds.
+4. Write GATE_A_REVIEW.md per Section 0.4 (and 0.4A if the baseline is missing), commit the checkpoint, and STOP at Gate A.
+
+Rules: do not change production player code, do not fabricate measurements, no emulators, do not modify reference repositories, agents only per Section 54A (max 3 at once, default one). Send me a SHORT gate message: summary, the decisions you need from me, and the path to the review file.

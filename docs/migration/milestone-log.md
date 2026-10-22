@@ -605,6 +605,18 @@ Status: source, analysis, full tests, and Android Release build passed. Real pro
 - Android Release APK metadata: versionName `1.0.3`, versionCode `66`, applicationId `app.nova.mobile`. APK size **142,520,139 bytes**, SHA-256 `6610E286EA182BBBFDBE140787E119E3453282D946F259BC9E83EE9D192F6757`.
 - The manifest is published with tag `v1.0.3` for update discovery. The user attaches the matching-signed APK to the GitHub release; no APK was uploaded by this task. Phone confirmation remains pending; no emulator was launched.
 
+## Milestone 30 — About NOVA visual refinement (20 October 2026)
+
+- Simplified the About page header into a theme-colored horizontal identity row using the existing NOVA SVG icon, app name, and current build version.
+- Preserved the update flow, description, license list, Harbor attribution, TMDB acknowledgement, and content disclaimer. Reused the shared brand widget; no dependency, route, or preference changes.
+- Updated the settings spec and AGENTS project map. Scoped Flutter analysis found no issues (273.9s); all 7 existing settings tests passed, including large text and RTL/LTR layouts on phone/tablet sizes. No About-specific device screenshot was captured, and no emulator was launched.
+
+## Milestone 31 — Brand asset inventory
+
+- Documented all 87 `assets/brand/` files in `AGENTS.md`, grouped by SVG brand artwork, Android Play Store/adaptive launcher/notification resources, and iOS background/glyph/iOS 18 variants.
+- Clarified that `nova_colors.xml` is palette metadata, `NovaBrand` is the in-app brand component, and Lucide remains for general interface icons.
+- This was documentation-only; app code and icon resources were not changed.
+
 ## Player Station 10 — progress wiring substep (22 October 2026)
 
 - Reconciled prior station evidence and actual reference locations; recorded the user's explicit Station 10 baseline waiver. Official baseline remains NOT MEASURED.

@@ -32,8 +32,8 @@ class _PlainTextJsonAdapter implements HttpClientAdapter {
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.3',
-    'latest_build': 66,
+    'latest_version': '1.0.4',
+    'latest_build': 67,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
@@ -50,14 +50,14 @@ void main() {
       packageInfoProvider: () async => PackageInfo(
         appName: 'NOVA',
         packageName: 'app.nova.mobile',
-        version: '1.0.2',
-        buildNumber: '65',
+        version: '1.0.3',
+        buildNumber: '66',
       ),
     );
 
     final status = await service.checkForUpdates();
 
-    expect(status.manifest.latestBuild, 66);
+    expect(status.manifest.latestBuild, 67);
     expect(status.hasUpdate, isTrue);
     expect(status.forceRequired, isFalse);
   });
@@ -65,8 +65,8 @@ void main() {
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.3');
-    expect(manifest.latestBuild, 66);
+    expect(manifest.latestVersion, '1.0.4');
+    expect(manifest.latestBuild, 67);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
@@ -100,8 +100,8 @@ void main() {
     expect(current.forceRequired, isFalse);
     final latest = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.0.3',
-      currentBuild: 66,
+      currentVersion: '1.0.4',
+      currentBuild: 67,
     );
     expect(latest.hasUpdate, isFalse);
     expect(latest.forceRequired, isFalse);
@@ -125,7 +125,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 67,
+        'min_build': 68,
       }),
       throwsFormatException,
     );

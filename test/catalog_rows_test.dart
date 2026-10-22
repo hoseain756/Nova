@@ -33,7 +33,7 @@ Map<String, dynamic> _catalog(
 
 void main() {
   group('CatalogRepository.selectAddonCatalogRows', () {
-    test('one rail per catalog, first add-on wins on name collisions', () {
+    test('same-named catalogs from separate add-ons remain independent', () {
       final rows = CatalogRepository.selectAddonCatalogRows([
         _addon('a', catalogs: [
           _catalog('top', 'movie', 'Popular'),
@@ -44,7 +44,7 @@ void main() {
         ]),
       ]);
       expect(rows.map((row) => row.key).toList(),
-          ['a:movie:top', 'b:series:other']);
+          ['a:movie:top', 'b:movie:top2', 'b:series:other']);
       expect(rows.first.title, 'Popular');
       expect(rows.first.subtitle, 'Addon a');
     });
@@ -91,6 +91,34 @@ void main() {
         limit: 3,
       );
       expect(rows.length, 3);
+    });
+
+    test('order and hidden preferences apply to every installed row', () {
+      final rows = CatalogRepository.selectAddonCatalogRows([
+        _addon('a', catalogs: [
+          _catalog('first', 'movie', 'First'),
+          _catalog('second', 'series', 'Second'),
+          _catalog('third', 'movie', 'Third'),
+        ]),
+      ], order: const [
+        'a:movie:third'
+      ], hidden: const {
+        'a:series:second'
+      });
+      expect(rows.map((row) => row.key).toList(),
+          ['a:movie:third', 'a:movie:first']);
+    });
+
+    test('Kids catalog detection can hide Home rows without removing the tab',
+        () {
+      final rows = CatalogRepository.selectAddonCatalogRows([
+        _addon('family', catalogs: [
+          _catalog('kids', 'movie', 'Family films'),
+          _catalog('anime', 'series', 'Anime'),
+        ]),
+      ]);
+      expect(CatalogRepository.isKidsCatalog(rows.first), true);
+      expect(CatalogRepository.isKidsCatalog(rows.last), false);
     });
 
     test('empty input yields no rows', () {

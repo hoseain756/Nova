@@ -36,6 +36,8 @@ class AppState extends ChangeNotifier {
     'anilistProgressSync': true, 'malProgressSync': true,
     'contentLanguage': 'ar',
     'homeMode': 'harbor', 'homeShowAllAddonRows': false,
+    'catalogRowOrder': <String>[], 'catalogRowHidden': <String>[],
+    'hideKidsCatalogsHome': false,
     'hideWatchedInCatalogs': false, 'tmdbKey': '',
     'opensubtitlesEnabled': true, 'tmdbEnabled': true,
     'tmdbLanguage': 'en-US', 'tmdbImageQuality': 'medium',
@@ -621,9 +623,16 @@ class AppState extends ChangeNotifier {
         return;
       }
       final keys = jobs.keys.toList(growable: false);
-      final results = await Future.wait(jobs.values);
+      final results = await Future.wait(jobs.values.map((job) async {
+        try {
+          return await job;
+        } catch (_) {
+          // One offline tracker must not suppress progress from the others.
+          return null;
+        }
+      }));
       if (generation != _linkedContentGeneration) return;
-      final rowsByKey = Map<String, List<dynamic>>.fromIterables(
+      final rowsByKey = Map<String, List<dynamic>?>.fromIterables(
         keys,
         results,
       );
@@ -646,6 +655,20 @@ class AppState extends ChangeNotifier {
             entry,
         for (final row in rowsByKey['mal-watching'] ?? const <dynamic>[])
           if (IntegrationCwEntry.fromMalRow(row) case final entry?) entry,
+        for (final old in linkedContinueWatching)
+          if ((old.source == 'trakt' &&
+                  rowsByKey.containsKey('trakt-playback') &&
+                  rowsByKey['trakt-playback'] == null) ||
+              (old.source == 'simkl' &&
+                  rowsByKey.containsKey('simkl-playback') &&
+                  rowsByKey['simkl-playback'] == null) ||
+              (old.source == 'anilist' &&
+                  rowsByKey.containsKey('anilist-entries') &&
+                  rowsByKey['anilist-entries'] == null) ||
+              (old.source == 'mal' &&
+                  rowsByKey.containsKey('mal-watching') &&
+                  rowsByKey['mal-watching'] == null))
+            old,
       ].where((entry) => entry.isContinueable).toList(growable: false);
       linkedContinueWatching = await _enrichLinkedProgress(
         IntegrationCwEntry.merge([serviceProgress]),
@@ -654,14 +677,32 @@ class AppState extends ChangeNotifier {
       // Catalog rails. Trakt/Simkl watchlist rows carry only identities, so
       // the first cards get their artwork resolved through the meta add-ons
       // (bounded, fail-soft); the tracker lists carry provider covers.
+      final previousRails =
+          Map<String, List<MediaItem>>.from(linkedCatalogItems);
+      final refreshedRails = await _linkedCatalogRails(
+        traktWatchlist: rowsByKey['trakt-watchlist'],
+        simklWatchlist: rowsByKey['simkl-watchlist'],
+        anilistEntries: anilistRows,
+        malPlanning: rowsByKey['mal-planning'],
+      );
+      for (final (requestKey, railKeys) in [
+        ('trakt-watchlist', ['trakt']),
+        ('simkl-watchlist', ['simkl']),
+        ('anilist-entries', ['anilist', 'anilist-watching']),
+        ('mal-planning', ['mal']),
+      ]) {
+        if (rowsByKey.containsKey(requestKey) &&
+            rowsByKey[requestKey] == null) {
+          for (final railKey in railKeys) {
+            if (previousRails[railKey] case final items?) {
+              refreshedRails[railKey] = items;
+            }
+          }
+        }
+      }
       linkedCatalogItems
         ..clear()
-        ..addAll(await _linkedCatalogRails(
-          traktWatchlist: rowsByKey['trakt-watchlist'],
-          simklWatchlist: rowsByKey['simkl-watchlist'],
-          anilistEntries: anilistRows,
-          malPlanning: rowsByKey['mal-planning'],
-        ));
+        ..addAll(refreshedRails);
       _linkedContentAt = DateTime.now();
       notifyListeners();
     } catch (_) {

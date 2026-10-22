@@ -1,0 +1,5 @@
+# Merge into the project's .codex/config.toml (do not overwrite an existing file).
+# Subagents use extra quota; keep the cap low on a Plus plan.
+[agents]
+max_threads = 3   # Harbor / Nuvio / Stremio Kai in parallel, never more
+max_depth = 1     # agents must not spawn agents

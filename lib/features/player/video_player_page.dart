@@ -1427,6 +1427,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           builder: (_) => PlayerEpisodesSheet(
             english: english,
             episodes: _episodes,
+            titleId: widget.item.id,
             currentVideoId: widget.videoId,
             fallbackArtwork: widget.item.background ?? widget.item.poster,
             onPick: (episode) => unawaited(

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/data/catalog_repository.dart';
+import '../../core/data/content_classifier.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../shared/widgets/media_rail.dart';
@@ -14,6 +16,7 @@ import '../shell/nova_browse_widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../shell/noor_dock_tabs.dart';
 import '../media/media_detail_page.dart';
+import '../catalog/catalog_grid_page.dart';
 import '../home/widgets/continue_watching_rail.dart';
 import 'anime_search_sheet.dart';
 
@@ -30,6 +33,10 @@ class _AnimePageState extends State<AnimePage>
   void refreshCachedCatalogs() => _retry();
 
   late Future<List<MediaItem>> _items;
+  List<AddonCatalogRow> _addonRows = const [];
+  final Map<String, Future<List<MediaItem>>> _addonFutures = {};
+  Future<List<MediaItem>>? _addonHeroItems;
+  String? _catalogSignature;
   final Set<String> _resolving = {};
   String _filter = 'all';
 
@@ -42,7 +49,58 @@ class _AnimePageState extends State<AnimePage>
   }
 
   void _retry() {
-    setState(() => _items = context.read<AppState>().catalogs.anime());
+    final app = context.read<AppState>();
+    setState(() {
+      _items = app.catalogs.anime();
+      _catalogSignature = null;
+      _loadAddonRows(app);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = context.watch<AppState>();
+    final signature = [
+      app.addons
+          .map((addon) =>
+              '${addon.id}:${addon.enabled}:${addon.catalogs.map((catalog) => '${catalog.type}:${catalog.id}:${catalog.name}').join(',')}')
+          .join('|'),
+      app.webSettings['catalogRowOrder'],
+      app.webSettings['catalogRowHidden'],
+    ].join('|');
+    if (_catalogSignature != signature) {
+      _catalogSignature = signature;
+      _loadAddonRows(app);
+    }
+  }
+
+  void _loadAddonRows(AppState app) {
+    _addonRows = CatalogRepository.selectAddonCatalogRows(
+      app.addons,
+      order: (app.webSettings['catalogRowOrder'] as List? ?? const [])
+          .map((value) => value.toString())
+          .toList(),
+      hidden: (app.webSettings['catalogRowHidden'] as List? ?? const [])
+          .map((value) => value.toString())
+          .toSet(),
+    );
+    _addonFutures
+      ..clear()
+      ..addEntries(_addonRows.map((row) => MapEntry(
+            row.key,
+            app.catalogs
+                .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
+                .then((items) => items
+                    .where((item) =>
+                        ContentClassifier.isAnime(item) ||
+                        RegExp(r'anime|أنمي', caseSensitive: false)
+                            .hasMatch('${row.catalog.id} ${row.title}'))
+                    .toList()),
+          )));
+    _addonHeroItems = Future.wait(_addonFutures.values.map(
+      (future) => future.catchError((Object _) => <MediaItem>[]),
+    )).then((groups) => groups.expand((group) => group).toList());
   }
 
   @override
@@ -72,6 +130,13 @@ class _AnimePageState extends State<AnimePage>
           final items = snapshot.data ?? const <MediaItem>[];
           final series = items.where((item) => item.type == 'series').toList();
           final movies = items.where((item) => item.type == 'movie').toList();
+          final filteredItems = items
+              .where((item) => _filter == 'all' || item.type == _filter)
+              .toList();
+          final featuredItem = filteredItems
+                  .where((item) => item.background?.trim().isNotEmpty == true)
+                  .firstOrNull ??
+              filteredItems.firstOrNull;
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
@@ -102,22 +167,38 @@ class _AnimePageState extends State<AnimePage>
                               onSelected: (_) =>
                                   setState(() => _filter = entry.$1))
                       ]))),
-              if (items.isNotEmpty)
+              if (featuredItem != null)
                 SliverToBoxAdapter(
                     child: NovaBrowseFeature(
-                  item: (_filter == 'series' && series.isNotEmpty)
-                      ? series.first
-                      : (_filter == 'movie' && movies.isNotEmpty)
-                          ? movies.first
-                          : items.first,
+                  item: featuredItem,
                   label: app.tr('message130'),
                   actionLabel: app.tr('message527'),
-                  onOpen: () => _open((_filter == 'series' && series.isNotEmpty)
-                      ? series.first
-                      : (_filter == 'movie' && movies.isNotEmpty)
-                          ? movies.first
-                          : items.first),
+                  onOpen: () => _open(featuredItem),
                 )),
+              if (featuredItem == null && _addonHeroItems != null)
+                SliverToBoxAdapter(
+                  child: FutureBuilder<List<MediaItem>>(
+                    future: _addonHeroItems,
+                    builder: (context, result) {
+                      final candidates = (result.data ?? const <MediaItem>[])
+                          .where((item) =>
+                              _filter == 'all' || item.type == _filter)
+                          .toList();
+                      final featured = candidates
+                              .where((item) =>
+                                  item.background?.trim().isNotEmpty == true)
+                              .firstOrNull ??
+                          candidates.firstOrNull;
+                      if (featured == null) return const SizedBox.shrink();
+                      return NovaBrowseFeature(
+                        item: featured,
+                        label: app.tr('message130'),
+                        actionLabel: app.tr('message527'),
+                        onOpen: () => _open(featured),
+                      );
+                    },
+                  ),
+                ),
               // Personal AniList rails — rendered above the public catalogs
               // so the linked account's own lists lead the tab. `anilist:`
               // identities resolve through _open like every other card.
@@ -166,26 +247,60 @@ class _AnimePageState extends State<AnimePage>
                     child: _AniListLinkPrompt(),
                   ),
                 ),
+              for (final row in _addonRows.where(
+                  (row) => _filter == 'all' || row.catalog.type == _filter))
+                SliverToBoxAdapter(
+                  child: FutureBuilder<List<MediaItem>>(
+                    future: _addonFutures[row.key],
+                    builder: (context, result) {
+                      final catalogItems = result.data ?? const <MediaItem>[];
+                      if (catalogItems.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: EdgeInsetsDirectional.only(
+                            bottom: MediaRail.sectionSpacing(context)),
+                        child: MediaRail(
+                          title: row.title,
+                          items: catalogItems,
+                          onTap: _open,
+                          onOpenSection: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                                builder: (_) => CatalogGridPage(
+                                      title: row.title,
+                                      subtitle: row.subtitle,
+                                      items: catalogItems,
+                                      onOpen: _open,
+                                    )),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               if (snapshot.connectionState == ConnectionState.waiting &&
                   items.isEmpty)
                 const SliverToBoxAdapter(
                     child: SizedBox(height: 440, child: NovaBrowseSkeleton()))
-              else if (snapshot.hasError)
-                SliverToBoxAdapter(
-                  child: _CatalogState(
-                    icon: LucideIcons.cloudOff,
-                    message: NovaStrings.lookup(english, 'message530'),
-                    actionLabel: NovaStrings.lookup(english, 'message120'),
-                    onRetry: _retry,
-                  ),
-                )
               else if (items.isEmpty)
                 SliverToBoxAdapter(
-                  child: _CatalogState(
-                    icon: LucideIcons.searchX,
-                    message: NovaStrings.lookup(english, 'message531'),
-                    actionLabel: NovaStrings.lookup(english, 'message68'),
-                    onRetry: _retry,
+                  child: FutureBuilder<List<MediaItem>>(
+                    future: _addonHeroItems,
+                    builder: (context, result) {
+                      if (result.connectionState != ConnectionState.done ||
+                          (result.data ?? const <MediaItem>[]).any((item) =>
+                              _filter == 'all' || item.type == _filter)) {
+                        return const SizedBox.shrink();
+                      }
+                      return _CatalogState(
+                        icon: snapshot.hasError
+                            ? LucideIcons.cloudOff
+                            : LucideIcons.searchX,
+                        message: NovaStrings.lookup(english,
+                            snapshot.hasError ? 'message530' : 'message531'),
+                        actionLabel: NovaStrings.lookup(english,
+                            snapshot.hasError ? 'message120' : 'message68'),
+                        onRetry: _retry,
+                      );
+                    },
                   ),
                 )
               else ...[
@@ -249,9 +364,10 @@ class _AnimePageState extends State<AnimePage>
     setState(() {});
     try {
       final app = context.read<AppState>();
-      final resolved = item.id.startsWith('anilist:')
-          ? await app.catalogs.resolveAnime(item)
-          : item;
+      final resolved =
+          item.id.startsWith('anilist:') || item.id.startsWith('mal:')
+              ? await app.catalogs.resolveAnime(item)
+              : item;
       if (!mounted) return;
       if (resolved == null) {
         ScaffoldMessenger.of(context).showSnackBar(
