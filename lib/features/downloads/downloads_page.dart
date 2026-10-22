@@ -5,7 +5,7 @@ import '../../core/models/media_item.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/noor_toast.dart';
-import '../player/video_player_page.dart';
+import '../player/playback_entry_page.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key, this.manager});
@@ -165,7 +165,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                   };
                                   void playOffline() => Navigator.of(context)
                                           .push(MaterialPageRoute<void>(
-                                        builder: (_) => VideoPlayerPage(
+                                        builder: (_) => PlaybackEntryPage(
                                             item: MediaItem(
                                                 id: 'local:${job.id}',
                                                 name: job.title,

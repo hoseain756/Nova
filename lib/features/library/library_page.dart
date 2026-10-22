@@ -16,7 +16,7 @@ import '../shell/noor_dock_tabs.dart';
 import '../shell/nova_browse_widgets.dart';
 import '../downloads/downloads_page.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../player/video_player_page.dart';
+import '../player/playback_entry_page.dart';
 import '../torrent/magnet_opener.dart';
 import 'custom_lists_page.dart';
 import '../media/media_detail_page.dart';
@@ -280,7 +280,7 @@ Future<void> _openTorrentHistoryEntry(
     await navigator.push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => VideoPlayerPage(
+        builder: (_) => PlaybackEntryPage(
           item: item,
           url: torrent.url,
           torrent: torrent,

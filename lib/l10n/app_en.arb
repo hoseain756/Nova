@@ -949,5 +949,6 @@
   "resumeSnapshotDays7": "1 week",
   "message918": "Season {p0} · Episode {p1}",
   "message919": "Download episode",
-  "message920": "Mark through this episode as watched"
+  "message920": "Mark through this episode as watched",
+  "playerProgressSaveFailed": "Could not save playback progress."
 }

@@ -21,6 +21,8 @@ import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
 import 'segments/playback_segments.dart';
+import 'session/playback_progress.dart';
+import 'session/playback_progress_binding.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
 import 'widgets/player_side_panel.dart';
@@ -86,9 +88,13 @@ class VideoPlayerPage extends StatefulWidget {
 
 enum _GestureMode { none, seek, brightness, volume, zoom }
 
+const _coalescedProgressEnabled =
+    bool.fromEnvironment('NOVA_COALESCED_PROGRESS', defaultValue: false);
+
 class _VideoPlayerPageState extends State<VideoPlayerPage>
     with WidgetsBindingObserver {
   MediaKitEngine? _engine;
+  PlaybackProgressBinding? _progressBinding;
   late final AppState _app = context.read<AppState>();
   Timer? _hideTimer;
   Timer? _progressTimer;
@@ -204,6 +210,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   @override
   void initState() {
     super.initState();
+    if (_coalescedProgressEnabled) {
+      _progressBinding = PlaybackProgressBinding();
+    }
     PlayerDiagnostics.instance.start();
     WidgetsBinding.instance.addObserver(this);
     _streamIndex = widget.streamIndex ?? 0;
@@ -382,6 +391,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       10;
 
   void _createEngine({bool softwareDecoding = false}) {
+    _progressBinding?.unbind();
     _engineInitError = null;
     _stuck = false;
     _openedAt = DateTime.now();
@@ -399,6 +409,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       return;
     }
     _engine = engine;
+    _progressBinding?.bind(engine);
     engine.addListener(_onEngineTick);
     _applyEngineSubtitleSettings();
     unawaited(
@@ -450,6 +461,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (engine.hardwareAcceleration) {
       // One automatic second chance per engine generation: rebuild around
       // software decoding and reopen the same source.
+      _progressBinding?.unbind();
       engine.removeListener(_onEngineTick);
       engine.dispose();
       _engine = null;
@@ -535,6 +547,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       '${failedEngine.errorMessage ?? 'unknown error'}',
     );
     final softwareDecoding = !failedEngine.hardwareAcceleration;
+    _progressBinding?.unbind();
     failedEngine.removeListener(_onEngineTick);
     failedEngine.dispose();
     if (!mounted) return;
@@ -552,6 +565,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (!_resuming) {
       _resumePositionMs = failedEngine.position.inMilliseconds;
     }
+    _progressBinding?.unbind();
     failedEngine.removeListener(_onEngineTick);
     failedEngine.dispose();
     if (!mounted) return;
@@ -1752,6 +1766,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   @override
   void dispose() {
+    _progressBinding?.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _app.removeListener(_onAppSettingsChanged);
     _hideTimer?.cancel();
@@ -1832,6 +1847,84 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         120.0 + (scaledBodyText - 16).clamp(0.0, 32.0).toDouble() * 3;
     final railTopInset = (hasHeaderMetadata ? metadataInset : 108.0) * scale;
 
+    Widget buildBottomCluster(
+      MediaKitEngine engine, {
+      PlaybackProgress? progress,
+      Object? identity,
+    }) {
+      final projected = _progressBinding != null;
+      bool current() =>
+          mounted &&
+          identical(_engine, engine) &&
+          (_progressBinding?.owns(engine, identity) ?? false);
+      return PlayerBottomCluster(
+        durationMs:
+            projected ? (progress?.duration.inMilliseconds ?? 0) : duration,
+        positionMs:
+            projected ? (progress?.position.inMilliseconds ?? 0) : position,
+        bufferedMs: projected
+            ? (progress?.bufferedEnd.inMilliseconds ?? 0)
+            : engine.bufferedEnd.inMilliseconds,
+        readExactPositionMs: projected
+            ? () => current() ? engine.position.inMilliseconds : 0
+            : null,
+        readExactDurationMs: projected
+            ? () => current() ? engine.duration.inMilliseconds : 0
+            : null,
+        interactionIdentity: identity,
+        volume: engine.volume,
+        muted: engine.muted,
+        fullscreen: _fullscreen,
+        showRemaining: _showRemaining,
+        canPrev: prevEpisode != null,
+        canNext: nextEpisode != null,
+        scale: scale,
+        wide: wide,
+        english: english,
+        onPrev: prevEpisode == null
+            ? null
+            : () => unawaited(_switchEpisode(prevEpisode)),
+        // Task 139: NEXT always routes through the sources
+        // page (spec B2.3 — never bypass source selection),
+        // so the next-episode flow is reachable at ANY
+        // time, not only inside the card's last-30 s
+        // window. Prev keeps the fast already-watched path.
+        onNext: nextEpisode == null
+            ? null
+            : () => unawaited(_startEpisodeSources(nextEpisode)),
+        onVolumeChanged: (value) async {
+          await engine.setVolume(value);
+        },
+        onVolumeDragEnd: () => _bumpControls(),
+        onMuteToggle: () async {
+          await engine.toggleMute();
+          _bumpControls();
+        },
+        onToggleFullscreen: () => unawaited(_toggleFullscreen()),
+        // Task 139: the pickers open the right-half panel
+        // INSTANTLY — always available (the panel loads
+        // and refreshes its own data).
+        onOpenStreams: _openStreamsPanel,
+        onOpenSubtitles: _openSubtitlesPanel,
+        onOpenAudio: _openAudioPanel,
+        onToggleRemaining: () =>
+            setState(() => _showRemaining = !_showRemaining),
+        onScrubStart: () {
+          if (projected && !current()) return;
+          _hideTimer?.cancel();
+          setState(() => _controlsVisible = true);
+        },
+        onScrubUpdate: (seconds) {},
+        onScrubEnd: (seconds) async {
+          if (projected && !current()) return;
+          await engine.seekTo(
+            Duration(milliseconds: (seconds * 1000).round()),
+          );
+          if (mounted) _bumpControls();
+        },
+      );
+    }
+
     return PopScope(
       canPop: _allowRoutePop,
       onPopInvokedWithResult: (didPop, result) {
@@ -1869,6 +1962,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                   onRetry: () {
                     _softwareDecodeRetryUsed = false;
                     final old = _engine;
+                    _progressBinding?.unbind();
                     old?.removeListener(_onEngineTick);
                     old?.dispose();
                     setState(() {
@@ -2013,61 +2107,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                           onPlayPause: () => unawaited(_togglePlay()),
                           onSkip: (s) => unawaited(_seekBy(s)),
                         ),
-                        PlayerBottomCluster(
-                          durationMs: duration,
-                          positionMs: position,
-                          bufferedMs: engine.bufferedEnd.inMilliseconds,
-                          volume: engine.volume,
-                          muted: engine.muted,
-                          fullscreen: _fullscreen,
-                          showRemaining: _showRemaining,
-                          canPrev: prevEpisode != null,
-                          canNext: nextEpisode != null,
-                          scale: scale,
-                          wide: wide,
-                          english: english,
-                          onPrev: prevEpisode == null
-                              ? null
-                              : () => unawaited(_switchEpisode(prevEpisode)),
-                          // Task 139: NEXT always routes through the sources
-                          // page (spec B2.3 — never bypass source selection),
-                          // so the next-episode flow is reachable at ANY
-                          // time, not only inside the card's last-30 s
-                          // window. Prev keeps the fast already-watched path.
-                          onNext: nextEpisode == null
-                              ? null
-                              : () =>
-                                  unawaited(_startEpisodeSources(nextEpisode)),
-                          onVolumeChanged: (value) async {
-                            await engine.setVolume(value);
-                          },
-                          onVolumeDragEnd: () => _bumpControls(),
-                          onMuteToggle: () async {
-                            await engine.toggleMute();
-                            _bumpControls();
-                          },
-                          onToggleFullscreen: () =>
-                              unawaited(_toggleFullscreen()),
-                          // Task 139: the pickers open the right-half panel
-                          // INSTANTLY — always available (the panel loads
-                          // and refreshes its own data).
-                          onOpenStreams: _openStreamsPanel,
-                          onOpenSubtitles: _openSubtitlesPanel,
-                          onOpenAudio: _openAudioPanel,
-                          onToggleRemaining: () =>
-                              setState(() => _showRemaining = !_showRemaining),
-                          onScrubStart: () {
-                            _hideTimer?.cancel();
-                            setState(() => _controlsVisible = true);
-                          },
-                          onScrubUpdate: (seconds) {},
-                          onScrubEnd: (seconds) async {
-                            await engine.seekTo(
-                              Duration(milliseconds: (seconds * 1000).round()),
-                            );
-                            _bumpControls();
-                          },
-                        ),
+                        if (_progressBinding != null)
+                          ValueListenableBuilder<PlaybackProgress?>(
+                            valueListenable: _progressBinding!,
+                            builder: (context, progress, _) =>
+                                buildBottomCluster(
+                              engine,
+                              progress: progress,
+                              identity: _progressBinding!.interactionIdentity,
+                            ),
+                          )
+                        else
+                          buildBottomCluster(engine),
                       ],
                     ),
                   ),

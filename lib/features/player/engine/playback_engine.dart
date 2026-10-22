@@ -230,7 +230,9 @@ class MediaKitEngine extends PlaybackEngine {
 
   @override
   Future<void> open(String url,
-      {Duration? startAt, Map<String, String>? httpHeaders}) async {
+      {Duration? startAt,
+      Map<String, String>? httpHeaders,
+      bool playWhenReady = true}) async {
     if (_disposed) return;
     if (PlayerDiagnostics.enabled) {
       PlayerDiagnostics.instance.record('open');
@@ -264,7 +266,7 @@ class MediaKitEngine extends PlaybackEngine {
     if (startAt != null && startAt > Duration.zero) {
       await _player.seek(startAt);
     }
-    if (!_disposed) await _player.play();
+    if (!_disposed && playWhenReady) await _player.play();
     if (Uri.tryParse(url)?.host == '127.0.0.1') {
       unawaited(_logTorrentDecoderPath());
     }
@@ -411,6 +413,23 @@ class MediaKitEngine extends PlaybackEngine {
 
   // ── Stream handlers ─────────────────────────────────────────────────────
 
+  /// Capability for the opt-in session, without inferring live seek support.
+  Future<bool?> querySeekable() async {
+    if (_disposed) return null;
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return null;
+    try {
+      final value = await platform.getProperty('seekable');
+      return value == 'yes'
+          ? true
+          : value == 'no'
+              ? false
+              : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _onPlaying(bool value) {
     PlayerDiagnostics.instance.record('playing');
     _playing = value;
@@ -505,6 +524,29 @@ class MediaKitEngine extends PlaybackEngine {
     _subscriptions = const [];
     unawaited(_player.dispose());
     super.dispose();
+  }
+
+  Future<void>? _closeFuture;
+
+  /// Awaitable native retirement for the opt-in core. Legacy disposal stays
+  /// unchanged; callers must never mix the two ownership paths.
+  Future<void> close() => _closeFuture ??= _closeNative();
+
+  Future<void> _closeNative() async {
+    if (_disposed) return;
+    _disposed = true;
+    final subscriptions = _subscriptions;
+    _subscriptions = const [];
+    try {
+      await Future.wait(
+          subscriptions.map((subscription) => subscription.cancel()));
+    } finally {
+      try {
+        await _player.dispose();
+      } finally {
+        super.dispose();
+      }
+    }
   }
 }
 

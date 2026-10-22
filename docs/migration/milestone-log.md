@@ -604,3 +604,19 @@ Status: source, analysis, full tests, and Android Release build passed. Real pro
 - Focused updater/version tests passed (**7 tests**); full `flutter analyze --no-pub` found no issues (171.1s).
 - Android Release APK metadata: versionName `1.0.3`, versionCode `66`, applicationId `app.nova.mobile`. APK size **142,520,139 bytes**, SHA-256 `6610E286EA182BBBFDBE140787E119E3453282D946F259BC9E83EE9D192F6757`.
 - The manifest is published with tag `v1.0.3` for update discovery. The user attaches the matching-signed APK to the GitHub release; no APK was uploaded by this task. Phone confirmation remains pending; no emulator was launched.
+
+## Player Station 10 — progress wiring substep (22 October 2026)
+
+- Reconciled prior station evidence and actual reference locations; recorded the user's explicit Station 10 baseline waiver. Official baseline remains NOT MEASURED.
+- Added default-off coalesced progress display, isolated listener/generation ownership, exact seek/accessibility readers and stale-drag protection. Kept the existing engine, exact persistence/feature decisions and legacy-default path.
+- Final six-file analysis passed; 62 relevant player tests passed, including 16 new binding/timeline regressions (16/16 passed again after test-harness cleanup). Opt-in Android debug APK built successfully; BUILD-VERIFIED only. Artifact hash/build warnings in `docs/player-reengineering/10_STATION.md`.
+- This completes only the wiring substep. Full Station 10, native lifecycle/recovery/persistence replacement, device acceptance and Gate C remain incomplete. No performance or physical-device verification claimed.
+
+## Player Station 10 — accepted core candidate, Gate C pending (22 October 2026)
+
+- Recorded explicit approval of C10-1–C10-5 and implemented route-owned session/command/resolver ownership, exact checkpoint serialization and awaitable native close before torrent release.
+- Added independent legacy/core selection (legacy default), reused existing NOVA controls/subtitles/preferences/segments, and retained the video child across progress/panel changes. Existing stored keys, completion thresholds and provider enablement preserved.
+- Added session/checkpoint/selector/surface tests for races, ordering, cancellation, source continuity, pause intent, failures and phone/tablet RTL/theme layout logic. Full validation and artifact hash are recorded in `docs/player-reengineering/GATE_C_REVIEW.md`.
+- Gate C is HOLD for the user's physical-phone test; no installation/playback/performance or iOS runtime claim, no LKG promotion, no Station 11. This records an implementation checkpoint, not a completed runtime milestone.
+
+- Final Station 10 checkpoint validation after independent-review fixes: **525 tests passed**, full analysis clean, core-enabled debug APK built successfully. One Gate C review found four blockers; primary corrected all with regressions (24 session tests). Original FAIL and primary disposition retained; Gate C remains HOLD, no runtime/performance acceptance. Final artifact: 284,614,103 bytes, SHA-256 `5E0B2DEC2FB94691EAFDBF6F8AE2254C18859B5C35C577D2ADE6DA7F9AD1EABD`.

@@ -13,7 +13,7 @@ import '../../core/state/app_state.dart';
 import '../shell/nova_browse_widgets.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/image_decode.dart';
-import '../player/video_player_page.dart';
+import '../player/playback_entry_page.dart';
 
 class LiveTvPage extends StatefulWidget {
   const LiveTvPage({super.key});
@@ -431,7 +431,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         fullscreenDialog: true,
-        builder: (_) => VideoPlayerPage(
+        builder: (_) => PlaybackEntryPage(
           item: item,
           url: channel.url,
           streamName: channel.name,

@@ -1,5 +1,62 @@
 # Station 10 — Playback core stabilization
 
+## Current core candidate — Gate C HOLD, 2026-10-22
+
+**Station INCOMPLETE — implementation candidate, physical acceptance pending.** User accepted C10-1–C10-5 with **تم الاعتماد**; Station-10 baseline waiver remains explicit. Full legacy baseline/performance BEFORE is NOT MEASURED. No smoothness, native runtime, first-frame, LKG or Gate C approval claimed.
+
+Implemented the accepted contracts in `session/playback_state.dart`, `session/playback_session.dart`, `session/playback_checkpoint.dart`, additive paused-open/seekable/awaitable-close engine APIs, `playback_entry_page.dart`, independent `core_video_player_page.dart`, and `widgets/player_session_surface.dart`. All five external entry routes now select once before allocation; default is legacy, opt-in define `NOVA_PLAYER_CORE=true`. Core internal episode/source transitions stay core. Existing progress wiring/legacy changes from the previous continuation are preserved; no native/dependency/signing/version/schema/sync-key changes.
+
+Session commands serialize; stale generation/owner commands cancel; unknown failures do not auto-retry. Positive retry evidence permits at most one safe retry per operation/attempt; native adapter currently supplies none. Readiness waits for paused open, capability query and continuity restore; metadata/duration alone cannot authorize checkpoints, seek/resume success or first-frame claims. Session projections separate exact progress, 100 ms display and change-only transport. The page evaluates exact feature boundaries without position-driven surface rebuilds; a cached video child persists behind overlays and changes only for engine identity/fit. Panel/dialog/lifecycle intents cannot autoplay after a later user/system pause. Core reuses existing NOVA chrome/subtitles/preferences/segments rather than redesigning them in Station 10.
+
+Immutable checkpoints preserve item/video/season/episode/exact milliseconds/eligibility and local-only frame rules. A shared writer orders core handoffs, coalesces only pending periodic snapshots for the same owner/content, and never overtakes forced writes. Existing AppState/provider storage paths retain ownership/semantics. Closing invalidates ingress, cancels progress/periodic work, drains commands, attempts capture/final save with bounded persistence waits, awaits native close and only then releases the torrent. Failed/hanging native close blocks another native owner. Non-cancellable resolver work also drains before competing native acquisition.
+
+Source-resolution finding: existing `TorrentService.prepare` deactivates its prior server/torrent. Core therefore awaits native retirement before taking that path when replacing an owned torrent. Deliberate retirement keeps only the resolver transaction token; exit cancels it. Once teardown occurs, old playback is not claimed to survive cancellation; explicit retry re-resolves/prepares the source. Manual decoder/error retry otherwise keeps its current torrent lease through native replacement. Semantic track intent is rematched; unavailable tracks/nonseekable continuity return unsupported/paused. No software-decoder guessing or automatic source substitution.
+
+Final post-review validation: full suite PASS **525 tests**, full analysis PASS/no issues (66.2 s), opt-in debug APK PASS (158.4 s), and scoped formatting/whitespace PASS. The one Gate C reviewer returned FAIL on four races; primary corrected all four with regressions (24/24 focused session tests). Original verdict/disposition are preserved in `GATE_C_REVIEWER.md`; no repeated independent review or independent PASS claimed. Startup settings are applied within the open generation before play; late unsupported results cannot undo closing; explicit acquired/retiring lease ownership prevents release on failed retirement; handoff play-intent tokens plus new-route lifecycle suppress stale autoplay. Save failures produce one sanitized UI warning. Final artifact checksum and exact commands are in `GATE_C_REVIEW.md`. Total agent invocations 8, no implementation delegation in this continuation.
+
+Physical discovery only: `RF8NA2NNVNY` / Samsung SM_A217F is connected in `device` state. No install, launch, source selection or playback. iOS NOT-VERIFIED. Hardware, network/account, codec/track timing, full-page integration and profile/release performance remain NOT-VERIFIED / NOT MEASURED. Native library license still unclear/personal-use only. Packet and checklist: `GATE_C_REVIEW.md`.
+
+Original implementation tasks 7/10 at scoped checkpoint/stop: four implementation/testing tasks, rollback-scope rule N/A, scoped commit and Gate C stop. Device/LKG/installation/real-playback and human Gate C acceptance remain unchecked. Mission checked count 123/216. No Station 11, release/push, safety-tag move or LKG promotion.
+
+## Contract approval and implementation continuation — 2026-10-22
+
+User replied **تم الاعتماد** to the explicit request to approve C10-1–C10-5 and continue the remainder of Station 10. All five contracts below are now ACCEPTED for implementation; earlier PROPOSED/awaiting-acceptance descriptions are historical. Station-10 baseline waiver remains in force, BEFORE stays NOT MEASURED, no performance claim or Gate C acceptance follows. Primary agent implements alone under root Section 54A, preserves the existing dirty progress slice and unrelated work, retains the independent legacy default, and stops at Gate C before Station 11.
+
+
+## Current continuation — 2026-10-22 — optional progress wiring implemented
+
+**Station INCOMPLETE.** This heading supersedes historical design-only/STOP/unwired descriptions below for the current slice. User explicitly requested continuation, then answered **`waive baseline للمحطة 10`**. The earlier Station-09-only waiver now extends to Station 10, while all BEFORE values remain NOT MEASURED and performance benefit UNKNOWN. C10-1–C10-5 remain PROPOSED pending separate acceptance for the broader core; no Gate C or LKG promotion.
+
+Prior work, reference paths/revisions, prompt-copy differences, safety and REA fallback are reconciled in `evidence/CONTINUATION_2026-10-22.md`. Fresh helper checks confirmed 20/20 passing, including rejection of backward clocks; the historical rolled-back clamp/equal-input follow-up text below is not current code. Initial tracked player/test paths clean; unrelated dirty work preserved. Entry HEAD `a909f2d`, feature branch unchanged, production LKG/tag `c9257c0` unchanged, empty index. No commit/push/tag.
+
+### Completed wiring substep (separate from the full station checklist)
+
+- [x] Reconcile prior completion, helper implementation and baseline/gate limits.
+- [x] Locate actual read-only references; distinguish snapshots without Git metadata from pinned upstream clones.
+- [x] Record explicit Station 10 waiver; preserve NOT MEASURED performance values.
+- [x] Add default-off `NOVA_COALESCED_PROGRESS` selection in `video_player_page.dart`.
+- [x] Implement route-local `PlaybackProgressBinding` with seeded display samples, generation/interaction identity, detach/reset/close and late-callback protection.
+- [x] Connect the optional bottom display at engine creation and invalidate before every current retirement/retry/dispose site.
+- [x] Separate timeline display from exact tap/drag/accessibility authority; cancel invalidated drags and use current duration at commit.
+- [x] Add deterministic projection/lifecycle tests and timeline interaction regressions, including LTR/RTL and light/dark themes.
+
+Production paths: `video_player_page.dart`, `widgets/player_chrome.dart`, new `session/playback_progress_binding.dart`. Tests: new `test/playback_progress_binding_test.dart` and `test/player_timeline_progress_test.dart`. Existing `session/playback_progress.dart` behavior and its tests unchanged; only its stale unwired doc comment updated. A separate small binding module was chosen for fake-engine lifecycle testing instead of embedding untestable native engine ownership into page-private callbacks. It owns no engine/disposal; new page routes naturally create a new content owner.
+
+Flag false allocates no binding/coalescer/listener; optional readers fall back to existing widget fields. Flag true only samples position/duration/buffer display. Raw save/resume/completion/skip/next-episode paths and `_onEngineTick` remain unchanged. Exact reader and commit closures capture engine plus interaction token; stale closures cannot command a replacement. Timeline drag stores fraction and re-reads duration at release; identity changes cancel instead of restarting an old gesture. Legacy-default path retained; no storage/native/dependency/engine configuration change.
+
+### Verification for this continuation
+
+- Initial helper-only tests: PASS 20/20; initial helper/test scoped analysis: PASS.
+- Production-file scoped analysis: PASS, no issues (119.0 s).
+- Seven relevant player test files: PASS 62/62, including 16 new binding/timeline tests. Initial accessibility test harness incorrectly targeted the ancestor semantics node, then left its semantics handle alive; both test harness issues corrected. These were not runtime product failures.
+- Subsequent test-only use of `node.owner` replaces deprecated pipeline owner access; focused accessibility rerun PASS 1/1. Final analysis initially found four protected-member uses in the fake-engine test; replaced external `hasListeners` access with a fake-owned public getter. Final six-file scoped analysis PASS, no issues (14.9 s), and both new test files rerun PASS 16/16. Final formatting and whitespace checks PASS. No full repository test suite or full-repository analysis run in this continuation.
+- `flutter build apk --debug --no-pub --dart-define=NOVA_COALESCED_PROGRESS=true`: PASS (283.5 s), `build/app/outputs/flutter-apk/app-debug.apk`, 245,718,090 bytes, SHA-256 `4542FC753F40DF68D640C4320EF32B0497A3F2E90C01D987B9A14FCB7808D6F1`. Kotlin daemon connection errors fell back to compilation and did not prevent the build; existing Gradle/AGP/Kotlin/Java compatibility warnings retained, no native config edits. Opt-in Android wiring status BUILD-VERIFIED, runtime NOT-VERIFIED. Debug output is compilation evidence only, never performance evidence or a distribution/update artifact.
+- No install, device command, app launch, playback, emulator or iOS build. Android runtime NOT-VERIFIED, iOS NOT-VERIFIED. Exact engine callback attribution/native cleanup and full rendering isolation remain NOT-VERIFIED. No new performance measurements.
+
+### Next boundary
+
+This substep is complete; full Station 10 remains 0/10 original tasks, mission 216/116. Before implementing the proposed route-owned session/command lane, recovery and persistence replacement, retain the prior explicit requirement for separate acceptance of C10-1–C10-5. Their complete reviewable contracts are below under **Decisions — DRAFT-to-FINAL interface proposal**. Do not interpret this progress slice as acceptance of those contracts, Gate C, zero surface rebuilds, smooth playback or a new LKG. After the user's next instruction, continue Station 10 and stop at Gate C for actual user playback judgment before Station 11.
+
 ## Current stop / implementation-gate incident — 2026-10-21
 
 The user stopped implementation and reported an implementation change before the applicable implementation gate. Correction scope: **revert only changes introduced in the latest action**, preserve all earlier/user content, inspect Git before/after, record the incident, then report before continuing. No implementation, tests/analyzer/formatter, device commands, build/install, staging or commit authorized now.
@@ -48,7 +105,7 @@ Source/Git facts below are VERIFIED as text/metadata, with technical verificatio
 
 ## Decisions — DRAFT-to-FINAL interface proposal
 
-### C10-1 Session / ownership — PROPOSED
+### C10-1 Session / ownership — ACCEPTED 2026-10-22
 
 | Interface | Required contract |
 |---|---|
@@ -62,7 +119,7 @@ Source/Git facts below are VERIFIED as text/metadata, with technical verificatio
 
 Preserve legacy engine entry defaults while adding paused-open intent and awaitable close for the opt-in path. Do not suppress the legacy common notifier until the legacy implementation no longer depends on it.
 
-### C10-2 Progress / projections — PROPOSED
+### C10-2 Progress / projections — ACCEPTED 2026-10-22
 
 - `PlaybackProgress` is immutable: content/source generation, exact latest backend position, duration, bufferedEnd. The session retains unsampled backend values for seek/resume/checkpoints/feature decisions; the UI projection is never persistence authority.
 - `PlaybackProgressCoalescer` accepts samples and an injected monotonic clock/scheduler, equality-filters, and publishes the latest changed sample no sooner than 100 ms after the previous progress emission. At most one pending trailing callback; no unchanged periodic emissions. No catch-up burst after delayed callbacks. Cancel pending work on reset/close.
@@ -70,14 +127,14 @@ Preserve legacy engine entry defaults while adding paused-open intent and awaita
 - Transport/buffering boolean, tracks/selection/rate/error and feature-state projections notify only on meaningful change. Subtitles publish changed lines/style/source generation independently of the progress cap; engine remains timing authority. Countdown is at most once/second; segment decisions evaluate precise input and notify only on changed active state.
 - Separate listenables/streams use existing Dart/Flutter primitives. No second mutable player truth, global notifier, new state package or UI notification for every native event.
 
-### C10-3 Rendering — PROPOSED
+### C10-3 Rendering — ACCEPTED 2026-10-22
 
 - Retain `VideoController` / `Video` / `PlayerVideoSurface`; one stable video child per engine identity. Progress/buffer/transport/panels/HUD/subtitle/countdown listeners live outside that child's build boundary. Preserve an element/widget child across ordinary parent updates; a stable key alone is insufficient.
 - Keep the video mounted behind loading/error/control overlays while owned. Only intentional source teardown/terminal close may remove it. Fit/zoom/layout/orientation may change geometry without creating a player/controller; log those transitions separately from progress rebuilds.
 - Subtitle overlay has its own line/style subscription and preserves existing Arabic shaping, font, offsets and pinch geometry. No parser/native renderer switch; ASS/bitmap fidelity stays UNKNOWN.
 - Reuse present chrome/panels, themes, RTL/logical directions and safe areas. No visual redesign. Test surface build count and fake engine creation count under progress/control/panel changes, with phone/tablet, LTR/RTL and light/dark layout coverage. These tests establish widget behavior only; native surface/decoder recreation requires later device evidence.
 
-### C10-4 Recovery / continuity — PROPOSED
+### C10-4 Recovery / continuity — ACCEPTED 2026-10-22
 
 - Typed failure contains category, failed operation, content/source attempt, recoverability evidence and a sanitized diagnostic code. Categories: HTTP/auth/source, network/buffering, decode/format, output/lifecycle, subtitle/track/seek, cancelled, unknown. No raw exception/URL/header/token/hash in user copy or logs. Ambiguous buffering plus zero position never proves decoder failure.
 - Automatic recovery is disabled for auth/unsupported format, cancellation, unknown or unproven recoverability. A proven recoverable operation gets at most ONE automatic retry per operation/source attempt. Automatic reopen consumes the same attempt budget and cannot reset it; successful playback does not replenish it. Explicit manual retry or an explicit source change creates a new attempt. No loop, automatic alternate-source choice or software-decoder recreation.
@@ -85,7 +142,7 @@ Preserve legacy engine entry defaults while adding paused-open intent and awaita
 - Resolve cancellation retains the old paused source only while still valid/owned; replay requires explicit user intent. Once old media was replaced, recovery cannot claim rollback without reopening it. New episode/title checkpoints old identity, clears position/segments/countdown/dismissal/track IDs, then applies that content's own resume/preferences.
 - Only the opt-in new session replaces the ambiguous legacy watchdog. The retained default legacy path stays available. Decoder/cache tuning, fallback recreation or new backend needs evidence and the applicable approval; none is proposed for this first edit.
 
-### C10-5 Persistence — PROPOSED
+### C10-5 Persistence — ACCEPTED 2026-10-22
 
 - Immutable checkpoint: content identity and MediaItem snapshot, positionMs/durationMs from exact backend state, in-memory monotonic sequence, cause and recordProgress/resume-choice eligibility. Sequence/generation are process-local, not new stored fields. Freeze before awaiting or changing source; never read widget/context after dispose.
 - Keep current five-second periodic policy. Single in-flight save plus at most the latest pending periodic snapshot for the same identity; a forced pause/source/exit checkpoint supersedes older pending periodic work and is awaited. Never coalesce across different episodes/content or discard a forced final checkpoint. No older queued snapshot may run after a newer final checkpoint for that identity.
@@ -142,18 +199,18 @@ Planning deliverables (separate from the original 10 implementation tasks):
 - [x] Name exact future edit paths, minimal first slice, validation and rollback.
 - [x] Synchronize current master-plan scope/status; stop after the proposal summary.
 
-Original implementation checklist — remains 0/10:
+Original implementation checklist — 7/10 at checkpoint/Gate C stop; physical acceptance pending:
 
-- [ ] Implement approved core session architecture and preserve legacy selector.
-- [ ] Stabilize controller lifecycle, event subscriptions, cancellation and disposal.
-- [ ] Implement error classification/retry/fallback contracts without loops.
-- [ ] Add focused state/session tests for lifecycle and transitions.
+- [x] Implement approved core session architecture and preserve legacy selector.
+- [x] Stabilize controller lifecycle, event subscriptions, cancellation and disposal.
+- [x] Implement error classification/retry/fallback contracts without loops.
+- [x] Add focused state/session tests for lifecycle and transitions.
 - [ ] Run analyze/tests and physical-device functional LKG checks; performance only in Profile/Release.
 - [ ] Record installation, app launch, real playback evidence and source stream.
 - [ ] Meet user Gate C review requirement and record LKG.
-- [ ] Clean only station-owned paths if rollback becomes necessary.
-- [ ] Commit only Station 10 paths/docs.
-- [ ] Stop at Gate C for user playback judgment.
+- [x] Clean only station-owned paths if rollback becomes necessary. N/A: no rollback triggered; unrelated work preserved.
+- [x] Commit only Station 10 paths/docs. Scoped core checkpoint; unrelated hunks excluded.
+- [x] Stop at Gate C for user playback judgment. HOLD; no Station 11.
 
 ## Files inspected / modified
 

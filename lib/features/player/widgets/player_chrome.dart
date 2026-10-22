@@ -459,11 +459,19 @@ class GradientTimeline extends StatefulWidget {
     required this.onScrubUpdate,
     required this.onScrubEnd,
     this.thickness = 4.0,
+    this.readExactPositionMs,
+    this.readExactDurationMs,
+    this.interactionIdentity,
   });
 
   final int durationMs;
   final int positionMs;
   final int bufferedMs;
+
+  /// Display samples may lag; commands read authoritative values on demand.
+  final int Function()? readExactPositionMs;
+  final int Function()? readExactDurationMs;
+  final Object? interactionIdentity;
 
   /// Bar thickness — slightly thicker on tablets (spec §0-ب).
   final double thickness;
@@ -479,12 +487,42 @@ class GradientTimeline extends StatefulWidget {
 
 class _GradientTimelineState extends State<GradientTimeline> {
   bool _dragging = false;
-  double _dragValue = 0;
+  double _dragFraction = 0;
+  Object? _dragIdentity;
+
+  int get _exactDurationMs =>
+      widget.readExactDurationMs?.call() ?? widget.durationMs;
+
+  @override
+  void didUpdateWidget(covariant GradientTimeline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.interactionIdentity, widget.interactionIdentity) ||
+        _exactDurationMs <= 0) {
+      _dragging = false;
+    }
+  }
+
+  bool _current(Object? identity) =>
+      identical(identity, widget.interactionIdentity);
+
+  void _commitFraction(double fraction, Object? identity) {
+    if (!_current(identity)) return;
+    final duration = _exactDurationMs;
+    if (duration <= 0) return;
+    widget.onScrubEnd(fraction.clamp(0.0, 1.0) * duration / 1000);
+  }
+
+  void _step(int deltaMs) {
+    final duration = _exactDurationMs;
+    if (duration <= 0) return;
+    final position = widget.readExactPositionMs?.call() ?? widget.positionMs;
+    widget.onScrubEnd((position + deltaMs).clamp(0, duration) / 1000);
+  }
 
   double get _progress {
+    if (_dragging) return _dragFraction;
     if (widget.durationMs <= 0) return 0;
-    final value = _dragging ? _dragValue : widget.positionMs;
-    return (value / widget.durationMs).clamp(0.0, 1.0);
+    return (widget.positionMs / widget.durationMs).clamp(0.0, 1.0);
   }
 
   double _valueFromDx(double dx, double width) {
@@ -500,6 +538,7 @@ class _GradientTimelineState extends State<GradientTimeline> {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final duration = widget.durationMs;
+        final canSeek = _exactDurationMs > 0;
         final thickness = widget.thickness;
         final thumbSize = thickness + 10;
         final buffered =
@@ -508,8 +547,9 @@ class _GradientTimelineState extends State<GradientTimeline> {
 
         void handleTap(double dx) {
           final value = _valueFromDx(dx, width);
+          final identity = widget.interactionIdentity;
           widget.onScrubStart();
-          widget.onScrubEnd(value * duration / 1000);
+          _commitFraction(value, identity);
         }
 
         return Semantics(
@@ -525,47 +565,51 @@ class _GradientTimelineState extends State<GradientTimeline> {
               ? formatPlayerTime(Duration(
                   milliseconds: (widget.positionMs - 10000).clamp(0, duration)))
               : null,
-          onIncrease: duration > 0
-              ? () => widget.onScrubEnd(
-                  (widget.positionMs + 10000).clamp(0, duration) / 1000)
-              : null,
-          onDecrease: duration > 0
-              ? () => widget.onScrubEnd(
-                  (widget.positionMs - 10000).clamp(0, duration) / 1000)
-              : null,
+          onIncrease: canSeek ? () => _step(10000) : null,
+          onDecrease: canSeek ? () => _step(-10000) : null,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: duration <= 0
+            onHorizontalDragStart: !canSeek
                 ? null
                 : (details) {
+                    final identity = widget.interactionIdentity;
                     widget.onScrubStart();
+                    if (!_current(identity) || _exactDurationMs <= 0) return;
                     setState(() {
                       _dragging = true;
-                      _dragValue =
-                          _valueFromDx(details.localPosition.dx, width) *
-                              duration;
+                      _dragIdentity = identity;
+                      _dragFraction =
+                          _valueFromDx(details.localPosition.dx, width);
                     });
-                    widget.onScrubUpdate(_dragValue / 1000);
+                    widget
+                        .onScrubUpdate(_dragFraction * _exactDurationMs / 1000);
                   },
-            onHorizontalDragUpdate: duration <= 0
+            onHorizontalDragUpdate: !canSeek
                 ? null
                 : (details) {
+                    if (!_dragging) return;
+                    if (!_current(_dragIdentity) || _exactDurationMs <= 0) {
+                      setState(() => _dragging = false);
+                      return;
+                    }
                     setState(() {
-                      _dragging = true;
-                      _dragValue =
-                          _valueFromDx(details.localPosition.dx, width) *
-                              duration;
+                      _dragFraction =
+                          _valueFromDx(details.localPosition.dx, width);
                     });
-                    widget.onScrubUpdate(_dragValue / 1000);
+                    widget
+                        .onScrubUpdate(_dragFraction * _exactDurationMs / 1000);
                   },
-            onHorizontalDragEnd: duration <= 0
+            onHorizontalDragEnd: !canSeek
                 ? null
                 : (details) {
-                    widget.onScrubEnd(_dragValue / 1000);
+                    if (!_dragging) return;
+                    final fraction = _dragFraction;
+                    final identity = _dragIdentity;
                     setState(() => _dragging = false);
+                    _commitFraction(fraction, identity);
                   },
             onHorizontalDragCancel: () => setState(() => _dragging = false),
-            onTapUp: duration <= 0
+            onTapUp: !canSeek
                 ? null
                 : (details) => handleTap(details.localPosition.dx),
             child: SizedBox(
@@ -644,7 +688,8 @@ class _GradientTimelineState extends State<GradientTimeline> {
                         child: Text(
                           formatPlayerTime(
                             Duration(
-                                milliseconds: (progress * duration).round()),
+                                milliseconds:
+                                    (progress * _exactDurationMs).round()),
                           ),
                           textAlign: TextAlign.center,
                           style: const TextStyle(
@@ -701,11 +746,17 @@ class PlayerBottomCluster extends StatelessWidget {
     required this.onScrubStart,
     required this.onScrubUpdate,
     required this.onScrubEnd,
+    this.readExactPositionMs,
+    this.readExactDurationMs,
+    this.interactionIdentity,
   });
 
   final int durationMs;
   final int positionMs;
   final int bufferedMs;
+  final int Function()? readExactPositionMs;
+  final int Function()? readExactDurationMs;
+  final Object? interactionIdentity;
   final bool showRemaining;
 
   /// mpv volume, normalized 0..1 (drives the left slider).
@@ -786,6 +837,9 @@ class PlayerBottomCluster extends StatelessWidget {
                           durationMs: durationMs,
                           positionMs: positionMs,
                           bufferedMs: bufferedMs,
+                          readExactPositionMs: readExactPositionMs,
+                          readExactDurationMs: readExactDurationMs,
+                          interactionIdentity: interactionIdentity,
                           thickness: thickness,
                           onScrubStart: onScrubStart,
                           onScrubUpdate: onScrubUpdate,

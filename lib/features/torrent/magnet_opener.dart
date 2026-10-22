@@ -11,7 +11,7 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
-import '../player/video_player_page.dart';
+import '../player/playback_entry_page.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/shimmer_box.dart';
 
@@ -263,7 +263,7 @@ class _MagnetSheetState extends State<_MagnetSheet> {
       await navigator.push(
         MaterialPageRoute<void>(
           fullscreenDialog: true,
-          builder: (_) => VideoPlayerPage(
+          builder: (_) => PlaybackEntryPage(
             item: item,
             url: torrent.url,
             torrent: torrent,

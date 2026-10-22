@@ -1,5 +1,26 @@
 # NOVA Player Reengineering — Master Plan
 
+## Current core candidate — Gate C HOLD, 2026-10-22
+
+Accepted C10-1–C10-5 implemented as an opt-in route-owned core candidate: frozen request/outcomes, ordered session/resolver ownership, independent projections, shared immutable checkpoint writer, awaitable native retirement, stable surface child, independent core page and once-per-route legacy/core selector. All five player entry routes preserve launch inputs; legacy stays default (`NOVA_PLAYER_CORE=true` enables core). New small surface-host module and localized save-error copy/generator are recorded scope additions. No engine replacement, dependency/native/signing/storage schema/key change. Personal-use/native-license conditions unchanged.
+
+Station 10 remains INCOMPLETE, **7/10** original tasks at scoped checkpoint/Gate C stop, mission **123/216**. Three physical-device/LKG/real-playback acceptance tasks remain unchecked; Gate C HOLD before Station 11. Final full suite **525 PASS**, full analysis clean (66.2 s), opt-in Android debug build PASS (158.4 s), scoped formatting/whitespace PASS. One independent Gate C review returned FAIL with four integration blockers; primary corrected them and added regressions, focused session tests 24/24 PASS. Original verdict/disposition in `GATE_C_REVIEWER.md`, no repeated review/PASS claim; cumulative agent invocations 8. Final APK checksum/provenance and scoped checkpoint details: `GATE_C_REVIEW.md`.
+
+All BEFORE/AFTER performance NOT MEASURED under the explicit Station-10 waiver; performance benefit UNKNOWN. Production LKG/tag remains c9257c0. No install/launch/playback, push/tag/release, legacy removal or LKG promotion. Physical discovery confirms RF8NA2NNVNY / SM_A217F only. Candidate BUILD-VERIFIED on Android; runtime/iOS NOT-VERIFIED. Previous pending-check/proposed/unwired descriptions below are historical. Unrelated settings/native/brand/docs and original Station10 decoder investigation/wiring-design-only hunks remain uncommitted in the working tree, preserved separately from the scoped player checkpoint.
+
+## Latest decision — contracts accepted, 2026-10-22
+
+User **تم الاعتماد** explicitly accepts C10-1–C10-5 and continuing the rest of Station 10. Separate contract-approval boundary below is satisfied. Implementation is authorized on the proposed session/adapter/selector/core-page/routing/test paths, plus required documentation/localization as needed. Retain legacy default, existing identifiers/storage semantics, scoped waiver (all BEFORE NOT MEASURED), and no performance/LKG claim. Primary implements alone; stop at Gate C for user device judgment before Station 11. Existing progress-slice dirty changes and unrelated work must be preserved.
+
+
+## Current continuation — 2026-10-22
+
+User requested continuing the plan, auditing prior completed tasks and the two actual reference roots, REA where available, and stopping after each station. Explicit follow-up **`waive baseline للمحطة 10`** extends the previous Station-09-only waiver to Station 10. Every BEFORE remains NOT MEASURED; performance benefit UNKNOWN; Gate B media_kit/personal-use/native-license conditions preserved. Earlier stop/design-only instructions below are historical for this implemented progress slice, not current scope. Detailed C10-1–C10-5 remain PROPOSED pending separate acceptance; no Gate C or LKG promotion.
+
+Implemented default-off `NOVA_COALESCED_PROGRESS` wiring: sampled bottom-cluster display through new `session/playback_progress_binding.dart`, exact timeline readers and interaction tokens, detach/reset on engine retirement, current-duration drag commits and stale-generation cancellation. Existing helper behavior unchanged; stale unwired doc comment updated. Raw page notifier, persistence/feature authority and video surface remain as before; this is not full core stabilization or rendering isolation. Five production/test implementation paths plus the helper doc comment and required docs; no engine/dependency/native/storage changes. Prior dirty work preserved. Entry/current HEAD `a909f2d`, branch `feature/player-reengineering`, production LKG/tag `c9257c0`, index empty; no commit/push/tag.
+
+Fresh initial helper tests 20/20; seven relevant player test files 62/62 passing. Final six-file analysis clean; final new-test rerun 16/16; opt-in Android debug APK built successfully (283.5 s). Detailed commands, artifact hash and build warnings in `10_STATION.md`. Wiring BUILD-VERIFIED on Android; no device/iOS/runtime/performance verification. Reference reconciliation and invocation accounting: `evidence/CONTINUATION_2026-10-22.md` (one read-only review after immediate correction of an implementation delegation; no agent edits; cumulative 7). REA unavailable, Section 0.7 direct-source fallback. Original station totals remain 216/116; Station 10 incomplete (0/10 broad original tasks), wiring substep complete; Stations 11–20 unentered. Next required decision: separate acceptance of existing proposed contracts before broad session/recovery/persistence replacement.
+
 ## Current stop / rollback instruction — 2026-10-21
 
 User halted implementation and directed rollback of **only the latest action** in `lib/features/player/session/playback_progress.dart` and `test/playback_progress_test.dart`, preserving earlier/user changes. Latest equal-input/clock-clamping/test edits reverted with explicit reverse hunks; pre-existing unwired helper/test additions remain untracked. No other application source/test edited, no reset/restore/clean, no executable checks or device work, no staging/commit. Incident recorded at the start of `10_STATION.md`; verification STATIC-ONLY. Earlier implementation authorizations/results below are historical and do not permit continuation.
@@ -61,7 +82,7 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 07 | Cross-project engineering comparison | 8 | 8 | COMPLETE — STATIC-ONLY |
 | 08 | Root-cause analysis | 8 | 8 | COMPLETE — STATIC-ONLY; Gate A accepted with explicit baseline waiver |
 | 09 | Final architecture | 9 | 9 | COMPLETE planning — STATIC-ONLY; Gate B Option A approved with conditions; interface contracts DRAFT |
-| 10 | Playback core stabilization | 10 | 0 | STOPPED — latest-action rollback STATIC-ONLY; earlier additions preserved, session boundary pending |
+| 10 | Playback core stabilization | 10 | 7 | INCOMPLETE — BUILD-VERIFIED candidate; Gate C/device/LKG pending |
 | 11 | Player controls and gestures | 8 | 0 | PLANNED — not entered |
 | 12 | Subtitles, audio, speed, sources | 9 | 0 | PLANNED — not entered |
 | 13 | Resume playback | 7 | 0 | PLANNED — not entered |
@@ -72,7 +93,7 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 18 | iOS platform verification | 9 | 0 | PLANNED — not entered |
 | 19 | Performance regression and long playback | 9 | 0 | PLANNED — not entered |
 | 20 | Final full audit | 10 | 0 | PLANNED — not entered |
-| **Total** |  | **216** | **116** |  |
+| **Total** |  | **216** | **123** |  |
 
 Station tracking files: `00_STATION.md`–`20_STATION.md`, plus `STATION_06A.md` and `STATION_06B.md`. Station 10 isolated helper/tests only; player integration and Stations 11–20 unentered. `SESSION_1_HANDOFF.md`, unchanged Station 08 report and old gate-pending text are historical; current smallest-edit scope above controls resumption.
 

@@ -3,7 +3,8 @@ import 'dart:async';
 /// An exact backend sample, independent of its eventual UI publication.
 ///
 /// Timing values are deliberately not rounded or clamped here. Validation and
-/// persistence remain the responsibility of the caller. This module is unwired.
+/// persistence remain the responsibility of the caller. Route-local UI wiring
+/// lives in playback_progress_binding.dart.
 class PlaybackProgress {
   const PlaybackProgress({
     required this.contentGeneration,

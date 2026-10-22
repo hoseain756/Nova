@@ -20,7 +20,7 @@ import '../../shared/widgets/nova_parental_gate.dart';
 import '../anime/anime_tracker_sheet.dart';
 import '../library/custom_list_picker.dart';
 import '../player/stream_headers.dart';
-import '../player/video_player_page.dart';
+import '../player/playback_entry_page.dart';
 import '../shell/noor_dock_tabs.dart' show glassDockContentClearance;
 import 'detail_hero.dart';
 import 'episode_data.dart';
@@ -700,7 +700,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       setState(() => _loadingStreams = false);
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => VideoPlayerPage(
+          builder: (_) => PlaybackEntryPage(
             item: item,
             url: url,
             headers: directHeaders,

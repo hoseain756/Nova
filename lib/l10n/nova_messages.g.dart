@@ -950,6 +950,7 @@ const Map<String, String> novaEnglish = {
   "message918": "Season {p0} · Episode {p1}",
   "message919": "Download episode",
   "message920": "Mark through this episode as watched",
+  "playerProgressSaveFailed": "Could not save playback progress.",
 };
 const Map<String, String> novaArabic = {
   "appName": "NOVA",
@@ -1902,4 +1903,5 @@ const Map<String, String> novaArabic = {
   "message918": "الموسم {p0} · الحلقة {p1}",
   "message919": "تنزيل الحلقة",
   "message920": "تحديد هذه الحلقة وما قبلها كمشاهدة",
+  "playerProgressSaveFailed": "تعذر حفظ تقدّم المشاهدة.",
 };
