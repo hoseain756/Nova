@@ -10,6 +10,7 @@ import 'package:screen_brightness/screen_brightness.dart';
 import 'package:volume_controller/volume_controller.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/models/playback_resume_policy.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
@@ -28,6 +29,7 @@ import 'stream_headers.dart';
 import 'temporary_speed_hold.dart';
 import 'widgets/player_chrome.dart';
 import 'widgets/player_episodes_sheet.dart';
+import 'widgets/player_panel_request.dart';
 import 'widgets/player_session_surface.dart';
 import 'widgets/player_side_panel.dart';
 import 'widgets/player_sheets.dart';
@@ -127,6 +129,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   List<Map<String, dynamic>> _panelExternalSubs = const [];
   bool _panelLoading = false;
   bool _panelRefreshing = false;
+  bool _panelLoadFailed = false;
+  final PlayerPanelRequest _panelRequest = PlayerPanelRequest();
   BoxFit _fit = BoxFit.contain;
   double _zoom = 1.0;
   bool _showRemaining = false;
@@ -431,15 +435,35 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _progressBinding?.bind(engine);
     engine.addListener(_onEngineTick);
     _applyEngineSubtitleSettings();
-    unawaited(
-      engine.open(
+    unawaited(_openEngine(engine));
+    _bumpControls();
+  }
+
+  Future<void> _openEngine(MediaKitEngine engine) async {
+    final automaticResume = !_resuming && (_resumePositionMs ?? 0) > 0;
+    if (automaticResume) _resumeTransitioning = true;
+    try {
+      await engine.open(
         widget.url,
         startAt:
             !_resuming ? Duration(milliseconds: _resumePositionMs ?? 0) : null,
         httpHeaders: widget.headers,
-      ),
-    );
-    _bumpControls();
+      );
+    } catch (error) {
+      if (!mounted || !identical(_engine, engine)) return;
+      debugPrint('[NOVA] legacy open failed: ${error.runtimeType}');
+      if (error is UnsupportedError && (_resumePositionMs ?? 0) > 0) {
+        _resumePositionMs = 0; // Retry can start the source from the beginning.
+        setState(() => _engineInitError =
+            NovaStrings.lookup(english, 'resumeSeekUnavailable'));
+      } else {
+        setState(() => _engineInitError = error.toString());
+      }
+    } finally {
+      if (automaticResume && identical(_engine, engine)) {
+        _resumeTransitioning = false;
+      }
+    }
   }
 
   /// Periodic stuck check (runs every 5s with the progress timer):
@@ -752,14 +776,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     }
     final engine = _engine;
     if (engine == null || !engine.ready) return;
-    await context.read<AppState>().recordPlayback(
-          widget.item,
-          positionMs: engine.position.inMilliseconds,
-          durationMs: engine.duration.inMilliseconds,
-          videoId: widget.videoId,
-          season: widget.season,
-          episode: widget.episode,
-        );
+    await _app.recordPlayback(
+      widget.item,
+      positionMs: engine.position.inMilliseconds,
+      durationMs: engine.duration.inMilliseconds,
+      videoId: widget.videoId,
+      season: widget.season,
+      episode: widget.episode,
+    );
   }
 
   Future<void> _captureResumeSnapshot() async {
@@ -774,9 +798,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (engine is! MediaKitEngine || !engine.ready) return;
     final positionMs = engine.position.inMilliseconds;
     final durationMs = engine.duration.inMilliseconds;
-    if (positionMs <= 0 ||
-        durationMs <= 0 ||
-        positionMs >= durationMs - 120000) {
+    if (!PlaybackResumePolicy.canCaptureFrame(positionMs, durationMs)) {
       return;
     }
     _capturingResumeFrame = true;
@@ -1087,6 +1109,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// no await): the video pauses for the panel's lifetime and resumes ONLY
   /// if it was playing; never resumes an engine that was swapped mid-panel.
   void _openPanel(PlayerPanelKind kind) {
+    _panelRequest.invalidate();
     if (_locked) return;
     if (_temporarySpeed.active || _temporarySpeed.settling) {
       unawaited(_endTemporarySpeed().then((_) {
@@ -1109,6 +1132,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _hideTimer?.cancel();
     setState(() {
       _panel = kind;
+      _panelLoading = false;
+      _panelRefreshing = false;
+      _panelLoadFailed = false;
       _panelWasPlaying = wasPlaying;
       _panelEngine = engine;
       _sheetOpen = true;
@@ -1129,10 +1155,14 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   void _closePanel() {
+    _panelRequest.invalidate();
     final engine = _engine;
     final resume = _panelWasPlaying && identical(engine, _panelEngine);
     setState(() {
       _panel = null;
+      _panelLoading = false;
+      _panelRefreshing = false;
+      _panelLoadFailed = false;
       _panelWasPlaying = false;
       _panelEngine = null;
       _sheetOpen = false;
@@ -1195,6 +1225,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             onPick: (track) => unawaited(_pickSubtitleTrack(track)),
             external: _panelExternalSubs,
             loadingExternal: _panelLoading,
+            loadFailed: _panelLoadFailed,
             onOpenSettings: _openSubtitleStyleSheet,
             onRefresh: () => unawaited(_loadPanelData(refresh: true)),
             refreshing: _panelRefreshing,
@@ -1219,6 +1250,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             currentStream: currentStream,
             onRefresh: () => unawaited(_loadPanelData(refresh: true)),
             refreshing: _panelRefreshing,
+            loadFailed: _panelLoadFailed,
             onPick: (stream) => unawaited(_switchToStream(stream)),
           ),
         );
@@ -1269,17 +1301,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     }
   }
 
-  /// Panel data loader — run on panel open AND on the header refresh
-  /// button. Failures surface as the in-panel empty note, never a crash.
+  /// Fetch only for the current panel request. Keep failures distinct from an
+  /// empty provider result so the user can retry without losing old rows.
   Future<void> _loadPanelData({required bool refresh}) async {
     final kind = _panel;
-    if (kind == null) return;
+    if (kind != PlayerPanelKind.streams && kind != PlayerPanelKind.subtitles) {
+      return;
+    }
     if (kind == PlayerPanelKind.streams &&
         _panelStreams.isNotEmpty &&
         !refresh) {
       return; // instant content from the delivered list
     }
+    final request = _panelRequest.begin();
     setState(() {
+      _panelLoadFailed = false;
       if (refresh) {
         _panelRefreshing = true;
       } else {
@@ -1292,19 +1328,26 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           app: _app,
           item: widget.item,
           videoId: widget.videoId,
+          reportFailures: true,
         );
-        if (!mounted || _panel != PlayerPanelKind.streams) return;
+        if (!mounted || !_panelRequest.isCurrent(request) || _panel != kind) {
+          return;
+        }
         _panelStreams = streams;
       } else if (kind == PlayerPanelKind.subtitles) {
         final subs = await _fetchExternalSubs();
-        if (!mounted || _panel != PlayerPanelKind.subtitles) return;
+        if (!mounted || !_panelRequest.isCurrent(request) || _panel != kind) {
+          return;
+        }
         _panelExternalSubs = subs;
       }
-    } catch (_) {
-      // The panel shows its empty/refresh note — the error itself is not
-      // actionable beyond the refresh button.
+    } catch (error) {
+      if (mounted && _panelRequest.isCurrent(request) && _panel == kind) {
+        debugPrint('[NOVA] $kind panel fetch failed: ${error.runtimeType}');
+        _panelLoadFailed = true;
+      }
     } finally {
-      if (mounted) {
+      if (mounted && _panelRequest.isCurrent(request) && _panel == kind) {
         setState(() {
           _panelLoading = false;
           _panelRefreshing = false;
@@ -1316,29 +1359,36 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// Addon subtitles for the panel body — refetched on every panel open and
   /// on the header refresh button.
   Future<List<Map<String, dynamic>>> _fetchExternalSubs() async {
-    try {
-      final app = _app;
-      final subs = await app.catalogs
-          .subtitlesForEpisode(widget.item, widget.videoId, app.addons);
-      return subs.where((sub) => sub['url'] is String).toList();
-    } catch (_) {
-      return const [];
-    }
+    final app = _app;
+    final subs = await app.catalogs.subtitlesForEpisode(
+        widget.item, widget.videoId, app.addons,
+        reportFailures: true);
+    return subs.where((sub) => sub['url'] is String).toList();
   }
 
   Future<void> _pickSubtitleTrack(SubtitleTrack track) async {
     final target = _engine;
     if (target == null) return;
-    _preferenceSession.markSubtitleSelectedManually();
     try {
       final resolved = await loadExternalSubtitleTrack(_app.api, track);
       if (!mounted || !identical(_engine, target)) return;
       await target.selectSubtitle(resolved);
-    } catch (_) {
+      if (!mounted || !identical(_engine, target)) return;
+      _preferenceSession.markSubtitleSelectedManually();
+    } catch (error) {
       if (!mounted) return;
+      debugPrint('[NOVA] subtitle selection failed: $error');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(NovaStrings.lookup(english, 'subtitleLoadFailed'))),
+            content: Text(NovaStrings.lookup(
+          english,
+          externalSubtitleErrorMessageKey(error),
+          {
+            'status': error is ExternalSubtitleException
+                ? '${error.statusCode ?? ''}'
+                : '',
+          },
+        ))),
       );
     }
   }
@@ -1923,7 +1973,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     if (torrent != null) unawaited(torrent.stop());
     final engine = _engine;
     engine?.removeListener(_onEngineTick);
-    unawaited(_saveProgress());
+    if (!_allowRoutePop) {
+      unawaited(_saveProgress().catchError((Object error) {
+        debugPrint('[NOVA] legacy dispose progress save failed: '
+            '${error.runtimeType}');
+      }));
+    }
     engine?.dispose();
     unawaited(_restoreBrightness());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -2502,9 +2557,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                     !outroVisible &&
                     !_upNextDismissed &&
                     !_stopScrobbled)
-                  PositionedDirectional(
-                    bottom: 180 * scale,
-                    end: 16,
+                  PlayerUpNextPlacement(
+                    scale: scale,
                     child: PlayerCardShell(
                       width: 288,
                       child: Column(
@@ -2563,26 +2617,18 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                               ),
                             ),
                           const SizedBox(height: 11),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: PlayerPrimaryAction(
-                                  label:
-                                      NovaStrings.lookup(english, 'message23'),
-                                  // Spec B2.3: ALWAYS through the existing
-                                  // source-selection page — never auto-pick.
-                                  onPressed: () => unawaited(
-                                    _startEpisodeSources(nextEpisode),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              PlayerSecondaryAction(
-                                label: NovaStrings.lookup(english, 'cancel'),
-                                onPressed: () =>
-                                    setState(() => _upNextDismissed = true),
-                              ),
-                            ],
+                          PlayerUpNextActions(
+                            primaryLabel:
+                                NovaStrings.lookup(english, 'message23'),
+                            secondaryLabel:
+                                NovaStrings.lookup(english, 'cancel'),
+                            // Spec B2.3: ALWAYS through the existing
+                            // source-selection page — never auto-pick.
+                            onPrimary: () => unawaited(
+                              _startEpisodeSources(nextEpisode),
+                            ),
+                            onSecondary: () =>
+                                setState(() => _upNextDismissed = true),
                           ),
                         ],
                       ),

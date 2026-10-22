@@ -75,6 +75,11 @@
   "downloadForeground": "Keep NOVA open while downloading. Protected streams and live playlists cannot be saved as offline files.",
   "downloadError": "This source could not be downloaded. Try another source.",
   "subtitleLoadFailed": "Could not load this subtitle. Try another track.",
+  "subtitleSearchFailed": "Could not load subtitles from the add-ons. Try again.",
+  "sourceSearchFailed": "Could not load sources from the add-ons. Try again.",
+  "resumeSeekUnavailable": "This source could not seek to your saved position. Retry to play from the beginning.",
+  "subtitleProviderNoFile": "The subtitle provider could not find a supported file in this archive. Try another subtitle.",
+  "subtitleProviderHttpError": "The subtitle provider returned HTTP {status}. Try another subtitle or retry later.",
   "downloadBytes": "{received} of {total}",
   "message1": "{p0}{p1} s",
   "message2": "Default",
@@ -956,5 +961,6 @@
   "message918": "Season {p0} · Episode {p1}",
   "message919": "Download episode",
   "message920": "Mark through this episode as watched",
-  "playerProgressSaveFailed": "Could not save playback progress."
+  "playerProgressSaveFailed": "Could not save playback progress.",
+  "playerNativeRetirementFailed": "The previous player could not close. Close NOVA and open it again before playing this episode."
 }

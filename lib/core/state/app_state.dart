@@ -13,6 +13,7 @@ import '../models/addon.dart';
 import '../models/custom_list.dart';
 import '../models/integration_cw.dart';
 import '../models/media_item.dart';
+import '../models/playback_resume_policy.dart';
 import '../oauth/oauth_redirect.dart';
 import '../sync/noor_sync.dart';
 import '../storage/resume_snapshot_store.dart';
@@ -134,7 +135,8 @@ class AppState extends ChangeNotifier {
         (entry) =>
             entry.durationMs > 0 &&
             entry.positionMs > 0 &&
-            entry.positionMs < entry.durationMs - 120000,
+            PlaybackResumePolicy.isBeforeCompletion(
+                entry.positionMs, entry.durationMs),
       )
       .take(12)
       .toList();
@@ -1161,7 +1163,7 @@ class AppState extends ChangeNotifier {
         return h.season != season || h.episode != episode;
       }),
     ].take(200).toList();
-    if (durationMs > 0 && positionMs < durationMs - 120000) {
+    if (PlaybackResumePolicy.isBeforeCompletion(positionMs, durationMs)) {
       _continueWatching[item.id] = {
         'id': item.id,
         'type': item.type,
@@ -1182,19 +1184,18 @@ class AppState extends ChangeNotifier {
       NoorSyncService.bucketHistory,
       NoorSyncService.bucketLibrary,
     });
-    if (durationMs > 0 && positionMs >= durationMs - 120000) {
+    if (PlaybackResumePolicy.isComplete(positionMs, durationMs)) {
       await removeResumeSnapshot(item.id);
     }
     _mirrorAnimeProgress(
       item,
       positionMs,
       durationMs,
-      isEpisode && durationMs > 0 && positionMs >= durationMs - 120000
+      isEpisode && PlaybackResumePolicy.isComplete(positionMs, durationMs)
           ? _watchedEpisodeCount(item)
           : episode,
     );
-    if (durationMs > 0 &&
-        positionMs >= durationMs - 120000 &&
+    if (PlaybackResumePolicy.isComplete(positionMs, durationMs) &&
         season != null &&
         episode != null) {
       _mirrorEpisodeHistory(item, [
@@ -1301,8 +1302,7 @@ class AppState extends ChangeNotifier {
           entry.item.id == item.id &&
           entry.season != null &&
           entry.episode != null &&
-          entry.durationMs > 0 &&
-          entry.positionMs >= entry.durationMs - 120000)
+          PlaybackResumePolicy.isComplete(entry.positionMs, entry.durationMs))
       .map((entry) => '${entry.season}:${entry.episode}')
       .toSet()
       .length;
@@ -1380,7 +1380,7 @@ class AppState extends ChangeNotifier {
     int? episode,
   ) {
     if (item.anilistId == null && item.idMal == null) return;
-    final finished = durationMs > 0 && positionMs >= durationMs - 120000;
+    final finished = PlaybackResumePolicy.isComplete(positionMs, durationMs);
     final isMovie = item.type == 'movie';
     if (!isMovie && episode == null) return;
     if (isMovie && !finished) return;

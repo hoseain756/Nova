@@ -7,6 +7,40 @@ import 'package:nova_mobile/features/player/widgets/player_side_panel.dart';
 void main() {
   for (final direction in [TextDirection.ltr, TextDirection.rtl]) {
     testWidgets(
+        'subtitle fetch error is distinct from an empty result in $direction',
+        (tester) async {
+      var retries = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Directionality(
+          textDirection: direction,
+          child: Scaffold(
+            body: SizedBox(
+              width: 320,
+              height: 400,
+              child: SubtitleTracksPanelBody(
+                english: direction == TextDirection.ltr,
+                embedded: const [],
+                selected: SubtitleTrack.no(),
+                onPick: (_) {},
+                external: const [],
+                loadingExternal: false,
+                loadFailed: true,
+                onRefresh: () => retries++,
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(
+          find.textContaining(direction == TextDirection.ltr
+              ? 'Could not load subtitles'
+              : 'تعذر تحميل الترجمات'),
+          findsOneWidget);
+      await tester.tap(find.byType(TextButton));
+      expect(retries, 1);
+    });
+
+    testWidgets(
         'subtitle search shares a row with style and refresh in $direction',
         (tester) async {
       var styles = 0;

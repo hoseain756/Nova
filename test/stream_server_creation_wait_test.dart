@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -74,6 +75,38 @@ void main() {
       expect(response.statusCode, HttpStatus.notFound);
     } finally {
       client.close(force: true);
+      await server.close();
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('closing a stream bounds an in-flight piece-query drain', () async {
+    final dir = await Directory.systemTemp.createTemp('noor-stream-close');
+    final path = '${dir.path}/movie.mkv';
+    await File(path).writeAsBytes(List.filled(32, 7));
+    final queryEntered = Completer<void>();
+    final pieceQuery = Completer<int>();
+    final server = StreamServer(
+      filePath: path,
+      declaredSize: 32,
+      closeDrainTimeout: const Duration(milliseconds: 30),
+      availableBytes: (offset, length) {
+        if (!queryEntered.isCompleted) queryEntered.complete();
+        return pieceQuery.future;
+      },
+    );
+    await server.start();
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse(server.url!));
+      final response = request.close();
+      unawaited(response.then<void>((_) {}, onError: (Object _) {}));
+      await queryEntered.future.timeout(const Duration(seconds: 2));
+      await server.close().timeout(const Duration(seconds: 1));
+      expect(server.isRunning, isFalse);
+    } finally {
+      client.close(force: true);
+      if (!pieceQuery.isCompleted) pieceQuery.complete(32);
       await server.close();
       await dir.delete(recursive: true);
     }

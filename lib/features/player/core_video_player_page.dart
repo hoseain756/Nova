@@ -31,6 +31,7 @@ import 'widgets/player_session_surface.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
 import 'widgets/player_episodes_sheet.dart';
+import 'widgets/player_panel_request.dart';
 import 'widgets/player_side_panel.dart';
 import 'widgets/player_sheets.dart';
 import 'widgets/subtitle_overlay.dart';
@@ -127,6 +128,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   List<Map<String, dynamic>> _panelExternalSubs = const [];
   bool _panelLoading = false;
   bool _panelRefreshing = false;
+  bool _panelLoadFailed = false;
+  final PlayerPanelRequest _panelRequest = PlayerPanelRequest();
   BoxFit _fit = BoxFit.contain;
   double _zoom = 1.0;
   bool _showRemaining = false;
@@ -434,6 +437,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       playWhenReady: !_resuming,
       continuity: widget.continuity,
     ));
+    unawaited(Future<void>.delayed(const Duration(seconds: 10), () {
+      if (mounted &&
+          identical(_engine, session) &&
+          !session.ready &&
+          !session.failed &&
+          !session.isClosing) {
+        debugPrint('[NOVA] core opening still pending: ${session.openStage}');
+      }
+    }));
     _bumpControls();
   }
 
@@ -727,10 +739,11 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       // some platform/source combinations. Keep session.close running so it
       // can retire native playback before releasing any torrent lease, while
       // bounding how long the route itself waits to leave the dead surface.
-      await _engine?.close().timeout(const Duration(seconds: 3));
+      final session = _engine;
+      await session?.close().timeout(const Duration(seconds: 3));
     } catch (error) {
-      debugPrint(
-          '[NOVA] player cleanup timed out or failed while leaving: $error');
+      debugPrint('[NOVA] player cleanup timed out or failed while leaving '
+          'at ${_engine?.closeStage}: $error');
     }
 
     if (!mounted) return;
@@ -944,6 +957,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// no await): the video pauses for the panel's lifetime and resumes ONLY
   /// if it was playing; never resumes an engine that was swapped mid-panel.
   void _openPanel(PlayerPanelKind kind) {
+    _panelRequest.invalidate();
     if (_locked) return;
     if (_temporarySpeed.active || _temporarySpeed.settling) {
       unawaited(_endTemporarySpeed().then((_) {
@@ -966,6 +980,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _hideTimer?.cancel();
     setState(() {
       _panel = kind;
+      _panelLoading = false;
+      _panelRefreshing = false;
+      _panelLoadFailed = false;
       _panelWasPlaying = wasPlaying;
       _sheetOpen = true;
       _controlsVisible = false;
@@ -985,11 +1002,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   }
 
   void _closePanel() {
+    _panelRequest.invalidate();
     final engine = _engine;
     final token = _panelToken;
     _panelToken = null;
     setState(() {
       _panel = null;
+      _panelLoading = false;
+      _panelRefreshing = false;
+      _panelLoadFailed = false;
       _panelWasPlaying = false;
       _sheetOpen = false;
     });
@@ -1051,6 +1072,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             onPick: (track) => unawaited(_pickSubtitleTrack(track)),
             external: _panelExternalSubs,
             loadingExternal: _panelLoading,
+            loadFailed: _panelLoadFailed,
             onOpenSettings: _openSubtitleStyleSheet,
             onRefresh: () => unawaited(_loadPanelData(refresh: true)),
             refreshing: _panelRefreshing,
@@ -1075,6 +1097,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             currentStream: currentStream,
             onRefresh: () => unawaited(_loadPanelData(refresh: true)),
             refreshing: _panelRefreshing,
+            loadFailed: _panelLoadFailed,
             onPick: (stream) => unawaited(_switchToStream(stream)),
           ),
         );
@@ -1125,17 +1148,21 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     }
   }
 
-  /// Panel data loader — run on panel open AND on the header refresh
-  /// button. Failures surface as the in-panel empty note, never a crash.
+  /// Fetch only for the current panel request. Keep failures distinct from an
+  /// empty provider result so the user can retry without losing old rows.
   Future<void> _loadPanelData({required bool refresh}) async {
     final kind = _panel;
-    if (kind == null) return;
+    if (kind != PlayerPanelKind.streams && kind != PlayerPanelKind.subtitles) {
+      return;
+    }
     if (kind == PlayerPanelKind.streams &&
         _panelStreams.isNotEmpty &&
         !refresh) {
       return; // instant content from the delivered list
     }
+    final request = _panelRequest.begin();
     setState(() {
+      _panelLoadFailed = false;
       if (refresh) {
         _panelRefreshing = true;
       } else {
@@ -1148,19 +1175,26 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           app: _app,
           item: widget.item,
           videoId: widget.videoId,
+          reportFailures: true,
         );
-        if (!mounted || _panel != PlayerPanelKind.streams) return;
+        if (!mounted || !_panelRequest.isCurrent(request) || _panel != kind) {
+          return;
+        }
         _panelStreams = streams;
       } else if (kind == PlayerPanelKind.subtitles) {
         final subs = await _fetchExternalSubs();
-        if (!mounted || _panel != PlayerPanelKind.subtitles) return;
+        if (!mounted || !_panelRequest.isCurrent(request) || _panel != kind) {
+          return;
+        }
         _panelExternalSubs = subs;
       }
-    } catch (_) {
-      // The panel shows its empty/refresh note — the error itself is not
-      // actionable beyond the refresh button.
+    } catch (error) {
+      if (mounted && _panelRequest.isCurrent(request) && _panel == kind) {
+        debugPrint('[NOVA] $kind panel fetch failed: ${error.runtimeType}');
+        _panelLoadFailed = true;
+      }
     } finally {
-      if (mounted) {
+      if (mounted && _panelRequest.isCurrent(request) && _panel == kind) {
         setState(() {
           _panelLoading = false;
           _panelRefreshing = false;
@@ -1172,29 +1206,39 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// Addon subtitles for the panel body — refetched on every panel open and
   /// on the header refresh button.
   Future<List<Map<String, dynamic>>> _fetchExternalSubs() async {
-    try {
-      final app = _app;
-      final subs = await app.catalogs
-          .subtitlesForEpisode(widget.item, widget.videoId, app.addons);
-      return subs.where((sub) => sub['url'] is String).toList();
-    } catch (_) {
-      return const [];
-    }
+    final app = _app;
+    final subs = await app.catalogs.subtitlesForEpisode(
+        widget.item, widget.videoId, app.addons,
+        reportFailures: true);
+    return subs.where((sub) => sub['url'] is String).toList();
   }
 
   Future<void> _pickSubtitleTrack(SubtitleTrack track) async {
     final target = _engine;
     if (target == null) return;
-    _preferenceSession.markSubtitleSelectedManually();
     try {
       final resolved = await loadExternalSubtitleTrack(_app.api, track);
       if (!mounted || !identical(_engine, target)) return;
-      await target.selectSubtitle(resolved);
-    } catch (_) {
+      final result = await target.selectSubtitle(resolved);
+      if (!result.applied) {
+        throw StateError('Subtitle command ${result.status}');
+      }
+      if (!mounted || !identical(_engine, target)) return;
+      _preferenceSession.markSubtitleSelectedManually();
+    } catch (error) {
       if (!mounted) return;
+      debugPrint('[NOVA] subtitle selection failed: $error');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(NovaStrings.lookup(english, 'subtitleLoadFailed'))),
+            content: Text(NovaStrings.lookup(
+          english,
+          externalSubtitleErrorMessageKey(error),
+          {
+            'status': error is ExternalSubtitleException
+                ? '${error.statusCode ?? ''}'
+                : '',
+          },
+        ))),
       );
     }
   }
@@ -1925,6 +1969,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // Task 128: a stuck stream (dead source / wedged texture) is a first-class
     // failure — the error panel must also WIN over the (white) video branch.
     final failed = (engine?.failed ?? false) || _engineInitError != null;
+    final retirementFailed = engine?.failure?.operation == 'ownership';
     final duration = engine?.duration.inMilliseconds ?? 0;
     final position = engine?.position.inMilliseconds ?? 0;
     // Workstream B: skip pills exist ONLY inside data-provided windows; the
@@ -2092,9 +2137,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 )),
               if (failed)
                 _ErrorPanel(
-                  message: NovaStrings.lookup(english, 'message15'),
+                  message: NovaStrings.lookup(
+                      english,
+                      retirementFailed
+                          ? 'playerNativeRetirementFailed'
+                          : 'message15'),
                   english: english,
-                  onRetry: () => unawaited(_retrySession()),
+                  onRetry: retirementFailed
+                      ? null
+                      : () => unawaited(_retrySession()),
                 )
               else if (!ready)
                 const Center(
@@ -2448,9 +2499,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                     !outroVisible &&
                     !_upNextDismissed &&
                     !_stopScrobbled)
-                  PositionedDirectional(
-                    bottom: 180 * scale,
-                    end: 16,
+                  PlayerUpNextPlacement(
+                    scale: scale,
                     child: PlayerCardShell(
                       width: 288,
                       child: Column(
@@ -2509,26 +2559,18 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                               ),
                             ),
                           const SizedBox(height: 11),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: PlayerPrimaryAction(
-                                  label:
-                                      NovaStrings.lookup(english, 'message23'),
-                                  // Spec B2.3: ALWAYS through the existing
-                                  // source-selection page — never auto-pick.
-                                  onPressed: () => unawaited(
-                                    _startEpisodeSources(nextEpisode),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              PlayerSecondaryAction(
-                                label: NovaStrings.lookup(english, 'cancel'),
-                                onPressed: () =>
-                                    setState(() => _upNextDismissed = true),
-                              ),
-                            ],
+                          PlayerUpNextActions(
+                            primaryLabel:
+                                NovaStrings.lookup(english, 'message23'),
+                            secondaryLabel:
+                                NovaStrings.lookup(english, 'cancel'),
+                            // Spec B2.3: ALWAYS through the existing
+                            // source-selection page — never auto-pick.
+                            onPrimary: () => unawaited(
+                              _startEpisodeSources(nextEpisode),
+                            ),
+                            onSecondary: () =>
+                                setState(() => _upNextDismissed = true),
                           ),
                         ],
                       ),
@@ -2626,7 +2668,7 @@ class _ErrorPanel extends StatelessWidget {
 
   final String? message;
   final bool english;
-  final VoidCallback onRetry;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -2655,12 +2697,14 @@ class _ErrorPanel extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(LucideIcons.refreshCw),
-                label: Text(NovaStrings.lookup(english, 'retry')),
-              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(LucideIcons.refreshCw),
+                  label: Text(NovaStrings.lookup(english, 'retry')),
+                ),
+              ],
             ],
           ),
         ),

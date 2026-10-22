@@ -8,6 +8,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../player_diagnostics.dart';
+import 'startup_resume_seek.dart';
 
 export 'package:media_kit/media_kit.dart'
     show AudioTrack, SubtitleTrack, Track, Tracks;
@@ -264,7 +265,28 @@ class MediaKitEngine extends PlaybackEngine {
                 : httpHeaders),
         play: false);
     if (startAt != null && startAt > Duration.zero) {
-      await _player.seek(startAt);
+      var resumed = await applyStartupResumeSeek(
+        target: startAt,
+        duration: () => _duration,
+        seekable: querySeekable,
+        seekTo: seekTo,
+        isActive: () => !_disposed,
+      );
+      if (!resumed && !_disposed && playWhenReady) {
+        resumed = await applyPlayingStartupResumeSeek(
+          target: startAt,
+          duration: () => _duration,
+          position: () => _position,
+          play: _player.play,
+          pause: _player.pause,
+          seekTo: seekTo,
+          isActive: () => !_disposed,
+        );
+      }
+      if (_disposed) return;
+      if (!resumed) {
+        throw UnsupportedError('Automatic resume seek unavailable');
+      }
     }
     if (!_disposed && playWhenReady) await _player.play();
     if (Uri.tryParse(url)?.host == '127.0.0.1') {

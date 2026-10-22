@@ -10,6 +10,7 @@ import 'package:nova_mobile/core/models/media_item.dart';
 class _SubtitleApi extends NoorApi {
   final requests = <String>[];
   bool primaryHasResults = false;
+  bool failPrimary = false;
 
   @override
   Future<dynamic> proxyGet(String url, {Map<String, String>? headers}) async {
@@ -19,6 +20,9 @@ class _SubtitleApi extends NoorApi {
       return jsonEncode(_mapping);
     }
     if (url.contains('/subtitles/')) {
+      if (failPrimary && url.contains('tt0388629%3A23%3A1')) {
+        throw StateError('Provider unavailable');
+      }
       if (url.contains('tt0388629%3A23%3A1') && primaryHasResults) {
         return {
           'subtitles': [
@@ -159,5 +163,26 @@ void main() {
     );
     expect(result.single['url'], 'https://example.org/primary.srt');
     expect(api.requests.where((url) => url.contains('ani.zip')), isEmpty);
+  });
+
+  test('player discovery reports all add-on failures instead of empty results',
+      () async {
+    final api = _SubtitleApi()..failPrimary = true;
+    final repo = CatalogRepository(api);
+
+    await expectLater(
+      repo.subtitlesForEpisode(_item, 'tt0388629:23:1', [_addon],
+          reportFailures: true),
+      throwsStateError,
+    );
+    expect(api.requests.where((url) => url.contains('ani.zip')), isEmpty);
+  });
+
+  test('player discovery still accepts successful add-on results', () async {
+    final api = _SubtitleApi()..primaryHasResults = true;
+    final result = await CatalogRepository(api).subtitlesForEpisode(
+        _item, 'tt0388629:23:1', [_addon],
+        reportFailures: true);
+    expect(result.single['url'], 'https://example.org/primary.srt');
   });
 }

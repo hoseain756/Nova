@@ -21,6 +21,7 @@ import '../anime/anime_tracker_sheet.dart';
 import '../library/custom_list_picker.dart';
 import '../player/stream_headers.dart';
 import '../player/playback_entry_page.dart';
+import '../player/session/playback_session.dart';
 import '../shell/noor_dock_tabs.dart' show glassDockContentClearance;
 import 'detail_hero.dart';
 import 'episode_data.dart';
@@ -734,10 +735,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              torrentFriendlyMessage(
-                error,
-                english: context.read<AppState>().english,
-              ),
+              error is PlaybackRetirementException
+                  ? NovaStrings.lookup(context.read<AppState>().english,
+                      'playerNativeRetirementFailed')
+                  : torrentFriendlyMessage(
+                      error,
+                      english: context.read<AppState>().english,
+                    ),
             ),
           ),
         );
@@ -827,6 +831,10 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           return null;
         }
       }
+      if (const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: false)) {
+        await PlaybackOwnership.shared.retireCurrent();
+      }
+      if (cancelled) return null;
       final prepared = await TorrentService.instance.prepare(
         infoHash: infoHash,
         magnet: magnet,

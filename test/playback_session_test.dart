@@ -310,6 +310,99 @@ void main() {
     expect(creations, 1);
   });
 
+  test('closing a stuck open retires native before the next route opens',
+      () async {
+    final ownership = PlaybackOwnership();
+    final old = _Backend()
+      ..openGate = Completer<void>()
+      ..closeGate = Completer<void>()
+      ..releaseOpenOnClose = true;
+    final one = create(old, ownership: ownership);
+    final firstOpening = one.open(_request().url);
+    await _tick();
+    expect(one.openStage, 'backend_open');
+
+    var creations = 0;
+    final next = _Backend();
+    final two = create(next, ownership: ownership, factory: () {
+      creations++;
+      return next;
+    });
+    final secondOpening = two.open(_request().url);
+    expect((await firstOpening).status, PlaybackCommandStatus.cancelled);
+    await _tick();
+    expect(old.log, contains('close'));
+    expect(creations, 0);
+
+    old.closeGate!.complete();
+    expect((await secondOpening).applied, isTrue);
+    expect(old.closed, isTrue);
+    expect(one.phase, PlaybackPhase.closed);
+    expect(creations, 1);
+  });
+
+  test('failed retirement during stuck open blocks the next native engine',
+      () async {
+    final ownership = PlaybackOwnership();
+    final old = _Backend()
+      ..openGate = Completer<void>()
+      ..releaseOpenOnClose = true
+      ..failClose = true;
+    final one = create(old, ownership: ownership);
+    final firstOpening = one.open(_request().url);
+    await _tick();
+    var creations = 0;
+    final two = create(_Backend(), ownership: ownership, factory: () {
+      creations++;
+      return _Backend();
+    });
+    expect(
+        (await two.open(_request().url)).status, PlaybackCommandStatus.failed);
+    expect((await firstOpening).status, PlaybackCommandStatus.cancelled);
+    expect(creations, 0);
+  });
+
+  test(
+      'retirement timeout reports ownership failure instead of loading forever',
+      () async {
+    final ownership =
+        PlaybackOwnership(retirementTimeout: const Duration(milliseconds: 20));
+    final old = _Backend()..closeGate = Completer<void>();
+    final one = create(old, ownership: ownership);
+    await one.open(_request().url);
+    var creations = 0;
+    final two = create(_Backend(), ownership: ownership, factory: () {
+      creations++;
+      return _Backend();
+    });
+    final result = await two.open(_request().url);
+    expect(result.status, PlaybackCommandStatus.failed);
+    expect(result.failure?.operation, 'ownership');
+    expect(two.phase, PlaybackPhase.failed);
+    expect(creations, 0);
+    old.closeGate!.complete();
+    await one.close();
+  });
+
+  test('torrent preparation barrier waits for prior native retirement',
+      () async {
+    final ownership = PlaybackOwnership();
+    final old = _Backend()..closeGate = Completer<void>();
+    final session = create(old, ownership: ownership);
+    await session.open(_request().url);
+    var allowedToPrepare = false;
+    final barrier = ownership.retireCurrent().then((_) {
+      allowedToPrepare = true;
+    });
+    await _tick();
+    expect(old.log, contains('close'));
+    expect(allowedToPrepare, isFalse);
+    old.closeGate!.complete();
+    await barrier;
+    expect(old.closed, isTrue);
+    expect(allowedToPrepare, isTrue);
+  });
+
   test('failed native close blocks competing engine creation', () async {
     final ownership = PlaybackOwnership();
     final old = _Backend()..failClose = true;
@@ -388,6 +481,25 @@ void main() {
     expect((await session.seekTo(const Duration(seconds: 1))).status,
         PlaybackCommandStatus.unsupported);
     expect(backend.log.where((op) => op.startsWith('seek')), isEmpty);
+  });
+
+  test('data-backed external subtitle survives a core source replacement',
+      () async {
+    final old = _Backend();
+    final next = _Backend();
+    var created = 0;
+    final session = create(old, factory: () => created++ == 0 ? old : next);
+    expect((await session.open(_request().url)).applied, isTrue);
+    final subtitle = SubtitleTrack.data(
+        '1\n00:00:01,000 --> 00:00:02,000\nHello\n',
+        title: 'External');
+    expect((await session.selectSubtitle(subtitle)).applied, isTrue);
+    expect(
+        (await session.replaceSource(_request('https://example.test/second')))
+            .applied,
+        isTrue);
+    expect(next.raw.selectedSubtitle, subtitle);
+    expect(next.raw.selectedSubtitle.data, isTrue);
   });
 
   test('seek unlocks when paused-open capability becomes available', () async {
@@ -499,6 +611,70 @@ void main() {
     expect(releases, 1);
   });
 
+  test('retry restores last exact position after failed backend resets to zero',
+      () async {
+    final first = _Backend();
+    final second = _Backend();
+    var created = 0;
+    final session =
+        create(first, factory: () => created++ == 0 ? first : second);
+    expect((await session.open(_request().url)).applied, isTrue);
+    first.raw.position = const Duration(minutes: 9);
+    first.raw.notifyListeners();
+    first.raw.position = Duration.zero;
+    first.raw.failed = true;
+    first.raw.errorMessage = 'HTTP 503';
+    first.raw.notifyListeners();
+    expect(session.failed, isTrue);
+    expect(session.position, Duration.zero);
+
+    expect((await session.retry()).applied, isTrue);
+    expect(second.raw.position, const Duration(minutes: 9));
+    expect(second.log.indexOf('seek:540000'),
+        lessThan(second.log.indexOf('play')));
+  });
+
+  test('retry retains startup resume target when first open fails', () async {
+    final first = _Backend()..openError = StateError('source unavailable');
+    final second = _Backend();
+    var created = 0;
+    final session =
+        create(first, factory: () => created++ == 0 ? first : second);
+    expect(
+        (await session.open(_request().url,
+                startAt: const Duration(minutes: 9)))
+            .status,
+        PlaybackCommandStatus.failed);
+    expect(session.position, Duration.zero);
+
+    expect((await session.retry()).applied, isTrue);
+    expect(second.raw.position, const Duration(minutes: 9));
+    expect(second.log.indexOf('seek:540000'),
+        lessThan(second.log.indexOf('play')));
+  });
+
+  test('explicit seek to start clears retry position', () async {
+    final first = _Backend();
+    final second = _Backend();
+    var created = 0;
+    final session =
+        create(first, factory: () => created++ == 0 ? first : second);
+    await session.open(_request().url);
+    expect((await session.seekTo(const Duration(minutes: 9))).applied, isTrue);
+    // The native seek command may finish before its position stream publishes
+    // the new zero value. Retry must honor the explicit intent in that gap.
+    first.raw.deferSeekPosition = true;
+    expect((await session.seekTo(Duration.zero)).applied, isTrue);
+    expect(session.position, const Duration(minutes: 9));
+    first.raw.failed = true;
+    first.raw.errorMessage = 'source failed';
+    first.raw.notifyListeners();
+
+    expect((await session.retry()).applied, isTrue);
+    expect(second.raw.position, Duration.zero);
+    expect(second.log.where((op) => op.startsWith('seek:')), isEmpty);
+  });
+
   test('failure categories are sanitized hints and do not trigger retries',
       () async {
     final backend = _Backend();
@@ -535,6 +711,8 @@ class _Backend implements PlaybackBackend {
   Completer<void>? openGate;
   Completer<void>? closeGate;
   bool failClose = false;
+  bool releaseOpenOnClose = false;
+  Object? openError;
   bool canSeek = true;
   int? seekableAfterQuery;
   int seekableQueries = 0;
@@ -545,6 +723,7 @@ class _Backend implements PlaybackBackend {
   Future<void> openPaused(String url, Map<String, String>? headers) async {
     log.add('open');
     await openGate?.future;
+    if (openError != null) throw openError!;
     raw.ready = true;
     raw.notifyListeners();
   }
@@ -561,6 +740,9 @@ class _Backend implements PlaybackBackend {
   @override
   Future<void> close() async {
     log.add('close');
+    if (releaseOpenOnClose && !(openGate?.isCompleted ?? true)) {
+      openGate!.complete();
+    }
     await closeGate?.future;
     if (failClose) throw StateError('Native close failed');
     closed = true;
@@ -572,6 +754,7 @@ class _Engine extends PlaybackEngine {
   _Engine(this.log);
   final List<String> log;
   Object? failRate;
+  bool deferSeekPosition = false;
   void Function()? onPlay;
   int subtitleDelayMs = 0;
   int audioDelayMs = 0;
@@ -633,10 +816,13 @@ class _Engine extends PlaybackEngine {
   Future<void> togglePlayPause() => playing ? pause() : play();
   @override
   Future<void> seekTo(Duration target) async {
-    position = Duration(
+    final clamped = Duration(
         milliseconds: target.inMilliseconds.clamp(0, duration.inMilliseconds));
-    log.add('seek:${position.inMilliseconds}');
-    notifyListeners();
+    log.add('seek:${clamped.inMilliseconds}');
+    if (!deferSeekPosition) {
+      position = clamped;
+      notifyListeners();
+    }
   }
 
   @override

@@ -263,6 +263,33 @@ class _PanelNote extends StatelessWidget {
       );
 }
 
+class _PanelFetchError extends StatelessWidget {
+  const _PanelFetchError(
+      {required this.message, required this.english, this.onRetry});
+
+  final String message;
+  final bool english;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            if (onRetry != null)
+              TextButton(
+                onPressed: onRetry,
+                child: Text(NovaStrings.lookup(english, 'retry')),
+              ),
+          ],
+        ),
+      );
+}
+
 /// Panel-body loading spinner (gold, small — visible to the user INSIDE the
 /// panel, never blocking the whole screen).
 class PanelLoading extends StatelessWidget {
@@ -495,6 +522,7 @@ class SubtitleTracksPanelBody extends StatefulWidget {
     required this.onPick,
     required this.external,
     required this.loadingExternal,
+    this.loadFailed = false,
     this.onOpenSettings,
     this.onRefresh,
     this.refreshing = false,
@@ -512,6 +540,7 @@ class SubtitleTracksPanelBody extends StatefulWidget {
   /// page on panel open and on the header refresh button.
   final List<Map<String, dynamic>> external;
   final bool loadingExternal;
+  final bool loadFailed;
 
   /// Subtitle style/timing shortcut beside the search field.
   final VoidCallback? onOpenSettings;
@@ -793,15 +822,25 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
         SizedBox(height: 10),
         Divider(
             color: Theme.of(context).colorScheme.outlineVariant, height: 14),
+        if (widget.loadFailed)
+          _PanelFetchError(
+            message: NovaStrings.lookup(widget.english, 'subtitleSearchFailed'),
+            english: widget.english,
+            onRetry: widget.onRefresh,
+          ),
         Expanded(
           child: widget.loadingExternal
               ? PanelLoading()
               : totalVisible == 0
-                  ? _PanelNote(
-                      query.isEmpty
-                          ? (NovaStrings.lookup(widget.english, 'message79'))
-                          : (NovaStrings.lookup(widget.english, 'message80')),
-                    )
+                  ? widget.loadFailed
+                      ? const SizedBox.shrink()
+                      : _PanelNote(
+                          query.isEmpty
+                              ? (NovaStrings.lookup(
+                                  widget.english, 'message79'))
+                              : (NovaStrings.lookup(
+                                  widget.english, 'message80')),
+                        )
                   : ListView(
                       children: [
                         ListTile(
@@ -858,13 +897,15 @@ class StreamsPanelBody extends StatefulWidget {
       required this.currentStream,
       required this.onPick,
       this.onRefresh,
-      this.refreshing = false});
+      this.refreshing = false,
+      this.loadFailed = false});
   final bool english;
   final List<Map<String, dynamic>> streams;
   final Map<String, dynamic>? currentStream;
   final ValueChanged<Map<String, dynamic>> onPick;
   final VoidCallback? onRefresh;
   final bool refreshing;
+  final bool loadFailed;
   @override
   State<StreamsPanelBody> createState() => _StreamsPanelBodyState();
 }
@@ -906,9 +947,17 @@ class _StreamsPanelBodyState extends State<StreamsPanelBody> {
               .labelLarge
               ?.copyWith(color: scheme.onSurfaceVariant)),
       const SizedBox(height: 8),
+      if (widget.loadFailed)
+        _PanelFetchError(
+          message: NovaStrings.lookup(widget.english, 'sourceSearchFailed'),
+          english: widget.english,
+          onRetry: widget.onRefresh,
+        ),
       Expanded(
           child: streams.isEmpty
-              ? _PanelNote(NovaStrings.lookup(widget.english, 'message81'))
+              ? widget.loadFailed
+                  ? const SizedBox.shrink()
+                  : _PanelNote(NovaStrings.lookup(widget.english, 'message81'))
               : ListView.separated(
                   itemCount: streams.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),

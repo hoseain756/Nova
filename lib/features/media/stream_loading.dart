@@ -54,17 +54,20 @@ List<Map<String, dynamic>> rankStreams(
 /// Fetches every enabled add-on's streams for [videoId], applies the user's
 /// playable-only filter, gates torrent rows on an actual playback path
 /// (Debrid connected OR the on-device engine) and ranks the remainder.
-/// NEVER throws — a failed fetch returns an empty list so the caller's
-/// refreshable empty state shows instead of a crash.
+/// Tolerates add-on failures for existing callers; player panels opt into an
+/// error when all add-ons fail so a failed fetch is not shown as empty data.
 Future<List<Map<String, dynamic>>> loadRankedSources({
   required AppState app,
   required MediaItem item,
   required String videoId,
+  bool reportFailures = false,
 }) async {
   List<Map<String, dynamic>> streams;
   try {
-    streams = await app.catalogs.streams(item.type, videoId, app.addons);
+    streams = await app.catalogs.streams(item.type, videoId, app.addons,
+        reportFailures: reportFailures);
   } catch (_) {
+    if (reportFailures) rethrow;
     return const [];
   }
   if (streams.isEmpty) return streams;

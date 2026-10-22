@@ -735,13 +735,12 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   }
 
   Future<List<Map<String, dynamic>>> streams(
-    String type,
-    String id,
-    List<Addon> addons,
-  ) async {
+      String type, String id, List<Addon> addons,
+      {bool reportFailures = false}) async {
     final supported = addons
         .where((a) => a.enabled && a.supports('stream', type, id))
         .toList();
+    var failures = 0;
     final results = await Future.wait(
       supported.map((addon) async {
         try {
@@ -761,10 +760,14 @@ query ($weekStart: Int!, $weekEnd: Int!) {
               )
               .toList();
         } catch (_) {
+          failures++;
           return <Map<String, dynamic>>[];
         }
       }),
     );
+    if (reportFailures && results.isNotEmpty && failures == results.length) {
+      throw StateError('All stream add-on requests failed');
+    }
     final merged = results.expand((e) => e).toList();
     final keys = <String>{};
     return merged.where((stream) {
@@ -775,10 +778,8 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   }
 
   Future<List<Map<String, dynamic>>> subtitles(
-    String type,
-    String id,
-    List<Addon> addons,
-  ) async {
+      String type, String id, List<Addon> addons,
+      {bool reportFailures = false}) async {
     // Task 122-d: NO `language` extra here. The add-on model carries extra
     // declarations on catalog entries (plus the legacy manifest-level
     // extraSupported) only — neither is a statement about the subtitles
@@ -786,6 +787,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     // blind appends; subtitle add-ons keep receiving the unmodified request.
     final supported = addons.where(
         (addon) => addon.enabled && addon.supports('subtitles', type, id));
+    var failures = 0;
     final result = await Future.wait(supported.map((addon) async {
       try {
         final response = await api.proxyGet(
@@ -801,20 +803,23 @@ query ($weekStart: Int!, $weekEnd: Int!) {
                 row['url'] is String && (row['url'] as String).isNotEmpty)
             .toList();
       } catch (_) {
+        failures++;
         return <Map<String, dynamic>>[];
       }
     }));
+    if (reportFailures && result.isNotEmpty && failures == result.length) {
+      throw StateError('All subtitle add-on requests failed');
+    }
     return result.expand((rows) => rows).toList();
   }
 
   /// Keep the normal add-on lookup first. Only an empty anime result permits
   /// alternate IDs, and only when AniZip confirms this exact season/episode.
   Future<List<Map<String, dynamic>>> subtitlesForEpisode(
-    MediaItem item,
-    String videoId,
-    List<Addon> addons,
-  ) async {
-    final primary = await subtitles(item.type, videoId, addons);
+      MediaItem item, String videoId, List<Addon> addons,
+      {bool reportFailures = false}) async {
+    final primary = await subtitles(item.type, videoId, addons,
+        reportFailures: reportFailures);
     if (primary.isNotEmpty) return primary;
 
     final query = AnimeSubtitleIds.mappingQuery(item);
@@ -845,7 +850,8 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     final candidates = ids.where((id) => addons.any((addon) =>
         addon.enabled && addon.supports('subtitles', item.type, id)));
     final responses = await Future.wait(
-      candidates.map((id) => subtitles(item.type, id, addons)),
+      candidates.map((id) =>
+          subtitles(item.type, id, addons, reportFailures: reportFailures)),
     );
     final urls = <String>{};
     return responses

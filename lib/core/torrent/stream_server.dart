@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
+
 /// A parsed single HTTP byte range (`bytes=start-end`).
 class _ByteRange {
   const _ByteRange(this.start, this.end);
@@ -27,6 +29,7 @@ class StreamServer {
     required this.filePath,
     this.declaredSize,
     this.availableBytes,
+    this.closeDrainTimeout = const Duration(seconds: 2),
   });
 
   /// Absolute path of the file being served.
@@ -39,6 +42,10 @@ class StreamServer {
   /// Returns the consecutive byte count currently backed by completed
   /// torrent pieces, starting at the file-relative [offset].
   final Future<int> Function(int offset, int maxBytes)? availableBytes;
+
+  /// A disconnected client must not keep the next playback session waiting
+  /// for an in-flight piece query or socket write indefinitely.
+  final Duration closeDrainTimeout;
 
   // Check piece availability often enough that the player does not sit idle
   // after libtorrent has completed the next piece on disk.
@@ -100,7 +107,13 @@ class StreamServer {
       }
     }
     if (_pendingRequests.isNotEmpty) {
-      await Future.wait(List<Future<void>>.of(_pendingRequests));
+      try {
+        await Future.wait(List<Future<void>>.of(_pendingRequests))
+            .timeout(closeDrainTimeout);
+      } on TimeoutException {
+        debugPrint(
+            '[NOVA] torrent response drain timed out after socket close');
+      }
     }
   }
 

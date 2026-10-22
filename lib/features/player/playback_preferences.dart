@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../core/models/playback_resume_policy.dart';
 
-enum ResumePlaybackAction { startOver, prompt, resume }
+export '../../core/models/playback_resume_policy.dart'
+    show ResumePlaybackAction;
 
 /// Pure policy helpers for translating persisted player settings into runtime
 /// behavior. Keeping these decisions outside the widget makes preference
@@ -18,23 +20,15 @@ abstract final class NovaPlaybackPreferences {
   static ResumePlaybackAction resumeAction(
     Map<String, dynamic> settings,
     int? savedPositionMs,
-  ) {
-    if ((savedPositionMs ?? 0) <= 0 || settings['resumePlayback'] == false) {
-      return ResumePlaybackAction.startOver;
-    }
-    return settings['resumePrompt'] == true && savedPositionMs! > 30000
-        ? ResumePlaybackAction.prompt
-        : ResumePlaybackAction.resume;
-  }
+  ) =>
+      PlaybackResumePolicy.action(settings, savedPositionMs);
 
-  static int safeResumePositionMs(int? savedPositionMs, int durationMs) {
-    if (durationMs <= 0) return 0;
-    final upperBound = durationMs > 5000 ? durationMs - 5000 : 0;
-    return (savedPositionMs ?? 0).clamp(0, upperBound).toInt();
-  }
+  static int safeResumePositionMs(int? savedPositionMs, int durationMs) =>
+      PlaybackResumePolicy.safePositionMs(savedPositionMs, durationMs);
 
   static bool canRecordProgress({required bool awaitingResumeChoice}) =>
-      !awaitingResumeChoice;
+      PlaybackResumePolicy.canRecord(
+          awaitingResumeChoice: awaitingResumeChoice);
 
   static BoxFit videoFit(Object? value) {
     switch (value?.toString().trim().toLowerCase()) {

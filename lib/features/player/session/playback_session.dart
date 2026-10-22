@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../core/models/playback_resume_policy.dart';
 import '../../../core/torrent/torrent_models.dart';
 
 import '../engine/playback_engine.dart';
@@ -41,22 +42,49 @@ class PlaybackRetryableException implements Exception {
 
 /// Exclusive native ownership across route transitions, including unexpected
 /// pop/push races. A failed retirement remains a barrier until app restart.
+class PlaybackRetirementException implements Exception {
+  const PlaybackRetirementException();
+}
+
 class PlaybackOwnership {
+  PlaybackOwnership({this.retirementTimeout = const Duration(seconds: 15)});
+
   static final shared = PlaybackOwnership();
+  final Duration retirementTimeout;
   PlaybackSession? _owner;
   bool _retirementFailed = false;
 
+  /// Detail-page torrent preparation must not deactivate the active torrent
+  /// until its previous Core player has retired native output.
+  Future<void> retireCurrent() async {
+    if (_retirementFailed) throw const PlaybackRetirementException();
+    final previous = _owner;
+    if (previous == null) return;
+    try {
+      await previous.close().timeout(retirementTimeout);
+      await previous.drainResolution().timeout(retirementTimeout);
+    } catch (_) {
+      debugPrint('[NOVA] Core retirement barrier failed at '
+          '${previous.closeStage}');
+      _retirementFailed = true;
+      throw const PlaybackRetirementException();
+    }
+    if (identical(_owner, previous)) _owner = null;
+  }
+
   Future<bool> acquire(PlaybackSession session) async {
-    if (_retirementFailed) throw StateError('Native retirement incomplete');
+    if (_retirementFailed) throw const PlaybackRetirementException();
     final previous = _owner;
     _owner = session;
     if (previous != null && !identical(previous, session)) {
       try {
-        await previous.close();
-        await previous.drainResolution();
+        await previous.close().timeout(retirementTimeout);
+        await previous.drainResolution().timeout(retirementTimeout);
       } catch (_) {
+        debugPrint('[NOVA] Core ownership acquisition failed at '
+            '${previous.closeStage}');
         _retirementFailed = true;
-        rethrow;
+        throw const PlaybackRetirementException();
       }
     }
     return identical(_owner, session) && !session.isClosing;
@@ -64,8 +92,8 @@ class PlaybackOwnership {
 }
 
 class PlaybackContinuity {
-  PlaybackContinuity(PlaybackSession session)
-      : position = session.position,
+  PlaybackContinuity(PlaybackSession session, {Duration? position})
+      : position = position ?? session.position,
         playing = session.playIntent,
         rate = session.rate,
         audio = session.selectedAudio,
@@ -147,6 +175,8 @@ class PlaybackSession extends PlaybackEngine {
   PlaybackBackend? _backend;
   VoidCallback? _backendListener;
   Future<void> _lane = Future.value();
+  final Set<Completer<PlaybackCommandResult>> _pendingCommands = {};
+  bool _commandInFlight = false;
   Future<void> _resolutionLane = Future.value();
   Future<void>? _closeFuture;
   Timer? _periodic;
@@ -159,6 +189,8 @@ class PlaybackSession extends PlaybackEngine {
   bool _prepared = false;
   bool _nativeRetired = false;
   bool _playIntent = false;
+  Duration _retryPosition = Duration.zero;
+  Duration? _pendingSeekPosition;
   bool resumeResolved = true;
   bool? _seekable;
   int _generation = 0;
@@ -174,6 +206,8 @@ class PlaybackSession extends PlaybackEngine {
   Future<void>? _backgroundWork;
   bool _backgrounded = false;
   bool _notifiersDisposed = false;
+  String openStage = 'idle';
+  String closeStage = 'idle';
 
   Object get interactionIdentity => _sourceIdentity;
   bool owns(Object? identity) =>
@@ -294,16 +328,23 @@ class PlaybackSession extends PlaybackEngine {
   ) {
     final generation = _generation;
     final result = Completer<PlaybackCommandResult>();
+    _pendingCommands.add(result);
+    void complete(PlaybackCommandResult value) {
+      if (!result.isCompleted) result.complete(value);
+      _pendingCommands.remove(result);
+    }
+
     _lane = _lane.then((_) async {
       if (isClosing || generation != _generation) {
-        result.complete(_cancelled());
+        complete(_cancelled());
         return;
       }
       if (operation != 'open' && _raw == null) {
-        result.complete(
+        complete(
             const PlaybackCommandResult(PlaybackCommandStatus.unsupported));
         return;
       }
+      _commandInFlight = true;
       try {
         try {
           await action(generation);
@@ -315,12 +356,22 @@ class PlaybackSession extends PlaybackEngine {
           }
           await action(generation);
         }
-        result.complete(isClosing || generation != _generation
+        complete(isClosing || generation != _generation
             ? _cancelled()
             : const PlaybackCommandResult(PlaybackCommandStatus.applied));
+      } on PlaybackRetirementException {
+        if (isClosing || generation != _generation) {
+          complete(_cancelled());
+          return;
+        }
+        failure = PlaybackFailure(
+            PlaybackFailureCategory.operation, 'ownership', generation);
+        phase = PlaybackPhase.failed;
+        _notify();
+        complete(PlaybackCommandResult(PlaybackCommandStatus.failed, failure));
       } on UnsupportedError {
         if (isClosing || generation != _generation) {
-          result.complete(_cancelled());
+          complete(_cancelled());
           return;
         }
         if (operation == 'open') {
@@ -329,11 +380,11 @@ class PlaybackSession extends PlaybackEngine {
           phase = PlaybackPhase.failed;
           _notify();
         }
-        result.complete(
+        complete(
             const PlaybackCommandResult(PlaybackCommandStatus.unsupported));
       } catch (_) {
         if (isClosing || generation != _generation) {
-          result.complete(_cancelled());
+          complete(_cancelled());
           return;
         }
         failure ??= PlaybackFailure(
@@ -344,14 +395,16 @@ class PlaybackSession extends PlaybackEngine {
             generation);
         phase = PlaybackPhase.failed;
         _notify();
-        result.complete(
-            PlaybackCommandResult(PlaybackCommandStatus.failed, failure));
+        complete(PlaybackCommandResult(PlaybackCommandStatus.failed, failure));
+      } finally {
+        _commandInFlight = false;
       }
     });
     return result.future;
   }
 
   void _invalidateSource() {
+    _pendingSeekPosition = null;
     _seekabilityProbe?.cancel();
     _seekabilityProbe = null;
     _seekabilityProbeAttempts = 0;
@@ -376,6 +429,8 @@ class PlaybackSession extends PlaybackEngine {
     PlaybackContinuity? continuity,
   }) {
     if (isClosing) return Future.value(_cancelled());
+    final target = continuity?.position ?? startAt;
+    _retryPosition = target ?? Duration.zero;
     _periodic?.cancel();
     _periodic = null;
     _invalidateSource();
@@ -387,7 +442,9 @@ class PlaybackSession extends PlaybackEngine {
     phase = PlaybackPhase.opening;
     _notify();
     return _command('open', (generation) async {
+      openStage = 'ownership';
       if (!await _ownership.acquire(this) || generation != _generation) return;
+      openStage = 'retire_previous_backend';
       final old = _backend;
       if (old != null) await old.close();
       for (final lease in _leases.toList()) {
@@ -401,13 +458,14 @@ class PlaybackSession extends PlaybackEngine {
       final backend = _backend = _createBackend();
       _attachBackend(backend, generation);
       _notify(); // Mount the stable video child before waiting for controller readiness.
+      openStage = 'backend_open';
       await backend.openPaused(url, httpHeaders);
       if (isClosing || generation != _generation) return;
       if (backend.engine.failed) throw StateError('Backend open failed');
       _seekable = await backend.seekable();
+      openStage = 'restore';
       if (isClosing || generation != _generation) return;
       phase = PlaybackPhase.prepared;
-      final target = continuity?.position ?? startAt;
       if (continuity != null) {
         await _restoreContinuity(backend, continuity, generation);
       } else {
@@ -424,15 +482,19 @@ class PlaybackSession extends PlaybackEngine {
       }
       if (isClosing || generation != _generation) return;
       if (target != null && target > Duration.zero) {
+        openStage = 'resume_capability';
         if (!canSeek) await _waitForStartupSeekability(backend, generation);
         if (isClosing || generation != _generation) return;
         if (!canSeek) throw UnsupportedError('Source cannot preserve position');
+        openStage = 'resume_seek_command';
         await backend.engine.seekTo(target);
         if (isClosing || generation != _generation) return;
       }
+      openStage = 'play';
       if (_playIntent && intent == _intentRevision) await backend.engine.play();
       if (isClosing || generation != _generation) return;
       _prepared = true;
+      openStage = 'ready';
       phase =
           backend.engine.playing ? PlaybackPhase.playing : PlaybackPhase.paused;
       _publishBackend(backend, generation);
@@ -455,6 +517,18 @@ class PlaybackSession extends PlaybackEngine {
       return;
     }
     final raw = backend.engine;
+    // A failed native source can reset its position to zero before retry.
+    // A seek may also finish before its position stream catches up: do not
+    // replace explicit seek intent with an old native position in that gap.
+    final pendingSeek = _pendingSeekPosition;
+    if (pendingSeek != null) {
+      if ((raw.position - pendingSeek).abs() <= const Duration(seconds: 3)) {
+        _pendingSeekPosition = null;
+        _retryPosition = raw.position;
+      }
+    } else if (raw.position > Duration.zero) {
+      _retryPosition = raw.position;
+    }
     if (_prepared && raw.duration > Duration.zero && _seekable != true) {
       _scheduleSeekabilityProbe(backend, generation);
     }
@@ -581,6 +655,8 @@ class PlaybackSession extends PlaybackEngine {
       await raw.selectSubtitle(SubtitleTrack.no());
     } else if (saved.subtitle.uri) {
       await raw.setSubtitleUri(saved.subtitle.id, title: saved.subtitle.title);
+    } else if (saved.subtitle.data) {
+      await raw.selectSubtitle(saved.subtitle);
     } else {
       final subs = raw.subtitleTracks.where((track) =>
           track.language == saved.subtitle.language &&
@@ -616,7 +692,7 @@ class PlaybackSession extends PlaybackEngine {
 
   Future<PlaybackCommandResult> retry() {
     if (isClosing) return Future.value(_cancelled());
-    final saved = PlaybackContinuity(this);
+    final saved = PlaybackContinuity(this, position: _retryPosition);
     return open(request.url, httpHeaders: request.headers, continuity: saved);
   }
 
@@ -646,13 +722,24 @@ class PlaybackSession extends PlaybackEngine {
       _command('seek', (_) async {
         if (!canSeek) throw UnsupportedError('Not seekable');
         await _raw!.seekTo(target);
+        _rememberSeekIntent(target);
       });
   @override
   Future<PlaybackCommandResult> seekBy(int seconds) =>
       _command('seek', (_) async {
         if (!canSeek) throw UnsupportedError('Not seekable');
-        await _raw!.seekTo(position + Duration(seconds: seconds));
+        final target = position + Duration(seconds: seconds);
+        await _raw!.seekTo(target);
+        _rememberSeekIntent(target);
       });
+
+  void _rememberSeekIntent(Duration target) {
+    final clamped = Duration(
+        milliseconds: target.inMilliseconds.clamp(0, duration.inMilliseconds));
+    _retryPosition = clamped;
+    _pendingSeekPosition = clamped;
+  }
+
   @override
   Future<PlaybackCommandResult> setRate(double rate) =>
       _command('rate', (_) async {
@@ -762,9 +849,8 @@ class PlaybackSession extends PlaybackEngine {
 
   bool _frameEligible(PlaybackCheckpoint snapshot) =>
       snapshot.eligible &&
-      snapshot.positionMs > 0 &&
-      snapshot.durationMs > 0 &&
-      snapshot.positionMs < snapshot.durationMs - 120000;
+      PlaybackResumePolicy.canCaptureFrame(
+          snapshot.positionMs, snapshot.durationMs);
 
   Future<CheckpointResult> _write(PlaybackCheckpoint snapshot) async {
     final sink = _persist;
@@ -799,6 +885,10 @@ class PlaybackSession extends PlaybackEngine {
     _invalidateSource();
     _coalescer.close();
     _periodic?.cancel();
+    for (final command in _pendingCommands.toList()) {
+      if (!command.isCompleted) command.complete(_cancelled());
+    }
+    _pendingCommands.clear();
     _notify();
     // Assign a terminal Future before any user/native callback can reenter.
     unawaited(_finishClose(finalSnapshot)
@@ -807,36 +897,60 @@ class PlaybackSession extends PlaybackEngine {
   }
 
   Future<void> _finishClose(PlaybackCheckpoint snapshot) async {
+    Future<void>? retirement;
+    Future<void> retireNative() => retirement ??= () async {
+          closeStage = 'native_retirement';
+          await _backend?.close();
+          _nativeRetired = true;
+          _backend = null;
+        }();
     try {
-      await _lane;
-      try {
-        await _raw?.pause();
-      } catch (_) {
-        failure ??= PlaybackFailure(
-            PlaybackFailureCategory.operation, 'close_pause', _generation);
+      // A native open/command may never settle until its player is disposed.
+      // Retire that backend first, then skip the blocked lane: queued command
+      // results were cancelled by close(), and no new backend may be created
+      // until this retirement has completed.
+      final interrupted = _commandInFlight && _backend != null;
+      if (interrupted) {
+        await retireNative();
+      } else {
+        closeStage = 'command_lane';
+        await _lane;
+        try {
+          closeStage = 'pause';
+          await _raw?.pause();
+        } catch (_) {
+          failure ??= PlaybackFailure(
+              PlaybackFailureCategory.operation, 'close_pause', _generation);
+        }
       }
       Uint8List? frame;
-      if (_frameEligible(snapshot)) {
+      if (!interrupted && _frameEligible(snapshot)) {
         try {
+          closeStage = 'frame_capture';
           frame = await captureFrame().timeout(cleanupSaveTimeout);
         } catch (_) {/* optional frame */}
       }
+      // Storage can stall independently of the player. Retire native output
+      // before waiting on the checkpoint so the next route never inherits a
+      // live player from a page that has already been popped.
+      await retireNative();
       try {
+        closeStage = 'checkpoint_write';
         await _write(snapshot.withFrame(frame)).timeout(cleanupSaveTimeout);
       } catch (_) {
         persistenceFailed = true;
       }
     } finally {
       _writer.retire(_checkpointOwner);
-      _nativeRetired = true;
       // If native retirement fails/hangs, never release the dependent torrent.
-      await _backend?.close();
-      _backend = null;
+      await retireNative();
+      closeStage = 'torrent_release';
       for (final lease in _leases.toList()) {
         await lease.stop();
         _leases.remove(lease);
       }
       phase = PlaybackPhase.closed;
+      closeStage = 'closed';
       _notify();
     }
   }

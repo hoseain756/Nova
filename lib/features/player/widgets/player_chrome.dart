@@ -1515,6 +1515,41 @@ class LockHintHud extends StatelessWidget {
 
 // ── Cards ──────────────────────────────────────────────────────────────────
 
+/// Keeps the Up-Next card above the player controls without letting a short
+/// landscape viewport or enlarged text push its header off screen. The card
+/// remains scrollable when its content is taller than the available area.
+class PlayerUpNextPlacement extends StatelessWidget {
+  const PlayerUpNextPlacement({
+    super.key,
+    required this.scale,
+    required this.child,
+  });
+
+  final double scale;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final safe = MediaQuery.paddingOf(context);
+    final safeEnd = Directionality.of(context) == TextDirection.rtl
+        ? safe.left
+        : safe.right;
+    final bottom = (size.height * .28).clamp(48.0, 100.0 * scale) + safe.bottom;
+    final maxHeight =
+        (size.height - safe.top - bottom - 8).clamp(1.0, double.infinity);
+    final maxWidth = (size.width - safe.horizontal - 32).clamp(1.0, 288.0);
+    return PositionedDirectional(
+      bottom: bottom,
+      end: 16 + safeEnd,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+        child: SingleChildScrollView(child: child),
+      ),
+    );
+  }
+}
+
 class PlayerCardShell extends StatelessWidget {
   const PlayerCardShell({
     super.key,
@@ -1562,18 +1597,70 @@ class PlayerCardHeader extends StatelessWidget {
         children: [
           Icon(icon, size: 15, color: HorseTheme.gold),
           const SizedBox(width: 7),
-          Text(
-            label,
-            style: TextStyle(
-              color: NovaColors.white.withValues(alpha: .54),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: NovaColors.white.withValues(alpha: .54),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
             ),
           ),
-          const Spacer(),
-          if (trailing != null) trailing!,
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            trailing!,
+          ],
         ],
+      );
+}
+
+class PlayerUpNextActions extends StatelessWidget {
+  const PlayerUpNextActions({
+    super.key,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    required this.onPrimary,
+    required this.onSecondary,
+  });
+
+  final String primaryLabel;
+  final String secondaryLabel;
+  final VoidCallback onPrimary;
+  final VoidCallback onSecondary;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 250 ||
+              MediaQuery.textScalerOf(context).scale(16) > 22;
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PlayerPrimaryAction(label: primaryLabel, onPressed: onPrimary),
+                const SizedBox(height: 8),
+                PlayerSecondaryAction(
+                    label: secondaryLabel, onPressed: onSecondary),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(
+                child: PlayerPrimaryAction(
+                    label: primaryLabel, onPressed: onPrimary),
+              ),
+              const SizedBox(width: 8),
+              PlayerSecondaryAction(
+                  label: secondaryLabel, onPressed: onSecondary),
+            ],
+          );
+        },
       );
 }
 
@@ -1612,7 +1699,7 @@ class PlayerSecondaryAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) => OutlinedButton(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(48),
+          minimumSize: const Size(0, 48),
         ),
         onPressed: onPressed,
         child: Text(label),
