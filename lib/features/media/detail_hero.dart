@@ -226,8 +226,10 @@ class DetailActionRow extends StatelessWidget {
       required this.onTrackAnime,
       required this.onShare,
       required this.onAddToList,
+      this.nativeTopActions = false,
       this.onDownload});
   final bool english, isWide, inList, showTrackAnime, primaryIsResume, loading;
+  final bool nativeTopActions;
   final String primaryLabel;
   final VoidCallback onPrimaryPressed,
       onToggleWatchlist,
@@ -265,12 +267,13 @@ class DetailActionRow extends StatelessWidget {
                     : (NovaStrings.lookup(english, 'message138'))),
                 style:
                     OutlinedButton.styleFrom(minimumSize: const Size(112, 52))),
-            IconButton.outlined(
-                onPressed: onShare,
-                tooltip: NovaStrings.lookup(english, 'message139'),
-                icon: const Icon(LucideIcons.share2),
-                style:
-                    IconButton.styleFrom(minimumSize: const Size.square(52))),
+            if (!nativeTopActions)
+              IconButton.outlined(
+                  onPressed: onShare,
+                  tooltip: NovaStrings.lookup(english, 'message139'),
+                  icon: const Icon(LucideIcons.share2),
+                  style:
+                      IconButton.styleFrom(minimumSize: const Size.square(52))),
             if (onDownload != null)
               IconButton.outlined(
                   onPressed: onDownload,
@@ -278,42 +281,43 @@ class DetailActionRow extends StatelessWidget {
                   icon: const Icon(LucideIcons.download),
                   style:
                       IconButton.styleFrom(minimumSize: const Size.square(52))),
-            PopupMenuButton<String>(
-              tooltip: NovaStrings.lookup(english, 'message141'),
-              icon: const Icon(LucideIcons.ellipsis),
-              constraints: const BoxConstraints(minWidth: 240),
-              onSelected: (action) {
-                switch (action) {
-                  case 'sources':
-                    onOpenStreams();
-                  case 'list':
-                    onAddToList();
-                  case 'track':
-                    onTrackAnime();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                    value: 'sources',
-                    child: ListTile(
-                        leading: const Icon(LucideIcons.layers),
-                        title:
-                            Text(NovaStrings.lookup(english, 'message142')))),
-                PopupMenuItem(
-                    value: 'list',
-                    child: ListTile(
-                        leading: const Icon(LucideIcons.listPlus),
-                        title:
-                            Text(NovaStrings.lookup(english, 'message143')))),
-                if (showTrackAnime)
+            if (!nativeTopActions)
+              PopupMenuButton<String>(
+                tooltip: NovaStrings.lookup(english, 'message141'),
+                icon: const Icon(LucideIcons.ellipsis),
+                constraints: const BoxConstraints(minWidth: 240),
+                onSelected: (action) {
+                  switch (action) {
+                    case 'sources':
+                      onOpenStreams();
+                    case 'list':
+                      onAddToList();
+                    case 'track':
+                      onTrackAnime();
+                  }
+                },
+                itemBuilder: (context) => [
                   PopupMenuItem(
-                      value: 'track',
+                      value: 'sources',
                       child: ListTile(
-                          leading: const Icon(LucideIcons.activity),
+                          leading: const Icon(LucideIcons.layers),
                           title:
-                              Text(NovaStrings.lookup(english, 'message144')))),
-              ],
-            ),
+                              Text(NovaStrings.lookup(english, 'message142')))),
+                  PopupMenuItem(
+                      value: 'list',
+                      child: ListTile(
+                          leading: const Icon(LucideIcons.listPlus),
+                          title:
+                              Text(NovaStrings.lookup(english, 'message143')))),
+                  if (showTrackAnime)
+                    PopupMenuItem(
+                        value: 'track',
+                        child: ListTile(
+                            leading: const Icon(LucideIcons.activity),
+                            title: Text(
+                                NovaStrings.lookup(english, 'message144')))),
+                ],
+              ),
           ]);
 }
 

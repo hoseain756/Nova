@@ -2375,10 +2375,11 @@ query ($userId: Int) {
           .whereType<Map<String, dynamic>>()
           .toList(growable: false);
     } on DioException catch (error) {
-      if (error.response?.statusCode == 401) await _clearMalSession();
-      return const <dynamic>[];
-    } catch (_) {
-      return const <dynamic>[];
+      if (error.response?.statusCode == 401) {
+        await _clearMalSession();
+        return const <dynamic>[];
+      }
+      rethrow;
     }
   }
 
@@ -3006,11 +3007,12 @@ query ($userId: Int) {
           return const <dynamic>[];
       }
     } catch (_) {
-      return const <dynamic>[];
+      rethrow;
     }
   }
 
   /// Returns paused Simkl playback sessions used by Continue Watching.
+  /// Failures propagate so the caller can retain the last good rows.
   Future<List<dynamic>> simklPlayback() async {
     final token = _serviceTokens['simkl'];
     if (token == null || token.isEmpty) return const <dynamic>[];
@@ -3035,7 +3037,7 @@ query ($userId: Int) {
           if (payload[kind] is List) ...(payload[kind] as List),
       ];
     } catch (_) {
-      return const <dynamic>[];
+      rethrow;
     }
   }
 
@@ -3068,8 +3070,11 @@ query ($userId: Int) {
     } on DioException catch (error) {
       // Token revoked server-side (or hard-expired without expiry metadata):
       // drop the session so the integrations card returns to "connect".
-      if (error.response?.statusCode == 401) await _clearTraktTokens();
-      return const <dynamic>[];
+      if (error.response?.statusCode == 401) {
+        await _clearTraktTokens();
+        return const <dynamic>[];
+      }
+      rethrow;
     }
   }
 
@@ -3203,7 +3208,7 @@ query ($userId: Int) {
   /// Trakt paused-playback points (`/users/me/playback`) — Trakt's own
   /// continue-watching feed: items paused below the scrobble threshold, each
   /// with a progress percentage and the exact pause moment. Auto-refreshes
-  /// the access token; silently empty when Trakt is not linked or fails.
+  /// the access token; returns empty when unlinked and throws on fetch failure.
   Future<List<dynamic>> traktPlayback() async {
     final token = await _validTraktAccessToken();
     if (token == null) return const <dynamic>[];
@@ -3224,15 +3229,18 @@ query ($userId: Int) {
     } on DioException catch (error) {
       // Token revoked server-side — drop the session like the other Trakt
       // calls so the integrations card returns to "connect".
-      if (error.response?.statusCode == 401) await _clearTraktTokens();
-      return const <dynamic>[];
+      if (error.response?.statusCode == 401) {
+        await _clearTraktTokens();
+        return const <dynamic>[];
+      }
+      rethrow;
     } catch (_) {
-      return const <dynamic>[];
+      rethrow;
     }
   }
 
-  /// AniList anime list entries with covers (raw rows). Silently empty when
-  /// AniList is not linked or the viewer/collection lookup fails.
+  /// AniList anime list entries with covers (raw rows). Returns empty when
+  /// unlinked; fetch errors propagate to the refresh coordinator.
   Future<List<dynamic>> aniListEntries() async {
     if (!isLinked('anilist')) return const <dynamic>[];
     try {
@@ -3251,7 +3259,7 @@ query ($userId: Int) {
       }
       return rows;
     } catch (_) {
-      return const <dynamic>[];
+      rethrow;
     }
   }
 
@@ -3275,10 +3283,13 @@ query ($userId: Int) {
       final data = _asMap(response.data);
       return data?['data'] is List ? data!['data'] as List : const <dynamic>[];
     } on DioException catch (error) {
-      if (error.response?.statusCode == 401) await _clearMalSession();
-      return const <dynamic>[];
+      if (error.response?.statusCode == 401) {
+        await _clearMalSession();
+        return const <dynamic>[];
+      }
+      rethrow;
     } catch (_) {
-      return const <dynamic>[];
+      rethrow;
     }
   }
 

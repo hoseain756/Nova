@@ -6,6 +6,7 @@ import '../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'widgets/settings_tiles.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
+import 'catalog_settings_page.dart';
 
 class SettingsDisplayPage extends StatelessWidget {
   const SettingsDisplayPage({super.key, this.kidsOnly = false});
@@ -34,6 +35,18 @@ class SettingsDisplayPage extends StatelessWidget {
                           ? LucideIcons.smile
                           : LucideIcons.layoutGrid),
                   if (!kidsOnly) ...[
+                    SettingsContentSection(
+                        title: app.tr('message680'),
+                        children: [
+                          SettingsTile(
+                              icon: LucideIcons.listFilter,
+                              title: app.tr('catalogManagement'),
+                              subtitle: app.tr('catalogManagementDescription'),
+                              onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const CatalogSettingsPage()))),
+                        ]),
                     SettingsContentSection(
                         title: app.tr('message421'),
                         children: [

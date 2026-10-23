@@ -37,6 +37,7 @@ class AppState extends ChangeNotifier {
     'contentLanguage': 'ar',
     'homeMode': 'harbor', 'homeShowAllAddonRows': false,
     'catalogRowOrder': <String>[], 'catalogRowHidden': <String>[],
+    'catalogRowNames': <String, String>{},
     'hideKidsCatalogsHome': false,
     'hideWatchedInCatalogs': false, 'tmdbKey': '',
     'opensubtitlesEnabled': true, 'tmdbEnabled': true,
@@ -516,6 +517,27 @@ class AppState extends ChangeNotifier {
   /// progress model used by detail episode cards. Local rows remain newest
   /// wins and take precedence when they exist.
   List<WatchHistoryEntry> historyForTitle(MediaItem item) {
+    final local = history.where((entry) => entry.item.id == item.id).toList();
+    final localEpisodes = {
+      for (final entry in local)
+        if (entry.season != null && entry.episode != null)
+          (entry.season!, entry.episode!),
+    };
+    final orderedVideos = item.videos
+        .where((video) =>
+            ((video['season'] as num?)?.toInt() ?? 0) > 0 &&
+            (video['episode'] as num?)?.toInt() != null)
+        .toList()
+      ..sort((a, b) {
+        final season = (a['season'] as num).toInt().compareTo(
+              (b['season'] as num).toInt(),
+            );
+        return season != 0
+            ? season
+            : (a['episode'] as num).toInt().compareTo(
+                  (b['episode'] as num).toInt(),
+                );
+      });
     final matches = linkedContinueWatching.where((entry) {
       final linked = entry.item;
       return linked.id == item.id ||
@@ -535,20 +557,24 @@ class AppState extends ChangeNotifier {
         ));
       } else if (entry.episodesWatched > 0) {
         for (var episode = 1; episode <= entry.episodesWatched; episode++) {
+          final video = episode <= orderedVideos.length
+              ? orderedVideos[episode - 1]
+              : null;
           remote.add(WatchHistoryEntry(
             item: item,
             watchedAt: entry.watchedAt,
             positionMs: 1000,
             durationMs: 1000,
-            season: 1,
-            episode: episode,
+            season: (video?['season'] as num?)?.toInt() ?? 1,
+            episode: (video?['episode'] as num?)?.toInt() ?? episode,
           ));
         }
       }
     }
     return [
-      ...history.where((entry) => entry.item.id == item.id),
-      ...remote,
+      ...local,
+      ...remote.where(
+          (entry) => !localEpisodes.contains((entry.season, entry.episode))),
     ];
   }
 

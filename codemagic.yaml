@@ -1,0 +1,38 @@
+workflows:
+  nova-ios-validation:
+    name: NOVA iOS unsigned validation
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      xcode: 26.2
+      cocoapods: default
+    scripts:
+      - name: Pin NOVA Flutter beta toolchain
+        script: |
+          set -e
+          git clone --filter=blob:none --branch beta https://github.com/flutter/flutter.git "$CM_BUILD_DIR/.codemagic-flutter"
+          git -C "$CM_BUILD_DIR/.codemagic-flutter" checkout 38ec981bad973156ad05bdef0aa8e82d1a58905b
+          test "$(git -C "$CM_BUILD_DIR/.codemagic-flutter" rev-parse HEAD)" = "38ec981bad973156ad05bdef0aa8e82d1a58905b"
+          "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter" --version
+      - name: Resolve Flutter dependencies
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter pub get"
+      - name: Analyze Flutter source
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter analyze --no-pub"
+      - name: Test iOS presentation contract
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter test --no-pub test/ios_chrome_bridge_test.dart"
+      - name: Verify iOS 15 deployment settings
+        script: |
+          test "$(grep -c 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;' ios/Runner.xcodeproj/project.pbxproj)" -eq 6
+          ! grep -q 'IPHONEOS_DEPLOYMENT_TARGET = 13.0;' ios/Runner.xcodeproj/project.pbxproj
+      - name: Prepare existing iOS dependencies
+        script: |
+          if [ -f ios/Podfile ]; then
+            (cd ios && pod install)
+          else
+            echo "No ios/Podfile is checked in; Flutter build will report whether one is required."
+          fi
+      - name: Compile unsigned iOS app
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter build ios --release --no-codesign --no-pub"
+    artifacts:
+      - build/ios/iphoneos/*.app
+      - /tmp/xcodebuild_logs/*.log

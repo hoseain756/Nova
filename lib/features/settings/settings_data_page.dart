@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/data/cache_reset_service.dart';
 import '../../core/state/app_state.dart';
 import '../../core/sync/noor_sync.dart';
+import '../../core/theme/nova_theme.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/torrent/torrent_service.dart';
 import '../../core/version.dart';
@@ -1178,23 +1179,20 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     );
   }
 
-  Widget _brandHeader(AppState app) {
+  Widget _brandHeader() {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
+    return Padding(
+      key: const Key('about_brand_header'),
+      padding: const EdgeInsets.symmetric(vertical: NovaSpace.lg),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           const NovaBrand(width: 184),
-          const SizedBox(height: 18),
+          const SizedBox(height: NovaSpace.md),
           Text(
-            app.tr('message406', {'p0': noorVersionLabel}),
+            noorVersionLabel,
+            textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -1216,7 +1214,7 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
           child: ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 48),
             children: [
-              _brandHeader(app),
+              _brandHeader(),
               const SizedBox(height: 20),
               _updateControl(app),
               const SizedBox(height: 24),

@@ -23,6 +23,13 @@ class AddonCatalogRow {
   String get key => '${addon.id}:${catalog.type}:${catalog.id}';
   String get title => catalog.name;
   String get subtitle => addon.name;
+
+  /// A user label changes presentation only; provider metadata stays intact.
+  String displayTitle(Object? names) {
+    final custom = names is Map ? names[key] : null;
+    final label = custom is String ? custom.trim() : '';
+    return label.isEmpty ? title : label;
+  }
 }
 
 typedef SeasonEpisodeArtwork = ({Map<int, String> stills, String? poster});
@@ -37,6 +44,10 @@ class CatalogRepository {
         r'kids?|children|family|طفل|أطفال|اطفال|عائل',
         caseSensitive: false,
       ).hasMatch('${row.catalog.id} ${row.title}');
+  static bool isAnimeCatalog(AddonCatalogRow row) => RegExp(
+        r'anime|anilist|أنمي|انمي',
+        caseSensitive: false,
+      ).hasMatch('${row.catalog.id} ${row.title} ${row.subtitle}');
   static const _animeQuery = r'''
 query ($page: Int, $perPage: Int, $sort: [MediaSort], $isAdult: Boolean) {
   Page(page: $page, perPage: $perPage) {

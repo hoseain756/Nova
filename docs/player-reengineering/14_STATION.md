@@ -1,30 +1,64 @@
 # Station 14 — Generalized skip segment system
 
-- Status: PLANNED
-- Verification status: NOT-VERIFIED (station work not yet completed)
-- Checklist: 0/8 tasks complete
+- Status: IN PROGRESS — implementation candidate; physical skip-marker acceptance pending
+- Verification status: focused tests, both Station 14 Profile builds, Home visual/autoplay checks and the latest full suite pass; Android skip behavior NOT-VERIFIED-ON-DEVICE
+- Checklist: 6/8 tasks complete
 - Evidence:
 
-- [ ] Define segment types and normalized boundaries for recap/intro/opening/outro/credits.
-- [ ] Handle seeking into/out of a segment and avoid repeated prompts.
-- [ ] Coordinate segment actions with resume/completion state.
-- [ ] Add tests for boundary, overlap and seeking cases.
+- [x] Define segment types and normalized boundaries for recap/intro/opening/outro/credits. `SkipSegment` carries type, half-open millisecond bounds, provenance and optional confidence; `PlaybackSegmentsResolver` accepts named pairs, map/list pairs and typed lists from stream, hints or episode rows. No timing is guessed.
+- [x] Handle seeking into/out of a segment and avoid repeated prompts. One route-local controller follows Station 09's proposed latest-start/earliest-end/type order, suppresses the connected overlap after a tap, and rearms after the playhead leaves and returns. Route replacement resets the controller.
+- [x] Coordinate segment actions with resume/completion state. Ending markers only enter the existing next-episode source flow when exact current progress already qualifies as complete under `PlaybackResumePolicy`; an earlier ending skip seeks to its end. The next-episode timing and persistence keys are unchanged.
+- [x] Add tests for boundary, overlap and seeking cases. Pure tests cover all five types, source precedence, invalid/known-duration data, half-open bounds, overlap ordering, tap suppression, seek away/back, command failure, completion threshold and a three-hour timeline. Pill tests cover Arabic/English, RTL/LTR, both themes and 200% text in a 320×240 viewport.
 - [ ] Verify NOVA UI, RTL and long episode behavior on device where inputs permit.
-- [ ] Record unsupported sources as NOT MEASURED.
+- [x] Record unsupported sources as NOT MEASURED. No provider or user episode with actual recap/opening/credits markers has been supplied or inspected; external marker coverage, native seek success and long-playback behavior are NOT MEASURED.
 - [ ] Run LKG checks and commit only Station 14 paths/docs.
-- [ ] Keep legacy implementation selectable.
+- [x] Keep legacy implementation selectable. On the user's later explicit migration request, Core became the ordinary-build default and `NOVA_PLAYER_CORE=false` selects Legacy. Both routes retain the shared model/pill; neither player was removed.
 
 ## Findings and evidence
 
-No findings recorded yet.
+### User-directed Core default — 2026-10-23
+
+The user explicitly chose **Core as the default while retaining Legacy temporarily**. `PlaybackEntryPage` now selects Core without a build define; `--dart-define=NOVA_PLAYER_CORE=false` selects Legacy for a rollback build. The media detail torrent preparation path reads the same compile-time selection for its `PlaybackOwnership.retireCurrent()` barrier, so the default Core path does not bypass native retirement. This is a selector change requested during open Station 14, not completion of its physical marker acceptance or approval to remove Legacy at Gate E. Stations 15–20 were not started. Previous Profile APK hashes below describe the older Legacy-default selector and do not verify this new default binary. No phone installation or playback occurred for this change.
+
+Selector verification: `flutter test --no-pub test/playback_entry_page_test.dart` PASS **1/1** with the Core default; the same test with `--dart-define=NOVA_PLAYER_CORE=false` PASS **1/1** for the Legacy build path. Scoped `flutter analyze --no-pub` on the selector, detail page and test PASS with no issues. The full suite after the selector change PASS **628/628** (`build/nova-review/core-default-full-test.log`). The tests check build-time route choice and preserved launch arguments; they do not prove native playback or torrent retirement on a phone.
+
+The ordinary `flutter build apk --profile --no-pub` PASS (`assembleProfile` 143.2 s). Its Core-default test candidate is `build/app/outputs/flutter-apk/nova-core-default-profile.apk`, 199,565,967 bytes, SHA-256 `4AD499B7B51C6B0987FEE19170BBC7B50CEC23AEF90E4011BE07DB16BB011015`; build log: `build/nova-review/core-default-profile-build.log`. This APK includes the shared dirty working tree and is not a clean release artifact. It has not been installed or used on a phone.
+
+The fallback `flutter build apk --profile --no-pub --dart-define=NOVA_PLAYER_CORE=false` also PASS (`assembleProfile` 128.8 s). Its Legacy candidate is `build/app/outputs/flutter-apk/nova-legacy-fallback-profile.apk`, 199,434,895 bytes, SHA-256 `3FF78EC8B876C12D60BA2F079049AD703A2B0E1A61AFB2862796BC4CF4AC26D6`; build log: `build/nova-review/legacy-fallback-profile-build.log`. This binary also includes the dirty working tree and has not been installed. The build overwrote only Flutter's generated `app-profile.apk`; both named candidates were retained separately. Neither build establishes device acceptance.
+
+### Implementation candidate — 2026-10-23
+
+The previous resolver exposed only intro/outro timing. Credits were an alias for outro, and each route selected between two booleans. Station 14 adds `segments/skip_segment.dart`, generalizes the existing resolver, and replaces two private pills with shared `widgets/player_skip_segment_pill.dart`. Both routes use exact engine position for selection and native seek commands. Core's feature projection compares the selected marker identity and ending-window state, so repeated position events without a visible change do not add page rebuilds; Legacy retains its pre-existing engine-driven page rebuild path. Source and episode changes already replace the route with the newly selected stream/episode row, yielding a fresh resolver/controller. No persistent schema, stream ID, autoplay preference or next-episode trigger was changed.
+
+Marker contract: stream row wins per type over `behaviorHints`, then the episode row. Accepted named forms are `{type}Start`/`{type}End` in seconds, `...Ms` in milliseconds, map/list values under the type or `skip{Type}`, and `skipSegments`/`segments` typed maps with numeric bounds. Malformed, negative, zero-width or beyond-known-duration intervals are ignored. A marker is visible at `start <= position < end`. Overlaps follow Station 09's proposed latest-start, earliest-end, stable-type order. After a tap, the connected overlap is suppressed until the playhead leaves it. This is a deterministic UI policy, not evidence that a provider emits these fields.
+
+REA: the installed `rea-agents@6.7.0` CLI doctor ran successfully and reported the Codex registration in `C:\Users\hosea\.codex\config.toml` aligned, Node 24.16.0, and skill version 42 aligned. The active REA MCP tools appeared in an initial inventory but were not available afterward; doctor reports live-server state `unknown`. Official recovery guidance calls for a client reconnect/restart when registration is aligned but tools are absent. No registration rewrite or native analysis-engine installation is needed for this source-only station. **No REA investigation or REA Evidence ID is claimed.** Direct source inspection was used.
+
+### Checks and artifacts — 2026-10-23
+
+| Check | Actual result |
+|---|---|
+| `flutter test --no-pub test/playback_segments_test.dart test/player_skip_segment_pill_test.dart` | PASS **30/30** after the final overlap/completion tests |
+| `flutter analyze --no-pub` | PASS, no issues; final scoped `flutter analyze --no-pub lib/features/player` also PASS after formatting |
+| Earlier `flutter test --no-pub --reporter expanded` | FAIL: **624 passed, 2 failed**. Both failures were `nova_visual_acceptance_test.dart` Home phone-320×640 dark at 200% text scale, English and Arabic, with bottom RenderFlex overflows of 19 and 30 pixels. Home code was already dirty at Station 14 entry; causation was not established and no Home files were edited in the initial station work. No Station 14 test failed. The first full attempt also failed these two Home cases; an intermediate rerun during an in-flight source signature edit had one additional transient Station 14 compile error and is not final evidence. Earlier log: `%TEMP%\nova-station14-final-test.log`. |
+| Later user-requested Home layout fix | `featured_hero.dart` now uses NOVA spacing tokens to contract the fixed hero overlay's decorative vertical gaps when text is enlarged, without scaling or removing text and controls. The overflowing `RenderFlex` was confirmed as `_FeaturedOverlay` inside the 595.2 px hero. Both formerly failing English/Arabic 200% cases PASS **2/2**; the complete visual acceptance file PASS **18/18**; the full suite PASS **626/626**. Scoped Home/test analysis PASS, scoped formatting PASS, and `git diff --check` PASS. The generated English/Arabic 320×640, 200% initial screenshots were inspected: full title, metadata, action and carousel controls remain visible. Log: `build/nova-review/home-layout-full-test.log`; screenshots: `build/nova-review/acceptance/home-a11y-200-phone-320x640-{en,ar}-dark-initial.png`. This is a separate user-requested Home fix, not Station 14 device acceptance. |
+| Later user-reported Home hero autoplay fix | The user reported several hero slides and working manual controls, with NOVA's Reduce Motion enabled. A focused widget test reproduced that the six-second timer stopped only with reduced motion. `featured_hero.dart` now keeps timed rotation active while the existing `AnimatedSwitcher` and artwork zoom still use zero/reduced motion; inactive tabs and touch still pause the timer. Focused autoplay tests PASS **2/2** for both motion settings and inactive/reactivated Home; visual acceptance PASS **18/18**; latest full suite PASS **628/628**; scoped analysis, formatting and `git diff --check` PASS. Log: `build/nova-review/hero-autoplay-full-test.log`. A new default Legacy Profile APK built PASS in 138.3 s: `build/app/outputs/flutter-apk/nova-home-hero-autoplay-legacy-profile.apk`, 199,434,895 bytes, SHA-256 `A7C47516600B4F73518FD813AB9718551C65976CEDBBD25AB1998626542D7299`. This separate Home fix remains unverified on device and does not close Station 14. |
+| `flutter build apk --profile --no-pub` | PASS on the final controller revision in 225.1 s; Legacy/default APK copied to `build/app/outputs/flutter-apk/nova-station14-legacy-profile.apk`, 199,369,359 bytes, SHA-256 `DB0134D7CB61026CDF14CDCA596D744C79942EEF4602DB2EDC7119EBFBE16762` |
+| `flutter build apk --profile --no-pub --dart-define=NOVA_PLAYER_CORE=true` | PASS on the final controller revision in 230.9 s; opt-in Core APK copied to `build/app/outputs/flutter-apk/nova-station14-core-profile.apk`, 199,565,967 bytes, SHA-256 `98B3A5E4D8626C5AEC19CEFDEAAAC709AC63B43C647D9CA7227F57655F0ACE40` |
+| Scoped `dart format --output=none --set-exit-if-changed` and `git diff --check` | PASS after formatting; Git only printed line-ending conversion warnings on pre-existing dirty paths. |
+
+The Profile builds include the shared dirty working tree, including unrelated settings/catalog/native changes. They are functional test candidates, not clean release or reproducible scoped-commit artifacts. After an additional controller guard that hides a prompt while its command is in flight, focused tests and scoped analysis passed again and both Profile APKs were rebuilt; the hashes above identify those station binaries. The earlier full-suite failure predates that guard; the latest full-suite pass includes it and the separately requested Home fixes. `adb devices -l` showed the physical `RF8NA2NNVNY` / `SM_A217F` in `device` state. With the user's explicit **Legacy install** authorization, `adb -s RF8NA2NNVNY install -r` of the Station 14 Legacy APK exited 0 with `Success`. The opt-in Core APK was **not installed**. The installed Legacy binary predates both Home fixes; the new Home candidate was built separately and has not been installed. NOVA was not launched and no source or playback was operated by the agent; user-controlled phone results remain pending.
 
 ## Blockers / unknowns
 
-None recorded yet.
+- Physical Android skip UX is pending the user's manual test of the installed Legacy APK with a source carrying real marker metadata. After installation, the user deferred this test until later. The user also explicitly deferred installation of the later Home-fix APK. The user controls app launch, source choice, seeks and playback. Phone/tablet UI and long episode runtime remain unverified. A separate fresh ADB check and authorization would be required before any later installation.
+- No provider schema guarantees these optional timing fields; absent fields intentionally produce no skip prompt.
+- iOS, external services and performance remain NOT-VERIFIED / NOT MEASURED. Station 03 official baseline is still NOT MEASURED.
 
 ## Commit / LKG
 
-Pending station completion.
+No Station 14 commit or LKG promotion yet: physical marker acceptance and the scoped commit remain open. Existing local settings/catalog/native changes are preserved and excluded from Station 14 scope. Core is now the default in source; Legacy remains selectable with `NOVA_PLAYER_CORE=false`. The 628/628 full-suite result and fresh Profile builds above include the selector change.
 
 ## Session 1 scope
-Not entered in this session. The user checkpoint ends after Station 07; this station remains PLANNED.
+
+Historical bootstrap note: the earlier checkpoint ended after Station 07. Superseded by the implementation record above.

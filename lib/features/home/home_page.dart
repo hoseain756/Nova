@@ -400,7 +400,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
         for (final row in _catalogRows)
           SliverToBoxAdapter(
             child: AsyncMediaSection(
-              title: row.title,
+              title: row.displayTitle(app.webSettings['catalogRowNames']),
               subtitle: row.subtitle,
               future: _catalogRowFutures[row.key] ??
                   Future<List<MediaItem>>.value(const <MediaItem>[]),
@@ -408,7 +408,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
               onRetry: () => setState(() => _load(app)),
               onOpenSection: () => _openSection(
                 CatalogGridPage(
-                  title: row.title,
+                  title: row.displayTitle(app.webSettings['catalogRowNames']),
                   subtitle: row.subtitle,
                   onOpen: _open,
                   loader: () => context.read<AppState>().catalogs.catalog(

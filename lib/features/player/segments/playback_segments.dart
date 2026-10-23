@@ -1,6 +1,9 @@
 import 'dart:math' as math;
 
-/// Timing segments for the skip-intro / skip-outro / next-episode features.
+import '../../../core/models/playback_resume_policy.dart';
+import 'skip_segment.dart';
+
+/// Timing segments for skip prompts and the existing next-episode trigger.
 ///
 /// EVERY field is nullable and absence means "unknown" — never a guessed
 /// default. A segment that is absent, malformed, or fails validation simply
@@ -12,6 +15,7 @@ class PlaybackSegments {
     this.introEndMs,
     this.outroStartMs,
     this.outroEndMs,
+    this.skipSegments = const [],
     this.nextEpisodeAtMs,
     this.autoAdvanceCountdownMs,
   });
@@ -23,6 +27,31 @@ class PlaybackSegments {
   /// Outro / credits window (absolute positions, ms).
   final int? outroStartMs;
   final int? outroEndMs;
+
+  /// Normalized marker data. Kept separate from the player UI and next-card
+  /// trigger. The legacy intro/outro fields remain for existing callers.
+  final List<SkipSegment> skipSegments;
+
+  List<SkipSegment> get effectiveSkipSegments {
+    if (skipSegments.isNotEmpty) return skipSegments;
+    if (!hasIntro && !hasOutro) return const [];
+    return [
+      if (hasIntro)
+        SkipSegment(
+          type: SkipSegmentType.intro,
+          startMs: introStartMs!,
+          endMs: introEndMs!,
+          source: 'legacy',
+        ),
+      if (hasOutro)
+        SkipSegment(
+          type: SkipSegmentType.outro,
+          startMs: outroStartMs!,
+          endMs: outroEndMs!,
+          source: 'legacy',
+        ),
+    ];
+  }
 
   /// When the next-episode card should appear (absolute position, ms).
   final int? nextEpisodeAtMs;
@@ -69,6 +98,29 @@ class SegmentWindows {
         positionMs: positionMs,
         durationMs: durationMs,
       );
+
+  static bool endingVisible({
+    required PlaybackSegments segments,
+    required int positionMs,
+    required int durationMs,
+  }) =>
+      segments.effectiveSkipSegments.any((segment) =>
+          segment.isEnding && segment.contains(positionMs, durationMs));
+
+  /// Preserve the existing ending-to-next-source action only after exact
+  /// progress has entered the shared completion window. Earlier ending skips
+  /// seek to the marker end so resume history is not left unfinished.
+  static bool opensNextEpisodeAfterSkip({
+    required SkipSegment segment,
+    required int positionMs,
+    required int durationMs,
+    required bool hasNextEpisode,
+  }) =>
+      segment.isEnding &&
+      hasNextEpisode &&
+      durationMs > 0 &&
+      segment.endMs >= durationMs - 1500 &&
+      PlaybackResumePolicy.isComplete(positionMs, durationMs);
 
   static bool _inWindow({
     required int? startMs,
@@ -123,16 +175,18 @@ class SegmentWindows {
 /// Supported source formats (documented contract — anything else is ignored):
 ///
 ///  · stream row, its `behaviorHints` sub-map, or the episode `videos[]` row:
-///      - `introStart` / `introEnd`      (+ `…Ms` variants)  → seconds / ms
-///      - `outroStart` / `outroEnd`, `creditsStart` / `creditsEnd` (+ `…Ms`)
-///      - `intro` / `skipIntro` as `{start, end}` or `[start, end]` (seconds,
-///        or `{startMs, endMs}` for ms)
-///      - `outro` / `credits` in the same map/list forms
+///      - `recap`, `intro`, `opening`, `outro`, `credits` Start/End pairs,
+///        with optional `Ms` suffixes; bare numbers are seconds
+///      - those type keys (or `skipIntro`, etc.) as `{start, end}` or
+///        `[start, end]` in seconds, or `{startMs, endMs}` in milliseconds
+///      - `skipSegments`/`segments` list of typed maps with `type`, numeric
+///        start/end or startMs/endMs, and optional 0..1 `confidence`
 ///      - `nextEpisodeAt` (+ `…Ms`)       → absolute position, s / ms
 ///      - `autoAdvanceCountdown` (+ `…Ms`) → duration, s / ms
 ///
-/// Numbers only: strings, nulls and negative values are treated as absent.
-/// Pairs validate start < end and end ≤ media duration (when known).
+/// Stream values win per type over hints and episode values. Numbers only:
+/// strings, nulls and negative values are treated as absent. Pairs validate
+/// start < end and end ≤ media duration (when known).
 class PlaybackSegmentsResolver {
   PlaybackSegmentsResolver._();
 
@@ -145,24 +199,36 @@ class PlaybackSegmentsResolver {
         ? null
         : (stream['behaviorHints'] as Map<String, dynamic>?);
     final sources = <Map<String, dynamic>?>[stream, behaviorHints, video];
+    final namedSources = <(Map<String, dynamic>?, String)>[
+      (stream, 'stream'),
+      (behaviorHints, 'behaviorHints'),
+      (video, 'episode'),
+    ];
+    final normalized = <SkipSegment>[];
+    for (final type in SkipSegmentType.values) {
+      for (final (source, sourceName) in namedSources) {
+        if (source == null) continue;
+        final typed = _segmentsInSource(
+          source,
+          sourceName: sourceName,
+          type: type,
+          durationMs: mediaDurationMs,
+        );
+        if (typed.isEmpty) continue;
+        normalized.addAll(typed);
+        break; // Stream timing wins over hints, then episode timing.
+      }
+    }
+    SkipSegment? first(SkipSegmentType type) {
+      for (final segment in normalized) {
+        if (segment.type == type) return segment;
+      }
+      return null;
+    }
 
-    final intro = _resolvePair(
-      sources,
-      const [('introStart', 'introEnd'), ('introStartMs', 'introEndMs')],
-      mapKeys: const ['intro', 'skipIntro'],
-      durationMs: mediaDurationMs,
-    );
-    final outro = _resolvePair(
-      sources,
-      const [
-        ('outroStart', 'outroEnd'),
-        ('creditsStart', 'creditsEnd'),
-        ('outroStartMs', 'outroEndMs'),
-        ('creditsStartMs', 'creditsEndMs'),
-      ],
-      mapKeys: const ['outro', 'credits'],
-      durationMs: mediaDurationMs,
-    );
+    final intro = first(SkipSegmentType.intro);
+    final outro = first(SkipSegmentType.outro) ??
+        first(SkipSegmentType.credits); // Preserve the old credits alias.
     final nextAt =
         _firstMs(sources, const ['nextEpisodeAtMs', 'nextEpisodeAt']);
     final countdown = _firstMs(
@@ -177,14 +243,72 @@ class PlaybackSegmentsResolver {
     }
 
     return PlaybackSegments(
-      introStartMs: intro?.$1,
-      introEndMs: intro?.$2,
-      outroStartMs: outro?.$1,
-      outroEndMs: outro?.$2,
+      introStartMs: intro?.startMs,
+      introEndMs: intro?.endMs,
+      outroStartMs: outro?.startMs,
+      outroEndMs: outro?.endMs,
+      skipSegments: List.unmodifiable(normalized),
       nextEpisodeAtMs: validAbsolute(nextAt),
       autoAdvanceCountdownMs:
           countdown != null && countdown > 0 ? countdown : null,
     );
+  }
+
+  static List<SkipSegment> _segmentsInSource(
+    Map<String, dynamic> source, {
+    required String sourceName,
+    required SkipSegmentType type,
+    required int? durationMs,
+  }) {
+    final fromList = <SkipSegment>[];
+    final rawList = source['skipSegments'] ?? source['segments'];
+    if (rawList is List) {
+      for (final raw in rawList) {
+        if (raw is! Map || raw['type'] != type.name) continue;
+        final startMs = _msOf(raw['startMs'] ?? raw['start'],
+            msUnits: raw['startMs'] != null);
+        final endMs =
+            _msOf(raw['endMs'] ?? raw['end'], msUnits: raw['endMs'] != null);
+        final pair = _validate(startMs, endMs, durationMs);
+        if (pair == null) continue;
+        final confidence = raw['confidence'];
+        final score = confidence is num &&
+                confidence.isFinite &&
+                confidence >= 0 &&
+                confidence <= 1
+            ? confidence.toDouble()
+            : null;
+        fromList.add(SkipSegment(
+          type: type,
+          startMs: pair.$1,
+          endMs: pair.$2,
+          source: sourceName,
+          confidence: score,
+        ));
+      }
+    }
+    if (fromList.isNotEmpty) return fromList;
+
+    final name = type.name;
+    final capitalized = '${name[0].toUpperCase()}${name.substring(1)}';
+    final pair = _resolvePair(
+      [source],
+      [
+        ('${name}Start', '${name}End'),
+        ('${name}StartMs', '${name}EndMs'),
+      ],
+      mapKeys: [name, 'skip$capitalized'],
+      durationMs: durationMs,
+    );
+    if (pair == null) return const [];
+    return [
+      SkipSegment(
+        type: type,
+        startMs: pair.$1,
+        endMs: pair.$2,
+        source: sourceName,
+      ),
+    ];
   }
 
   /// First valid (start, end) pair found across the documented key forms,

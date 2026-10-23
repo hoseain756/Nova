@@ -6,8 +6,7 @@ import 'package:nova_mobile/features/player/session/playback_state.dart';
 import 'package:nova_mobile/features/player/video_player_page.dart';
 
 void main() {
-  test('legacy is default and every playback argument survives core selection',
-      () {
+  test('build selection and every playback argument survive route choice', () {
     final request = PlaybackRequest(
         item: const MediaItem(id: 'item', type: 'movie', name: 'Title'),
         url: 'url',
@@ -23,9 +22,17 @@ void main() {
         headers: {'X-Test': 'value'},
         filename: 'file',
         recordProgress: false);
-    final legacy = playbackPageForRequest(request) as VideoPlayerPage;
+    final selected = playbackPageForRequest(request);
+    expect(
+      selected,
+      useCorePlayerByDefault
+          ? isA<CoreVideoPlayerPage>()
+          : isA<VideoPlayerPage>(),
+    );
     final core =
         playbackPageForRequest(request, useCore: true) as CoreVideoPlayerPage;
+    final legacy =
+        playbackPageForRequest(request, useCore: false) as VideoPlayerPage;
     expect(legacy.item.toJson(), core.item.toJson());
     expect(legacy.url, core.url);
     expect(legacy.streamName, core.streamName);

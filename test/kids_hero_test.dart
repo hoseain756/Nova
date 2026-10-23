@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nova_mobile/core/api/noor_api.dart';
@@ -34,6 +35,14 @@ class _KidsCatalog extends CatalogRepository {
         ];
 }
 
+class _FailingKidsCatalog extends CatalogRepository {
+  _FailingKidsCatalog(super.api);
+
+  @override
+  Future<List<MediaItem>> kids({bool series = false}) async =>
+      throw StateError('offline');
+}
+
 void main() {
   testWidgets('Kids hero features only a child suitable title', (tester) async {
     tester.view.devicePixelRatio = 1;
@@ -58,5 +67,22 @@ void main() {
     );
     expect(feature.item.id, 'movie:safe');
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Kids shows a retry state when every catalog fails',
+      (tester) async {
+    final api = NoorApi();
+    final app = AppState(api, _FailingKidsCatalog(api));
+    addTearDown(app.dispose);
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+      value: app,
+      child: MaterialApp(
+        theme: NovaTheme.dark,
+        home: const Scaffold(body: KidsPage()),
+      ),
+    ));
+    await tester.pump();
+    expect(find.byIcon(LucideIcons.cloudOff), findsOneWidget);
+    expect(find.byType(NovaBrowseFeature), findsNothing);
   });
 }

@@ -22,12 +22,14 @@ import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
 import 'segments/playback_segments.dart';
+import 'segments/skip_segment.dart';
 import 'session/playback_progress.dart';
 import 'session/playback_session.dart';
 import 'session/playback_state.dart';
 import 'session/playback_checkpoint.dart';
 import 'temporary_speed_hold.dart';
 import 'widgets/player_session_surface.dart';
+import 'widgets/player_skip_segment_pill.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
 import 'widgets/player_episodes_sheet.dart';
@@ -192,6 +194,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // Workstream B: timing segments resolved once per page instance, plus the
   // guards against double next-episode navigation.
   late PlaybackSegments _segments;
+  final SkipSegmentController _skipSegments = SkipSegmentController();
   bool _episodeTransitionBusy = false;
   bool _autoAdvanceFired = false;
 
@@ -454,15 +457,23 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _maybeAutoAdvance(session);
     final position = session.position.inMilliseconds;
     final duration = session.duration.inMilliseconds;
-    final intro = SegmentWindows.introVisible(
-        segments: _segments, positionMs: position, durationMs: duration);
-    final outro = SegmentWindows.outroVisible(
+    final active = _skipSegments.active(
+      _segments.effectiveSkipSegments,
+      positionMs: position,
+      durationMs: duration,
+    );
+    final ending = SegmentWindows.endingVisible(
         segments: _segments, positionMs: position, durationMs: duration);
     final appear = SegmentWindows.cardAppearAtMs(
         segments: _segments, durationMs: duration);
     final card = appear >= 0 && position >= appear;
-    final projection =
-        (intro, outro, card, card ? _cardCountdown(duration, position) : '');
+    final projection = (
+      active?.type,
+      active?.startMs,
+      ending,
+      card,
+      card ? _cardCountdown(duration, position) : ''
+    );
     if (projection != _featureProjection) {
       _featureProjection = projection;
       setState(() {});
@@ -1529,33 +1540,40 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     }
   }
 
-  // ── Skip intro / outro (workstream B) ────────────────────────────────
-
-  Future<void> _skipSegment({required bool intro}) async {
+  Future<void> _skipSegment(SkipSegment segment) async {
     final engine = _engine;
-    if (engine == null || !engine.ready) return;
-    if (intro) {
-      final end = _segments.introEndMs;
-      if (end == null) return;
-      final result = await engine.seekTo(Duration(milliseconds: end));
-      if (!result.applied) return;
-      _flashHint(NovaStrings.lookup(english, 'message12'));
-    } else {
-      final end = _segments.outroEndMs;
-      if (end == null) return;
+    if (engine == null ||
+        !engine.ready ||
+        !segment.contains(
+            engine.position.inMilliseconds, engine.duration.inMilliseconds) ||
+        !_skipSegments.begin(segment, _segments.effectiveSkipSegments)) {
+      return;
+    }
+    setState(() {});
+    var applied = false;
+    try {
       final duration = engine.duration.inMilliseconds;
       final next = _episodeAt(_currentEpisodeIndex() + 1);
-      if (duration > 0 && end >= duration - 1500 && next != null) {
-        // The outro runs to the end of the video — skipping it moves the
-        // user to the next stage: the next-episode source flow.
-        await _startEpisodeSources(next);
+      if (SegmentWindows.opensNextEpisodeAfterSkip(
+        segment: segment,
+        positionMs: engine.position.inMilliseconds,
+        durationMs: duration,
+        hasNextEpisode: next != null,
+      )) {
+        applied = true;
+        await _startEpisodeSources(next!);
         return;
       }
-      final result = await engine.seekTo(Duration(milliseconds: end));
+      final result = await engine.seekTo(Duration(milliseconds: segment.endMs));
       if (!result.applied) return;
-      _flashHint(NovaStrings.lookup(english, 'message13'));
+      applied = true;
+      _flashHint(NovaStrings.lookup(english, skipSegmentDoneKey(segment.type)));
+    } catch (error) {
+      debugPrint('[NOVA] segment skip failed: ${error.runtimeType}');
+    } finally {
+      _skipSegments.finish(applied: applied);
+      if (mounted) setState(() {});
     }
-    _bumpControls();
   }
 
   Map<String, dynamic> _bestStream(List<Map<String, dynamic>> list) {
@@ -1976,20 +1994,19 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // Workstream B: skip pills exist ONLY inside data-provided windows; the
     // next-episode card trigger is data-first with the shipped nearEnd
     // fallback (≤30 s left or ≥95% elapsed) inherited from the old code.
-    final introVisible = ready &&
-        !_locked &&
-        SegmentWindows.introVisible(
-          segments: _segments,
-          positionMs: position,
-          durationMs: duration,
-        );
-    final outroVisible = ready &&
-        !_locked &&
-        SegmentWindows.outroVisible(
-          segments: _segments,
-          positionMs: position,
-          durationMs: duration,
-        );
+    final positionSkip = ready
+        ? _skipSegments.active(
+            _segments.effectiveSkipSegments,
+            positionMs: position,
+            durationMs: duration,
+          )
+        : null;
+    final activeSkip = _locked ? null : positionSkip;
+    final endingVisible = SegmentWindows.endingVisible(
+      segments: _segments,
+      positionMs: position,
+      durationMs: duration,
+    );
     final cardAppearAt = SegmentWindows.cardAppearAtMs(
       segments: _segments,
       durationMs: duration,
@@ -2497,7 +2514,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                     nextEpisode != null &&
                     cardAppearAt >= 0 &&
                     position >= cardAppearAt &&
-                    !outroVisible &&
+                    !endingVisible &&
                     !_upNextDismissed &&
                     !_stopScrobbled)
                   PlayerUpNextPlacement(
@@ -2581,19 +2598,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 // while the playhead is inside a data-provided window — with
                 // no timing data it never appears (spec B1.4/B3: no guessed
                 // timings, feature inactive).
-                if (!_temporarySpeed.active && (introVisible || outroVisible))
+                if (!_temporarySpeed.active && activeSkip != null)
                   PositionedDirectional(
                     bottom: 180 * scale,
                     end: 16,
-                    child: _SegmentSkipPill(
-                      key: ValueKey(introVisible ? 'intro' : 'outro'),
-                      label: introVisible
-                          ? (NovaStrings.lookup(english, 'message24'))
-                          : (NovaStrings.lookup(english, 'message25')),
-                      icon: introVisible
-                          ? LucideIcons.fastForward
-                          : LucideIcons.skipForward,
-                      onTap: () => unawaited(_skipSegment(intro: introVisible)),
+                    child: PlayerSkipSegmentPill(
+                      key: ValueKey((activeSkip.type, activeSkip.startMs)),
+                      segment: activeSkip,
+                      english: english,
+                      onTap: () => unawaited(_skipSegment(activeSkip)),
                     ),
                   ),
               ],
@@ -2722,50 +2735,6 @@ class _PlaybackResolution {
   final String url;
   final Map<String, String> headers;
   final PreparedTorrent? torrent;
-}
-
-/// Skip-intro / skip-outro pill (workstream B). Material icon + label in the
-/// translucent pill language of the player's other chrome (_TorrentHud);
-/// 44px-tall touch target for landscape phones.
-class _SegmentSkipPill extends StatelessWidget {
-  const _SegmentSkipPill({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: NovaColors.ink.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: NovaColors.white),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: NovaColors.white,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
 }
 
 class _TorrentHud extends StatelessWidget {
