@@ -91,4 +91,55 @@ void main() {
       isFalse,
     );
   });
+
+  test('linked episode counts cross seasons and local progress wins', () {
+    final api = NoorApi(dio: Dio());
+    final app = AppState(api, CatalogRepository(api));
+    addTearDown(app.dispose);
+    final title = MediaItem(
+      id: 'tt1234567',
+      type: 'series',
+      name: 'Example',
+      anilistId: 21,
+      videos: const [
+        {'id': 'special', 'season': 0, 'episode': 1},
+        {'id': 's1e1', 'season': 1, 'episode': 1},
+        {'id': 's1e2', 'season': 1, 'episode': 2},
+        {'id': 's2e1', 'season': 2, 'episode': 1},
+        {'id': 's2e2', 'season': 2, 'episode': 2},
+      ],
+    );
+    app.history = [
+      WatchHistoryEntry(
+        item: title,
+        watchedAt: 100,
+        positionMs: 200,
+        durationMs: 1000,
+        season: 2,
+        episode: 1,
+      ),
+    ];
+    app.linkedContinueWatching = [
+      IntegrationCwEntry(
+        item: MediaItem(
+          id: 'anilist:21',
+          type: 'series',
+          name: 'Example',
+          anilistId: 21,
+        ),
+        source: 'anilist',
+        episodesWatched: 3,
+        watchedAt: 200,
+      ),
+    ];
+
+    final entries = app.historyForTitle(title);
+    final progress = episodeProgressMap(entries: entries, itemId: title.id);
+    expect(isEpisodeWatched(progress, title.videos[1], title.id), isTrue);
+    expect(isEpisodeWatched(progress, title.videos[2], title.id), isTrue);
+    expect(isEpisodeWatched(progress, title.videos[3], title.id), isFalse);
+    expect(isEpisodeWatched(progress, title.videos[4], title.id), isFalse);
+    expect(entries.where((entry) => entry.season == 2 && entry.episode == 1),
+        hasLength(1));
+  });
 }

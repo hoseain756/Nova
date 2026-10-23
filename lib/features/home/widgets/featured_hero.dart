@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/featured_artwork.dart';
 import '../../../core/models/media_item.dart';
 import '../../../core/state/app_state.dart';
+import '../../../core/theme/nova_theme.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../shared/widgets/image_decode.dart';
 
@@ -153,8 +154,7 @@ class _FeaturedCardState extends State<FeaturedHero>
 
   void _startAutoplay() {
     _autoplayTimer?.cancel();
-    if (_reducedMotion ||
-        !_appActive ||
+    if (!_appActive ||
         _touching ||
         !widget.autoplayActive ||
         widget.items.length < 2) {
@@ -384,6 +384,7 @@ class _FeaturedOverlay extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= 700;
+    final compact = MediaQuery.textScalerOf(context).scale(16) >= 24;
     // Cinematic art always has a dark palette-derived legibility bed.
     final foreground = Theme.of(context).brightness == Brightness.dark
         ? scheme.onSurface
@@ -395,7 +396,10 @@ class _FeaturedOverlay extends StatelessWidget {
         : (NovaStrings.lookup(english, 'message129'));
     return Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
-          wide ? 40 : 24, 72, wide ? 40 : 24, 24),
+          wide ? 40 : 24,
+          compact ? NovaSpace.xl : 72,
+          wide ? 40 : 24,
+          compact ? NovaSpace.md : NovaSpace.lg),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +410,7 @@ class _FeaturedOverlay extends StatelessWidget {
                   fontSize: 12,
                   letterSpacing: english ? 2.5 : 0,
                   fontWeight: FontWeight.w700)),
-          const SizedBox(height: 16),
+          SizedBox(height: compact ? NovaSpace.sm : NovaSpace.md),
           if (logo != null)
             NovaNetworkImage(logo,
                 width: math.min(size.width * .65, 320),
@@ -433,7 +437,7 @@ class _FeaturedOverlay extends StatelessWidget {
                     fontSize: wide ? 40 : 32,
                     fontWeight: FontWeight.w800,
                     height: 1.2)),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? NovaSpace.sm : 12),
           Wrap(spacing: 12, runSpacing: 4, children: [
             Text(type,
                 style:
@@ -447,7 +451,7 @@ class _FeaturedOverlay extends StatelessWidget {
           ]),
           if (wide &&
               (artwork?.overview ?? item.description)?.isNotEmpty == true) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: compact ? NovaSpace.sm : 12),
             ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 560),
                 child: Text(artwork?.overview ?? item.description!,
@@ -457,7 +461,7 @@ class _FeaturedOverlay extends StatelessWidget {
                         color: foreground.withValues(alpha: .85),
                         height: 1.6))),
           ],
-          const SizedBox(height: 24),
+          SizedBox(height: compact ? NovaSpace.sm : NovaSpace.lg),
           Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -481,7 +485,7 @@ class _FeaturedOverlay extends StatelessWidget {
                         minimumSize: const Size.square(52))),
               ]),
           if (itemsCount > 1) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: compact ? NovaSpace.sm : 12),
             Row(mainAxisSize: MainAxisSize.min, children: [
               IconButton(
                   onPressed: () => onSelectPage(activeIndex - 1),

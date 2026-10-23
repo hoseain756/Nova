@@ -61,4 +61,53 @@ void main() {
     expect(delegate.childCount, 7); // Four cards and three separators.
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('device resume takes precedence over duplicate linked progress',
+      (tester) async {
+    final api = NoorApi(dio: Dio());
+    final app = AppState(api, CatalogRepository(api));
+    addTearDown(app.dispose);
+    const title = MediaItem(
+      id: 'tt1234567',
+      type: 'series',
+      name: 'Shared title',
+    );
+    final local = WatchHistoryEntry(
+      item: title,
+      watchedAt: 100,
+      positionMs: 30000,
+      durationMs: 100000,
+    );
+    final linked = [
+      for (final source in const ['trakt', 'simkl'])
+        IntegrationCwEntry(
+          item: title,
+          source: source,
+          progress: .8,
+          watchedAt: 200,
+        ),
+    ];
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+      value: app,
+      child: MaterialApp(
+        theme: NovaTheme.dark,
+        home: const SizedBox.shrink(),
+        builder: (context, _) => MediaQuery(
+          data: const MediaQueryData(size: Size(390, 844)),
+          child: Scaffold(
+            body: ContinueWatchingRail(
+              entries: [local],
+              linkedEntries: linked,
+              english: true,
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    final list = tester.widget<ListView>(find.byType(ListView));
+    final delegate = list.childrenDelegate as SliverChildBuilderDelegate;
+    expect(delegate.childCount, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

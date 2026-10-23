@@ -48,19 +48,21 @@ void main() {
     final videos = <Map<String, dynamic>>[
       {'id': 'tt1:1:1', 'season': 1, 'episode': 1, 'thumbnail': 'addon-1'},
       {'id': 'tt1:2:1', 'season': 2, 'episode': 1, 'thumbnail': 'old-season-1'},
+      {'id': 'tt1:3:1', 'season': 3, 'episode': 1},
       {'id': 'tt1:23:1', 'season': 23, 'episode': 1},
     ];
     final result = CatalogRepository.applySeasonEpisodeArtwork(videos, {
       1: {1: 'tmdb-1'},
       2: {1: 'tmdb-2'},
+      3: {1: 'tmdb-3'},
     }, {
       23: 'season-23-poster',
     });
 
     expect(result.map((video) => video['thumbnail']),
-        ['addon-1', 'tmdb-2', 'season-23-poster']);
-    expect(
-        result.map((video) => video['id']), ['tt1:1:1', 'tt1:2:1', 'tt1:23:1']);
+        ['addon-1', 'tmdb-2', 'tmdb-3', 'season-23-poster']);
+    expect(result.map((video) => video['id']),
+        ['tt1:1:1', 'tt1:2:1', 'tt1:3:1', 'tt1:23:1']);
     expect(videos[1]['thumbnail'], 'old-season-1');
   });
 }

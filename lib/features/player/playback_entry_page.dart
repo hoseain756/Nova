@@ -6,6 +6,10 @@ import 'core_video_player_page.dart';
 import 'session/playback_state.dart';
 import 'video_player_page.dart';
 
+/// Selects Core for ordinary builds while retaining a Legacy rollback build.
+const bool useCorePlayerByDefault =
+    bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true);
+
 /// Chooses once before allocating either playback implementation.
 class PlaybackEntryPage extends StatefulWidget {
   const PlaybackEntryPage({
@@ -23,8 +27,7 @@ class PlaybackEntryPage extends StatefulWidget {
     this.filename,
     this.torrent,
     this.recordProgress = true,
-    this.useCore =
-        const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: false),
+    this.useCore = useCorePlayerByDefault,
   });
 
   final MediaItem item;
@@ -80,7 +83,8 @@ class _PlaybackEntryPageState extends State<PlaybackEntryPage> {
   Widget build(BuildContext context) => _page;
 }
 
-Widget playbackPageForRequest(PlaybackRequest request, {bool useCore = false}) {
+Widget playbackPageForRequest(PlaybackRequest request,
+    {bool useCore = useCorePlayerByDefault}) {
   if (useCore) {
     return CoreVideoPlayerPage(
       item: request.item,

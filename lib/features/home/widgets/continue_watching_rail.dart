@@ -76,6 +76,37 @@ class _ContinueRailItem {
   final IntegrationCwEntry? linked;
 
   int get watchedAt => local?.watchedAt ?? linked!.watchedAt;
+
+  MediaItem get item => local?.item ?? linked!.item;
+}
+
+bool _sameContinueTitle(MediaItem first, MediaItem second) =>
+    first.id == second.id ||
+    (first.anilistId != null && first.anilistId == second.anilistId) ||
+    (first.idMal != null && first.idMal == second.idMal);
+
+/// Keep the device's playable resume point for a title. When only linked
+/// providers know it, show the most recently updated provider entry.
+List<_ContinueRailItem> _mergedContinueItems(
+  List<WatchHistoryEntry> local,
+  List<IntegrationCwEntry> linked,
+) {
+  final localItems = [
+    for (final entry in local) _ContinueRailItem.local(entry),
+  ]..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+  final linkedItems = [
+    for (final entry in linked) _ContinueRailItem.linked(entry),
+  ]..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+  final unique = <_ContinueRailItem>[];
+  for (final candidate in [...localItems, ...linkedItems]) {
+    if (unique
+        .any((existing) => _sameContinueTitle(existing.item, candidate.item))) {
+      continue;
+    }
+    unique.add(candidate);
+  }
+  unique.sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+  return unique;
 }
 
 class _ContinueRailState extends State<ContinueWatchingRail> {
@@ -294,10 +325,7 @@ class _ContinueRailState extends State<ContinueWatchingRail> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final sorted = <_ContinueRailItem>[
-      for (final entry in widget.entries) _ContinueRailItem.local(entry),
-      for (final entry in widget.linkedEntries) _ContinueRailItem.linked(entry),
-    ]..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
+    final sorted = _mergedContinueItems(widget.entries, widget.linkedEntries);
     final metrics = _CwRailMetrics.solve(MediaQuery.sizeOf(context).width);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

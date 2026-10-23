@@ -1,5 +1,15 @@
 # NOVA Player Reengineering — Master Plan
 
+## User-directed Core default — 2026-10-23
+
+The user chose to make Core the default player and keep Legacy temporarily. The source selector now defaults to Core, with `--dart-define=NOVA_PLAYER_CORE=false` retaining the Legacy rollback route. The detail-page torrent retirement barrier uses that same selection. This is a narrow migration request while Station 14 remains **IN PROGRESS (6/8)**, not an approval for Legacy removal or entry to Station 15. Both focused selector variants passed, scoped analysis passed, the full suite passed **628/628**, and fresh Core-default and Legacy-fallback Profile APK builds passed. The previously installed Station 14 APK was Legacy-default; neither new APK was installed. No phone validation of the Core-default selector or skip-marker behavior is claimed. Gate D, Stations 19–20, and Gate E remain ahead; performance remains NOT MEASURED. Exact checks and artifact hashes are in `14_STATION.md`.
+
+## Station 14 in progress — 2026-10-23
+
+The user deferred manual player phone testing until later after the authorized Legacy install. Station 14 device acceptance remains open. In separate later requests, the user asked to fix two Home visual acceptance failures and reported that the multi-slide Home hero did not auto-rotate with Reduce Motion enabled. The hero now contracts decorative spacing at enlarged text and keeps six-second rotation while removing transition animation under Reduce Motion. The visual acceptance file passes 18/18, focused autoplay tests pass 2/2, and the latest full suite passes 628/628. A new default Legacy Profile APK containing both Home fixes built successfully (SHA-256 `A7C47516600B4F73518FD813AB9718551C65976CEDBBD25AB1998626542D7299`). The user explicitly deferred its installation; the installed Legacy APK predates the Home fixes, so new hero behavior is not device-verified.
+
+User authorized entry to Station 14 only. The source candidate adds normalized recap/intro/opening/outro/credits markers, deterministic overlap and prompt suppression, shared Legacy/Core UI, and an exact-position completion guard before ending-skip navigation. The existing Legacy-default/Core-opt-in selector and next-episode timing remain. Focused segment/pill tests PASS **30/30**; full and scoped analysis PASS. Both Station 14 Profile APKs built successfully. After `adb devices -l` confirmed physical `RF8NA2NNVNY` / `SM_A217F`, the user-authorized Legacy APK installed with ADB `Success`; Core was built but not installed. An earlier full suite ended **624 passed, 2 failed** on dirty Home visual acceptance cases at 320×640/200% text scale; causation was not established at that point. The later user-requested Home fixes resolved those cases and the separate hero autoplay issue; the latest full suite passes **628/628**. The agent did not launch NOVA or operate playback; user-controlled player phone results are pending. REA CLI doctor found the Codex registration aligned, but live MCP tools are unavailable in this turn; source was inspected directly and no REA investigation is claimed. See `14_STATION.md` for artifact hashes, marker contract, exact failure and fix evidence, unsupported-source limits and pending device acceptance. Station 14 remains **6/8 IN PROGRESS**, with no scoped commit or LKG promotion; no later station or gate has begun.
+
 ## Stations 12 and 13 complete — 2026-10-22 (authoritative)
 
 Both selectable Android player routes passed functional LKG on physical `RF8NA2NNVNY` / `SM_A217F`. `flutter pub get` PASS; `flutter analyze --no-pub` PASS/no issues; full suite PASS **590/590**; focused Legacy startup-resume tests PASS **5/5**; focused Up-Next layout tests **3/3** on the final layout revision; scoped format and `git diff --check` PASS. Fresh final Legacy Profile APK SHA-256 `74EB9DBE7C20333453EECC16EC545437FC851845E10F30362171191CCD984558` and opt-in Core Profile APK SHA-256 `8EBD0A15E43DC1B0DF068ECA510D5D9C0E642D9CA16F4DAA051A17802D65CEC9` built and installed in sequence after ADB checks, without data clearing or agent playback. The user reported two successful Legacy automatic-resume opens (**«انها تعمل 100/100»**) and all requested final Core resume/card checks working (**«كل شي يعمل»**). Earlier user reports covered valid external subtitle, source and picture/audio/position continuity, Start over and persisted app-restart resume on the tested episode. The exact corrupt SubDL link is closed as an upstream HTTP 500 provider issue per the user; NOVA reports that failure explicitly.
@@ -164,14 +174,14 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 11 | Player controls and gestures | 8 | 8 | COMPLETE — user tested both routes; performance NOT MEASURED |
 | 12 | Subtitles, audio, speed, sources | 9 | 9 | COMPLETE — functional Android LKG; broader formats unmeasured |
 | 13 | Resume playback | 7 | 7 | COMPLETE — functional Android LKG; linked accounts/iOS unverified |
-| 14 | Generalized skip segment system | 8 | 0 | PLANNED — not entered |
+| 14 | Generalized skip segment system | 8 | 6 | IN PROGRESS — source/widget candidate; device/LKG pending |
 | 15 | Next episode system | 7 | 0 | PLANNED — not entered |
 | 16 | NOVA player UI and Liquid Glass | 9 | 0 | PLANNED — not entered |
 | 17 | Android platform verification | 8 | 0 | PLANNED — not entered |
 | 18 | iOS platform verification | 9 | 0 | PLANNED — not entered |
 | 19 | Performance regression and long playback | 9 | 0 | PLANNED — not entered |
 | 20 | Final full audit | 10 | 0 | PLANNED — not entered |
-| **Total** |  | **216** | **147** |  |
+| **Total** |  | **216** | **153** |  |
 
 Station tracking files: `00_STATION.md`–`20_STATION.md`, plus `STATION_06A.md` and `STATION_06B.md`. `SESSION_1_HANDOFF.md`, unchanged Station 08 report and older gate-pending text are historical; the active continuation above controls resumption.
 

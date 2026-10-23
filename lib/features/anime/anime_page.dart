@@ -94,8 +94,7 @@ class _AnimePageState extends State<AnimePage>
                 .then((items) => items
                     .where((item) =>
                         ContentClassifier.isAnime(item) ||
-                        RegExp(r'anime|أنمي', caseSensitive: false)
-                            .hasMatch('${row.catalog.id} ${row.title}'))
+                        CatalogRepository.isAnimeCatalog(row))
                     .toList()),
           )));
     _addonHeroItems = Future.wait(_addonFutures.values.map(
@@ -259,13 +258,15 @@ class _AnimePageState extends State<AnimePage>
                         padding: EdgeInsetsDirectional.only(
                             bottom: MediaRail.sectionSpacing(context)),
                         child: MediaRail(
-                          title: row.title,
+                          title: row
+                              .displayTitle(app.webSettings['catalogRowNames']),
                           items: catalogItems,
                           onTap: _open,
                           onOpenSection: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                                 builder: (_) => CatalogGridPage(
-                                      title: row.title,
+                                      title: row.displayTitle(
+                                          app.webSettings['catalogRowNames']),
                                       subtitle: row.subtitle,
                                       items: catalogItems,
                                       onOpen: _open,

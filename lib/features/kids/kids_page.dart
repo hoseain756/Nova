@@ -56,6 +56,14 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
 
   Future<List<MediaItem>> _loadContent() async {
     final app = context.read<AppState>();
+    Future<(List<MediaItem>, bool)> load(Future<List<MediaItem>> source) async {
+      try {
+        return (await source, true);
+      } catch (_) {
+        return (<MediaItem>[], false);
+      }
+    }
+
     final familyRows = CatalogRepository.selectAddonCatalogRows(app.addons)
         .where((row) => RegExp(
                 r'anime|animation|kids|family|children|طفل|أطفال|عائل',
@@ -64,16 +72,18 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
         .where((row) => !RegExp(r'anime|أنمي', caseSensitive: false)
             .hasMatch('${row.catalog.id} ${row.title}'));
     final groups = await Future.wait([
-      app.catalogs.kids().catchError((Object _) => <MediaItem>[]),
-      app.catalogs.kids(series: true).catchError((Object _) => <MediaItem>[]),
+      load(app.catalogs.kids()),
+      load(app.catalogs.kids(series: true)),
       for (final row in familyRows)
-        app.catalogs
-            .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
-            .catchError((Object _) => <MediaItem>[]),
+        load(app.catalogs
+            .catalog(row.catalog.type, row.catalog.id, addon: row.addon)),
     ]);
+    if (groups.every((group) => !group.$2)) {
+      throw StateError('Kids catalogs are unavailable');
+    }
     final seen = <String>{};
     final candidates = groups
-        .expand((group) => group)
+        .expand((group) => group.$1)
         .where((item) => seen.add(item.id))
         .toList();
     final safe = candidates.where(ContentClassifier.isKidSuitable).toList();
@@ -81,14 +91,16 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
         .where((item) =>
             item.certification == null &&
             !ContentClassifier.isKidSuitable(item))
-        .take(36)
         .toList();
     // Bounded concurrency; an incomplete catalog can supply its certificate
     // through detail metadata. Failed/uncertified entries remain hidden.
     for (var i = 0; i < unknown.length; i += 6) {
+      if (safe.length >= 48) break;
       final batch = await Future.wait(unknown.skip(i).take(6).map((item) async {
         try {
-          return await app.catalogs.detail(item.type, item.id, app.addons);
+          return await app.catalogs
+              .detail(item.type, item.id, app.addons)
+              .timeout(const Duration(seconds: 8));
         } catch (_) {
           return null;
         }
