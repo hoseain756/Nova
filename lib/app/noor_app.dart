@@ -31,6 +31,7 @@ class NovaApp extends StatelessWidget {
             app.webSettings['reduceMotion'] == true
           ),
           builder: (context, value, _) => MaterialApp(
+            navigatorObservers: [shellChromeRouteObserver],
             onGenerateTitle: (context) =>
                 NovaStrings.of(context).text('appName'),
             debugShowCheckedModeBanner: false,

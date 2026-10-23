@@ -1,6 +1,7 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -32,6 +33,8 @@ import 'stream_loading.dart';
 import '../home/widgets/cinematic_cover_scroll.dart';
 import '../home/widgets/async_media_section.dart';
 import '../../core/downloads/download_manager.dart';
+import '../../core/platform/ios_chrome_bridge.dart';
+import 'detail_chrome_registry.dart';
 
 /// Cinematic detail page — the Flutter replica of the Harbor web DetailView:
 /// fixed glass back pill over a full-bleed hero (phone card variant < 700px /
@@ -78,6 +81,10 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   int _detailGeneration = 0;
   final Set<int> _requestedEpisodeArtSeasons = {};
   bool _loadingStreams = false;
+  Route<dynamic>? _registeredChromeRoute;
+  bool _nativeDetailChrome = false;
+  MediaItem? _chromeItem;
+  bool _chromeEnglish = true;
 
   /// Episodes subsystem state (season/sort/view) — Task 118. Created lazily
   /// on the first populated build; the page listens so season/sort/view
@@ -91,10 +98,42 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     unawaited(app.refreshLinkedContent());
     _detail = _loadDetail(app);
     _loadFeaturedArtwork(app);
+    detailChromeRegistry.nativeRoute.addListener(_onNativeChromeChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant MediaDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    if (oldWidget.item.id == widget.item.id &&
+        oldWidget.item.type == widget.item.type) {
+      return;
+    }
+    final app = context.read<AppState>();
+    _episodes?.removeListener(_onEpisodesChanged);
+    _episodes?.dispose();
+    _episodes = null;
+    _enrichedItem = null;
+    _art = null;
+    _requestedEpisodeArtSeasons.clear();
+    _detail = _loadDetail(app);
+    unawaited(_loadFeaturedArtwork(app));
+  }
+
+  void _onNativeChromeChanged() {
+    final active = _registeredChromeRoute != null &&
+        detailChromeRegistry.nativeRoute.value == _registeredChromeRoute;
+    if (mounted && active != _nativeDetailChrome) {
+      setState(() => _nativeDetailChrome = active);
+    }
   }
 
   @override
   void dispose() {
+    detailChromeRegistry.nativeRoute.removeListener(_onNativeChromeChanged);
+    detailChromeRegistry.unregister(_registeredChromeRoute);
     _episodes?.removeListener(_onEpisodesChanged);
     _episodes?.dispose();
     super.dispose();
@@ -135,6 +174,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   /// the item's own fields and enriches when the art arrives.
   Future<void> _loadFeaturedArtwork(AppState app) async {
     final item = widget.item;
+    final generation = _detailGeneration;
     if (!RegExp(r'^tt\d+$').hasMatch(item.id)) return;
     try {
       final artwork = await app.catalogs
@@ -151,7 +191,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             uiLanguage: app.contentTmdbLocale,
           )
           .timeout(const Duration(seconds: 12));
-      if (!mounted) return;
+      if (!mounted || generation != _detailGeneration) return;
       setState(() => _art = artwork);
     } catch (_) {
       // Featured art is a bonus — the hero keeps the addon artwork.
@@ -191,6 +231,16 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final english = app.english;
     final media = MediaQuery.of(context);
     final isWide = media.size.width >= 700;
+    final route = ModalRoute.of(context);
+    if (_registeredChromeRoute != route) {
+      final previous = _registeredChromeRoute;
+      _registeredChromeRoute = route;
+      _nativeDetailChrome =
+          route != null && detailChromeRegistry.nativeRoute.value == route;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        detailChromeRegistry.unregister(previous);
+      });
+    }
     return Scaffold(
       body: FutureBuilder<MediaItem?>(
         future: _detail,
@@ -201,6 +251,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           // degenerate hand-offs with no title at all (the web always shows
           // a skeleton because it never has a warm item).
           final showSkeleton = !failed && widget.item.name.isEmpty;
+          final displayedItem = _enrichedItem ?? snapshot.data ?? widget.item;
+          _queueDetailChrome(displayedItem, english);
           return Stack(
             children: [
               if (showSkeleton)
@@ -219,7 +271,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                   child: _buildContent(
                     context,
                     app,
-                    item: _enrichedItem ?? snapshot.data ?? widget.item,
+                    item: displayedItem,
                     english: english,
                     isWide: isWide,
                     viewportSize: media.size,
@@ -227,12 +279,79 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                   ),
                 ),
               // Fixed chrome — visible in every state, over everything.
-              DetailBackPill(english: english),
+              if (!_nativeDetailChrome) DetailBackPill(english: english),
             ],
           );
         },
       ),
     );
+  }
+
+  void _queueDetailChrome(MediaItem item, bool english) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    _chromeItem = item;
+    _chromeEnglish = english;
+    final route = _registeredChromeRoute;
+    if (route == null) return;
+    final app = context.read<AppState>();
+    final showTrack = item.hasAnimeIds &&
+        (app.linkedServices['anilist']?['linked'] == true ||
+            app.linkedServices['mal']?['linked'] == true);
+    final entry = DetailChromeEntry(
+      chrome: IosDetailChrome(
+        backLabel: NovaStrings.lookup(english, 'message136'),
+        shareLabel: NovaStrings.lookup(english, 'message139'),
+        moreLabel: NovaStrings.lookup(english, 'message141'),
+        shareEnabled: item.name.isNotEmpty,
+        menu: [
+          IosDetailMenuAction(
+            id: IosDetailActionId.sources,
+            label: NovaStrings.lookup(english, 'message142'),
+            enabled: !_loadingStreams && item.name.isNotEmpty,
+          ),
+          IosDetailMenuAction(
+            id: IosDetailActionId.list,
+            label: NovaStrings.lookup(english, 'message143'),
+            enabled: item.name.isNotEmpty,
+          ),
+          if (showTrack)
+            IosDetailMenuAction(
+              id: IosDetailActionId.track,
+              label: NovaStrings.lookup(english, 'message144'),
+            ),
+        ],
+      ),
+      onAction: _handleDetailChromeAction,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _registeredChromeRoute == route) {
+        detailChromeRegistry.register(route, entry);
+      }
+    });
+  }
+
+  void _handleDetailChromeAction(String id) {
+    if (!mounted || _registeredChromeRoute?.isCurrent != true) return;
+    final item = _chromeItem;
+    if (id == IosDetailActionId.back) {
+      unawaited(Navigator.of(context).maybePop());
+      return;
+    }
+    if (item == null) return;
+    switch (id) {
+      case IosDetailActionId.share:
+        unawaited(_share(item, _chromeEnglish));
+      case IosDetailActionId.sources:
+        final videos = sortEpisodes(item.videos);
+        final resume = _resolveResume(context.read<AppState>(), item, videos);
+        _play(item, video: resume.video ?? _defaultVideo(videos));
+      case IosDetailActionId.list:
+        unawaited(showCustomListPicker(context, item));
+      case IosDetailActionId.track:
+        unawaited(showAnimeTrackerSheet(context, item));
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -344,6 +463,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             const SizedBox(height: 20),
             DetailActionRow(
               english: english,
+              nativeTopActions: _nativeDetailChrome,
               isWide: true,
               inList: app.contains(item),
               showTrackAnime: item.hasAnimeIds &&
