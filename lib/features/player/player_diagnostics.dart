@@ -12,7 +12,11 @@ class PlayerDiagnostics {
   static final PlayerDiagnostics instance = PlayerDiagnostics._();
 
   static const Duration _summaryInterval = Duration(seconds: 10);
-  static const double _frameBudgetMs = 1000 / 60;
+  static double get _frameBudgetMs {
+    final views = SchedulerBinding.instance.platformDispatcher.views;
+    final refreshRate = views.isEmpty ? 60.0 : views.first.display.refreshRate;
+    return 1000 / (refreshRate > 0 ? refreshRate : 60.0);
+  }
 
   final Map<String, int> _counts = <String, int>{};
   final ListQueue<double> _buildMs = ListQueue<double>();

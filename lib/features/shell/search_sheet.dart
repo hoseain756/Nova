@@ -113,25 +113,7 @@ class _SearchSheetState extends State<SearchSheet>
         LucideIcons.compass,
         app.tr('message576'),
         app.tr('message682'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.discover)
-      ),
-      (
-        LucideIcons.film,
-        app.tr('message577'),
-        app.tr('message683'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.movies)
-      ),
-      (
-        LucideIcons.tv,
-        app.tr('message578'),
-        app.tr('message684'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.shows)
-      ),
-      (
-        LucideIcons.layoutGrid,
-        app.tr('message680'),
-        app.tr('message685'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.catalogs)
+        const CatalogBrowserPage()
       ),
       (
         LucideIcons.radio,

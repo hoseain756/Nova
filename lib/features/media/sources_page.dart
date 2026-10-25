@@ -19,6 +19,7 @@ import '../../core/torrent/torrent_models.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/image_decode.dart';
 import 'detail_glass.dart';
+import 'stream_loading.dart';
 
 /// The full-screen sources page. Pushed over the detail page; completes with
 /// the chosen stream map (`Navigator.pop(context, stream)`).
@@ -161,7 +162,8 @@ class _SourcesPageState extends State<SourcesPage> {
   }
 
   bool _isTorrent(Map<String, dynamic> stream) =>
-      !_isDirect(stream) && stream['infoHash'] is String;
+      !_isDirect(stream) &&
+      (stream['infoHash'] is String || isTorrentStreamMap(stream));
 
   /// Indices into [_streams] that survive the text query + chips,
   /// ordered by the active sort (rank order = original index order kept).
@@ -677,7 +679,8 @@ class _SourceFacts {
   factory _SourceFacts.parse(Map<String, dynamic> stream) {
     final url = stream['url'];
     final isDirect = url is String && url.startsWith('http');
-    final isTorrent = !isDirect && stream['infoHash'] is String;
+    final isTorrent = !isDirect &&
+        (stream['infoHash'] is String || isTorrentStreamMap(stream));
     final text = '${stream['title'] ?? ''}\n'
         '${stream['name'] ?? ''}\n'
         '${stream['description'] ?? ''}';

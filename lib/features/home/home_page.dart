@@ -293,12 +293,12 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
                 avatar: const Icon(LucideIcons.film, size: 18),
                 label: Text(NovaStrings.lookup(english, 'message106')),
                 onPressed: () => _openSection(
-                    const CatalogBrowserPage(mode: CatalogBrowseMode.movies))),
+                    const CatalogBrowserPage(initialType: 'movie'))),
             ActionChip(
                 avatar: const Icon(LucideIcons.tv, size: 18),
                 label: Text(NovaStrings.lookup(english, 'message107')),
                 onPressed: () => _openSection(
-                    const CatalogBrowserPage(mode: CatalogBrowseMode.shows))),
+                    const CatalogBrowserPage(initialType: 'series'))),
             ActionChip(
                 avatar: const Icon(LucideIcons.sparkles, size: 18),
                 label: Text(NovaStrings.lookup(english, 'message108')),
@@ -349,7 +349,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             future: _series!,
             onTap: _open,
             onOpenSection: () => _openSection(
-              const CatalogBrowserPage(mode: CatalogBrowseMode.shows),
+              const CatalogBrowserPage(initialType: 'series'),
             ),
             onRetry: () => setState(
               () => _series = app.catalogs
@@ -365,7 +365,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             future: _movies!,
             onTap: _open,
             onOpenSection: () => _openSection(
-              const CatalogBrowserPage(mode: CatalogBrowseMode.movies),
+              const CatalogBrowserPage(initialType: 'movie'),
             ),
             onRetry: () => setState(
               () => _movies = app.catalogs
@@ -427,7 +427,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             future: _newEpisodes!,
             onTap: _open,
             onOpenSection: () => _openSection(
-              const CatalogBrowserPage(mode: CatalogBrowseMode.shows),
+              const CatalogBrowserPage(initialType: 'series'),
             ),
             onRetry: () => setState(
               () => _newEpisodes = app.catalogs
@@ -443,7 +443,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             future: _theaters!,
             onTap: _open,
             onOpenSection: () => _openSection(
-              const CatalogBrowserPage(mode: CatalogBrowseMode.movies),
+              const CatalogBrowserPage(initialType: 'movie'),
             ),
             onRetry: () => setState(
               () => _theaters = app.catalogs

@@ -1,0 +1,19 @@
+{
+  "installedAtUtc": "2026-10-24T03:05:16.4524066Z",
+  "device": "physical Android device (serial redacted)",
+  "model": "SM-A217F",
+  "android": "12",
+  "package": "app.nova.mobile",
+  "versionName": "1.0.4",
+  "versionCode": 67,
+  "mode": "Profile",
+  "apk": "build/app/outputs/apk/profile/app-profile.apk",
+  "bytes": 165388017,
+  "sha256": "3AA034FC1FCA66FCE5DC1474FA6AA9FA4680543768DACEB2850EFDA71F89D826",
+  "signatureVerification": "PASS (apksigner)",
+  "installation": "PASS (adb install -r; Success)",
+  "launch": "PASS (MainActivity started; PID 19461)",
+  "playbackPerformance": "NOT MEASURED",
+  "playbackFunctionality": "USER-REPORTED: both Media3 and libmpv tested and working on the phone",
+  "backgroundTorrentTransfer": "VERIFIED-ON-DEVICE: progress increased while no NOVA Activity or Recents task existed; completion and notification USER-REPORTED after USB disconnection"
+}

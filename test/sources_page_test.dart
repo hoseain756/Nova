@@ -32,7 +32,9 @@ void main() {
     },
   ];
 
-  Widget harness(ValueChanged<Map<String, dynamic>?> onPicked) => MaterialApp(
+  Widget harness(ValueChanged<Map<String, dynamic>?> onPicked,
+          {bool downloadMode = false}) =>
+      MaterialApp(
         theme: ThemeData.dark(),
         home: Builder(
           builder: (context) => TextButton(
@@ -50,6 +52,7 @@ void main() {
                     },
                     streams: streams,
                     english: true,
+                    downloadMode: downloadMode,
                   ),
                 ),
               );
@@ -59,6 +62,20 @@ void main() {
           ),
         ),
       );
+
+  testWidgets('download picker retains and returns torrent rows',
+      (tester) async {
+    Map<String, dynamic>? picked;
+    await tester
+        .pumpWidget(harness((result) => picked = result, downloadMode: true));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('2160p HEVC'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2160p HEVC'));
+    await tester.pumpAndSettle();
+    expect(picked?['infoHash'], 'abc123');
+  });
 
   testWidgets('renders all sources and returns the picked one', (tester) async {
     Map<String, dynamic>? picked;

@@ -83,6 +83,33 @@ Widget _harness(_SettingsApp app, Widget page,
         }));
 
 void main() {
+  for (final english in [true, false]) {
+    testWidgets(
+        'Android engine selection persists (${english ? 'LTR light' : 'RTL dark'})',
+        (tester) async {
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(_harness(
+          app, const SettingsPreferencesPage(subtitles: false),
+          light: english));
+      final title =
+          find.text(NovaStrings.lookup(english, 'playbackBackendTitle'));
+      await tester.ensureVisible(title);
+      await tester.tap(title);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Media3 ExoPlayer'));
+      await tester.pumpAndSettle();
+      expect(app.webSettings['playbackBackend'], 'media3');
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+  }
+  testWidgets('iOS never offers the Android-only engine selector',
+      (tester) async {
+    await tester.pumpWidget(_harness(_SettingsApp(NoorApi()),
+        const SettingsPreferencesPage(subtitles: false)));
+    expect(find.text('Playback engine'), findsNothing);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
   testWidgets('required update dialog keeps the lockup and action reachable',
       (tester) async {
     tester.view.physicalSize = const Size(360, 800);
@@ -259,6 +286,7 @@ void main() {
       _harness(app, const SettingsPreferencesPage(subtitles: false)),
     );
     await tester.ensureVisible(find.text('Resume screenshot retention'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Resume screenshot retention'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('10 days'));

@@ -1,5 +1,6 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
@@ -45,6 +46,23 @@ class _Preference {
 }
 
 final _playerPreferences = <_Preference>[
+  _Preference(
+      key: 'playbackBackend',
+      arabic: NovaStrings.lookup(false, 'playbackBackendTitle'),
+      english: NovaStrings.lookup(true, 'playbackBackendTitle'),
+      descriptionArabic:
+          NovaStrings.lookup(false, 'playbackBackendDescription'),
+      descriptionEnglish:
+          NovaStrings.lookup(true, 'playbackBackendDescription'),
+      control: _Control.select,
+      options: [
+        _Option('auto', NovaStrings.lookup(false, 'playbackBackendAuto'),
+            NovaStrings.lookup(true, 'playbackBackendAuto')),
+        _Option('media3', NovaStrings.lookup(false, 'playbackBackendMedia3'),
+            NovaStrings.lookup(true, 'playbackBackendMedia3')),
+        _Option('mpv', NovaStrings.lookup(false, 'playbackBackendMpv'),
+            NovaStrings.lookup(true, 'playbackBackendMpv')),
+      ]),
   _Preference(
       key: 'autoSelectEpisodeSource',
       arabic: NovaStrings.lookup(false, 'playerAutoSelectEpisodeSource'),
@@ -385,6 +403,8 @@ class SettingsPreferencesPage extends StatelessWidget {
           }
         : <String, List<String>>{
             app.tr('message499'): [
+              if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+                'playbackBackend',
               'autoPlayNextEpisode',
               'resumePlayback',
               'resumePrompt',
@@ -542,6 +562,7 @@ class _PreferenceTile extends StatelessWidget {
 
   Future<void> _edit(
       BuildContext context, _Preference item, dynamic current) async {
+    if (item.key == 'playbackBackend' && current == null) current = 'auto';
     final app = context.read<AppState>();
     final english = app.english;
     if (item.control == _Control.select) {
@@ -646,7 +667,7 @@ class _PreferenceTile extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (item.key == 'subPos')
-                  Slider(
+                  Slider.adaptive(
                       value: sliderValue.clamp(item.min, item.max),
                       min: item.min,
                       max: item.max,
@@ -708,6 +729,7 @@ class _PreferenceTile extends StatelessWidget {
 }
 
 String _formatValue(_Preference item, dynamic value, bool english) {
+  if (item.key == 'playbackBackend' && value == null) value = 'auto';
   if (value is List) {
     if (value.isEmpty) return NovaStrings.lookup(english, 'message509');
     return value.map((entry) {

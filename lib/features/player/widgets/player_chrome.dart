@@ -996,7 +996,7 @@ class _VolumeSlider extends StatelessWidget {
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
             padding: EdgeInsets.zero,
           ),
-          child: Slider(
+          child: Slider.adaptive(
             value: value.clamp(0.0, 1.0),
             onChanged: onChanged,
             onChangeEnd: onChangeEnd,

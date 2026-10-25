@@ -10,8 +10,8 @@ import '../../core/state/app_state.dart';
 import '../../core/platform/ios_chrome_bridge.dart';
 import '../../core/theme/system_bars.dart';
 import '../../shared/widgets/glass_navigation.dart';
-import '../../shared/widgets/nova_parental_gate.dart';
 import '../../shared/widgets/nova_brand.dart';
+import '../../shared/widgets/nova_parental_gate.dart';
 import '../anime/anime_page.dart';
 import '../calendar/calendar_page.dart';
 import '../catalog/catalog_browser_page.dart';
@@ -19,8 +19,8 @@ import '../downloads/downloads_page.dart';
 import '../home/home_page.dart';
 import '../kids/kids_page.dart';
 import '../library/library_page.dart';
-import '../media/detail_chrome_registry.dart';
 import '../live_tv/live_tv_page.dart';
+import '../media/detail_chrome_registry.dart';
 import '../settings/addons_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/stats_page.dart';
@@ -60,7 +60,7 @@ class ShellChromeRouteObserver extends NavigatorObserver {
 final shellChromeRouteObserver = ShellChromeRouteObserver();
 
 /// A known iPhone keeps phone navigation when its landscape window is wide.
-/// iPad compact windows continue to use the existing Flutter dock.
+/// Compact iPad windows continue to use the Flutter bottom dock.
 bool usesTabletNavigation(double width, {required bool iosPhone}) =>
     width >= 840 && !iosPhone;
 
@@ -388,8 +388,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         child: Scaffold(
             body: Row(children: [
           if (tablet)
-            // Bottom-dock appearance preferences do not replace the tablet
-            // side rail: all three options are horizontal dock presentations.
             _TabletNavigation(
                 selected: _selected,
                 onTabSelected: (i) => unawaited(_selectTab(i)),
@@ -435,11 +433,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 }
 
 class _TabletNavigation extends StatelessWidget {
-  const _TabletNavigation(
-      {required this.selected,
-      required this.onTabSelected,
-      required this.onPageSelected,
-      required this.onSearch});
+  const _TabletNavigation({
+    required this.selected,
+    required this.onTabSelected,
+    required this.onPageSelected,
+    required this.onSearch,
+  });
+
   final int selected;
   final ValueChanged<int> onTabSelected;
   final ValueChanged<Widget> onPageSelected;
@@ -449,29 +449,9 @@ class _TabletNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.read<AppState>();
     final theme = Theme.of(context);
-    final expanded = MediaQuery.sizeOf(context).width >= 1200;
     final tabs = noorDockTabsFor(rtl: !app.english);
     final secondary = <(IconData, String, Widget)>[
-      (
-        LucideIcons.compass,
-        app.tr('message576'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.discover)
-      ),
-      (
-        LucideIcons.film,
-        app.tr('message577'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.movies)
-      ),
-      (
-        LucideIcons.tv,
-        app.tr('message578'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.shows)
-      ),
-      (
-        LucideIcons.layoutGrid,
-        app.tr('message680'),
-        const CatalogBrowserPage(mode: CatalogBrowseMode.catalogs)
-      ),
+      (LucideIcons.compass, app.tr('message576'), const CatalogBrowserPage()),
       (LucideIcons.radio, app.tr('message658'), const LiveTvPage()),
       (LucideIcons.calendarDays, app.tr('message565'), const CalendarPage()),
       (LucideIcons.download, app.tr('downloads'), const DownloadsPage()),
@@ -482,77 +462,77 @@ class _TabletNavigation extends StatelessWidget {
       ),
       (LucideIcons.puzzle, app.tr('message220'), const AddonsPage()),
     ];
+
     Widget destination(
-            IconData icon, String label, bool active, VoidCallback tap) =>
-        Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(12, 4, 12, 4),
-          child: Tooltip(
-              message: label,
-              child: Semantics(
-                  selected: active,
-                  child: Material(
-                      color: active
-                          ? theme.colorScheme.primaryContainer
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: tap,
-                        child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: expanded
-                                ? Row(children: [
-                                    Icon(icon,
-                                        size: 22,
-                                        color: active
-                                            ? theme
-                                                .colorScheme.onPrimaryContainer
-                                            : theme
-                                                .colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                        child: Text(label,
-                                            style: theme.textTheme.labelLarge))
-                                  ])
-                                : Icon(icon,
-                                    size: 24,
-                                    color: active
-                                        ? theme.colorScheme.onPrimaryContainer
-                                        : theme.colorScheme.onSurfaceVariant)),
-                      )))),
-        );
+        IconData icon, String label, bool active, VoidCallback onTap) {
+      final foreground = active
+          ? theme.colorScheme.onPrimaryContainer
+          : theme.colorScheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Tooltip(
+          message: label,
+          child: Semantics(
+            label: label,
+            button: true,
+            selected: active,
+            child: Material(
+              color: active
+                  ? theme.colorScheme.primaryContainer
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onTap,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Icon(icon, size: 24, color: foreground),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
-        width: expanded ? 240 : 84,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow,
-              border: BorderDirectional(
-                  end: BorderSide(
-                      color: theme.colorScheme.outlineVariant
-                          .withValues(alpha: .45)))),
-          child: SafeArea(
-              child: ListView(children: [
-            Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(16, 24, 16, 24),
-                child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: NovaBrand(
-                        symbolOnly: !expanded, width: expanded ? 144 : 40))),
+      width: 72,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          border: BorderDirectional(
+            end: BorderSide(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: .45),
+            ),
+          ),
+        ),
+        child: SafeArea(
+          child: ListView(children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: NovaBrand(symbolOnly: true, width: 36)),
+            ),
             if (onSearch != null)
               destination(
                   LucideIcons.search, app.tr('message679'), false, onSearch!),
             for (final tab in tabs)
               destination(
-                  tab.iconOutline,
-                  tab.label(arabic: !app.english),
-                  noorDockIndexForTabId(tab.view) == selected,
-                  () => onTabSelected(noorDockIndexForTabId(tab.view))),
-            const Padding(padding: EdgeInsets.all(16), child: Divider()),
+                tab.iconOutline,
+                tab.label(arabic: !app.english),
+                noorDockIndexForTabId(tab.view) == selected,
+                () => onTabSelected(noorDockIndexForTabId(tab.view)),
+              ),
+            const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Divider()),
             for (final item in secondary)
               destination(
                   item.$1, item.$2, false, () => onPageSelected(item.$3)),
             const SizedBox(height: 24),
-          ])),
-        ));
+          ]),
+        ),
+      ),
+    );
   }
 }

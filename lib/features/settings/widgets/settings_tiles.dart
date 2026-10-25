@@ -193,7 +193,7 @@ class _SettingsOptimisticSwitchState extends State<SettingsOptimisticSwitch> {
   }
 
   @override
-  Widget build(BuildContext context) => Switch(
+  Widget build(BuildContext context) => Switch.adaptive(
       value: _value,
       activeThumbColor: widget.activeThumbColor,
       onChanged: widget.onChanged == null

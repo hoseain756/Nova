@@ -143,7 +143,7 @@ class _RadiusSliderState extends State<_RadiusSlider> {
   }
 
   @override
-  Widget build(BuildContext context) => Slider(
+  Widget build(BuildContext context) => Slider.adaptive(
         value: _value.clamp(0, 28),
         min: 0,
         max: 28,

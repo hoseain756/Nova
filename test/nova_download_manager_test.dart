@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:nova_mobile/core/downloads/download_manager.dart';
+import 'package:nova_mobile/core/torrent/torrent_models.dart';
 
 final _video = <int>[
   0,
@@ -44,7 +45,12 @@ class _Store {
   final secrets = <String, String>{};
   int reads = 0;
   bool failRead = false, failWrite = false, failSecretDelete = false;
-  DownloadManager manager(_Adapter adapter) => DownloadManager.forTesting(
+  DownloadManager manager(
+    _Adapter adapter, {
+    bool nativeTorrentDownloads = false,
+  }) =>
+      DownloadManager.forTesting(
+        nativeTorrentDownloads: nativeTorrentDownloads,
         downloadDirectory: () async => root,
         readMetadata: () async {
           reads++;
@@ -70,6 +76,10 @@ class _Store {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const native = MethodChannel('nova/torrent_downloads');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late Directory sandbox;
   late _Store store;
   final managers = <DownloadManager>[];
@@ -104,11 +114,109 @@ void main() {
       }
     }
   });
-  DownloadManager make(_Adapter adapter) {
-    final manager = store.manager(adapter);
+  DownloadManager make(
+    _Adapter adapter, {
+    bool nativeTorrentDownloads = false,
+  }) {
+    final manager =
+        store.manager(adapter, nativeTorrentDownloads: nativeTorrentDownloads);
     managers.add(manager);
     return manager;
   }
+
+  const torrentHints = TorrentStreamHints(
+      infoHash: '0123456789abcdef0123456789abcdef01234567',
+      filename: 'episode.mkv',
+      fileIndex: 3,
+      trackers: ['https://tracker.test/announce']);
+  tearDown(() {
+    messenger.setMockMethodCallHandler(native, null);
+  });
+
+  test(
+      'Android torrent is owned by native service and survives manager disposal',
+      () async {
+    final calls = <MethodCall>[];
+    var state = 'downloading';
+    messenger.setMockMethodCallHandler(native, (call) async {
+      calls.add(call);
+      if (call.method == 'query') {
+        return {
+          'status': state,
+          'received': _video.length,
+          'total': _video.length
+        };
+      }
+      return null;
+    });
+    final adapter = _Adapter((_, __) async => _response(_video));
+    final manager = make(adapter, nativeTorrentDownloads: true);
+    await manager.enqueueTorrent(
+        hints: torrentHints, title: 'Episode', english: true);
+    final job = manager.jobs.single;
+    expect(job.status, 'downloading');
+    expect(adapter.requests, isEmpty);
+    final source =
+        calls.singleWhere((c) => c.method == 'enqueue').arguments['source'];
+    expect(source['fileIndex'], 3);
+    expect(source['magnet'], contains('tracker.test'));
+    expect(store.metadata, isNot(contains(torrentHints.infoHash)));
+    expect(store.secrets.values.single, contains(torrentHints.infoHash));
+    manager.dispose();
+    managers.remove(manager);
+    expect(calls.where((c) => c.method == 'cancel'), isEmpty);
+    await File(job.path).writeAsBytes(_video);
+    state = 'complete';
+    final restored = make(adapter, nativeTorrentDownloads: true);
+    await restored.initialize();
+    expect(restored.jobs.single.status, 'complete');
+    expect(adapter.requests, isEmpty);
+  });
+
+  test('native cancellation settles before retry or file removal', () async {
+    var state = 'downloading';
+    final cancelling = Completer<void>();
+    final calls = <String>[];
+    messenger.setMockMethodCallHandler(native, (call) async {
+      calls.add(call.method);
+      if (call.method == 'enqueue') state = 'downloading';
+      if (call.method == 'cancel') {
+        await cancelling.future;
+        state = 'cancelled';
+      }
+      if (call.method == 'query') return {'status': state};
+      return null;
+    });
+    final adapter = _Adapter((_, __) async => _response(_video));
+    final manager = make(adapter, nativeTorrentDownloads: true);
+    await manager.enqueueTorrent(hints: torrentHints, title: 'Episode');
+    final job = manager.jobs.single;
+    final cancel = manager.cancel(job);
+    final retry = manager.retry(job);
+    await Future<void>.delayed(Duration.zero);
+    expect(calls.where((c) => c == 'enqueue').length, 1);
+    cancelling.complete();
+    await Future.wait([cancel, retry]);
+    expect(calls.where((c) => c == 'enqueue').length, 2);
+    await manager.remove(job);
+    expect(calls.last, 'remove');
+    expect(manager.jobs, isEmpty);
+    expect(adapter.requests, isEmpty);
+  });
+
+  test('native completion without a valid full file is rejected', () async {
+    messenger.setMockMethodCallHandler(
+        native,
+        (call) async => call.method == 'query'
+            ? {'status': 'complete', 'received': 123, 'total': 123}
+            : null);
+    final manager = make(_Adapter((_, __) async => _response(_video)),
+        nativeTorrentDownloads: true);
+    await manager.enqueueTorrent(hints: torrentHints, title: 'Episode');
+    await manager.refreshSystemDownloads();
+    expect(manager.jobs.single.status, 'failed');
+    expect(manager.jobs.single.error, 'missingFile');
+  });
 
   test(
       'concurrent enqueues initialize once and keep every job and private source',

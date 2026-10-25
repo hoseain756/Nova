@@ -37,6 +37,9 @@ void main() {
     _Backend backend, {
     PlaybackOwnership? ownership,
     PlaybackBackend Function()? factory,
+    PlaybackBackend Function()? fallback,
+    bool Function(PlaybackBackend)? canFallback,
+    bool Function(PlaybackBackend)? requiresTimingFallback,
     PlaybackCheckpointSink? persist,
     PlaybackCheckpointWriter? writer,
     PlaybackRequest? request,
@@ -50,6 +53,9 @@ void main() {
         startupSettings: startupSettings,
         startInBackground: startInBackground,
         createBackend: factory ?? () => backend,
+        createFallbackBackend: fallback,
+        canFallback: canFallback,
+        requiresTimingFallback: requiresTimingFallback,
         ownership: ownership ?? PlaybackOwnership(),
         checkpointWriter: writer ?? PlaybackCheckpointWriter(),
         persist: persist,
@@ -59,6 +65,141 @@ void main() {
     sessions.add(session);
     return session;
   }
+
+  test('compatibility fallback retires first decoder before allocation',
+      () async {
+    final first = _Backend()..openError = StateError('codec');
+    final second = _Backend();
+    final session = create(first,
+        fallback: () {
+          expect(first.closed, isTrue);
+          return second;
+        },
+        canFallback: (_) => true);
+    expect(
+        (await session.open(_request().url,
+                startAt: const Duration(seconds: 40)))
+            .applied,
+        isTrue);
+    expect(second.raw.position, const Duration(seconds: 40));
+    expect(second.raw.playing, isTrue);
+  });
+
+  test('network errors never allocate fallback', () async {
+    final first = _Backend()..openError = StateError('HTTP 403');
+    var allocations = 0;
+    final session = create(first,
+        fallback: () {
+          allocations++;
+          return _Backend();
+        },
+        canFallback: (_) => false);
+    expect((await session.open(_request().url)).applied, isFalse);
+    expect(allocations, 0);
+  });
+
+  test('failed retirement blocks fallback decoder', () async {
+    final first = _Backend()
+      ..openError = StateError('codec')
+      ..failClose = true;
+    var allocations = 0;
+    final session = create(first,
+        fallback: () {
+          allocations++;
+          return _Backend();
+        },
+        canFallback: (_) => true);
+    expect((await session.open(_request().url)).applied, isFalse);
+    expect(session.failure?.operation, 'ownership');
+    expect(allocations, 0);
+  });
+
+  test('close during fallback retirement prevents replacement', () async {
+    final first = _Backend()
+      ..openError = StateError('codec')
+      ..closeGate = Completer<void>();
+    var allocations = 0;
+    final session = create(first,
+        fallback: () {
+          allocations++;
+          return _Backend();
+        },
+        canFallback: (_) => true);
+    final opening = session.open(_request().url);
+    await _tick();
+    final closing = session.close();
+    first.closeGate!.complete();
+    await closing;
+    expect((await opening).status, PlaybackCommandStatus.cancelled);
+    expect(allocations, 0);
+  });
+
+  test('runtime fallback preserves pause, position, volume and rate once',
+      () async {
+    final first = _Backend();
+    final second = _Backend();
+    var allocations = 0;
+    final session = create(first,
+        fallback: () {
+          allocations++;
+          return second;
+        },
+        canFallback: (_) => true);
+    await session.open(_request().url);
+    await session.seekTo(const Duration(seconds: 65));
+    await session.pause();
+    await session.setVolume(.35);
+    await session.setRate(1.5);
+    first.raw.failed = true;
+    first.raw.notifyListeners();
+    await _tick();
+    await _tick();
+    expect(allocations, 1);
+    expect(second.raw.position, const Duration(seconds: 65));
+    expect(second.raw.playing, isFalse);
+    expect(second.raw.volume, .35);
+    expect(second.raw.rate, 1.5);
+    second.raw.failed = true;
+    second.raw.notifyListeners();
+    await _tick();
+    expect(allocations, 1);
+  });
+
+  test('nonzero timing offset switches before applying offset', () async {
+    final first = _Backend();
+    final second = _Backend();
+    final session = create(first,
+        fallback: () => second,
+        requiresTimingFallback: (backend) => identical(backend, first));
+    await session.open(_request().url);
+    await session.seekTo(const Duration(seconds: 25));
+    expect((await session.setSubtitleDelayMs(350)).applied, isTrue);
+    expect(first.closed, isTrue);
+    expect(second.raw.subtitleDelayMs, 350);
+    expect(second.raw.position, const Duration(seconds: 25));
+  });
+
+  test('rapid offset gestures share one switch and preserve latest value',
+      () async {
+    final first = _Backend();
+    final second = _Backend()..openGate = Completer<void>();
+    var replacements = 0;
+    final session = create(first,
+        fallback: () {
+          replacements++;
+          return second;
+        },
+        requiresTimingFallback: (backend) => identical(backend, first));
+    await session.open(_request().url);
+    final earlier = session.setSubtitleDelayMs(10);
+    final latest = session.setSubtitleDelayMs(20);
+    await _tick();
+    expect(replacements, 1);
+    second.openGate!.complete();
+    expect((await earlier).applied, isTrue);
+    expect((await latest).applied, isTrue);
+    expect(second.raw.subtitleDelayMs, 20);
+  });
 
   test('startup settings apply inside open before first play', () async {
     final backend = _Backend();
@@ -739,12 +880,14 @@ class _Backend implements PlaybackBackend {
   Future<Uint8List?> captureFrame() async => null;
   @override
   Future<void> close() async {
+    if (closed) return;
     log.add('close');
     if (releaseOpenOnClose && !(openGate?.isCompleted ?? true)) {
       openGate!.complete();
     }
     await closeGate?.future;
     if (failClose) throw StateError('Native close failed');
+    if (closed) return;
     closed = true;
     raw.dispose();
   }

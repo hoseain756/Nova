@@ -1,0 +1,21 @@
+{
+  "capturedAtUtc": "2026-10-24T02:29:08.4486182Z",
+  "device": "physical Android device (serial redacted)",
+  "model": "SM-A217F",
+  "android": "12",
+  "lowPower": "0",
+  "battery": [
+    "  USB powered: true",
+    "  Max charging voltage: 0",
+    "  level: 28",
+    "  voltage: 3797",
+    "  temperature: 304"
+  ],
+  "display": [
+    "  DisplayDeviceInfo{\"شاشة مدمجة\": uniqueId=\"local:0\", 720 x 1600, modeId 1, defaultModeId 1, supportedModes [{id=1, width=720, height=1600, fps=60.000004, alternativeRefreshRates=[]}], colorMode 0, supportedColorModes [0], hdrCapabilities HdrCapabilities{mSupportedHdrTypes=[], mMaxLuminance=500.0, mMaxAverageLuminance=500.0, mMinLuminance=0.0}, allmSupported false, gameContentTypeSupported false, density 280, 265.043 x 267.368 dpi, appVsyncOff 0, presDeadline 17666666, cutout DisplayCutout{insets=Rect(0, 68 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 88, 68), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=720 displayHeight=1600 density={1.75} cutoutSpec={M 0,0 H 50.28571428571429 V 38.85714285714286 H 0 V 0 Z @dp @left} rotation={0} scale={1.0}}}}, touch INTERNAL, rotation 0, type INTERNAL, address {port=0}, deviceProductInfo null, state ON, frameRateOverride , brightnessMinimum 0.0, brightnessMaximum 1.0, brightnessDefault 0.5019608, roundedCorners RoundedCorners{[RoundedCorner{position=TopLeft, radius=64, center=Point(64, 64)}, RoundedCorner{position=TopRight, radius=64, center=Point(656, 64)}, RoundedCorner{position=BottomRight, radius=64, center=Point(656, 1536)}, RoundedCorner{position=BottomLeft, radius=64, center=Point(64, 1536)}]}, FLAG_DEFAULT_DISPLAY, FLAG_ROTATES_WITH_CONTENT, FLAG_SECURE, FLAG_SUPPORTS_PROTECTED_BUFFERS}",
+    "    mActiveModeId=1",
+    "      DisplayMode{id=0, width=720, height=1600, xDpi=265.043, yDpi=267.368, refreshRate=60.000004, appVsyncOffsetNanos=0, presentationDeadlineNanos=17666666, group=0}",
+    "    mActiveSfDisplayMode=DisplayMode{id=0, width=720, height=1600, xDpi=265.043, yDpi=267.368, refreshRate=60.000004, appVsyncOffsetNanos=0, presentationDeadlineNanos=17666666, group=0}"
+  ],
+  "status": "PRE-INSTALL CONTEXT; not a performance run"
+}

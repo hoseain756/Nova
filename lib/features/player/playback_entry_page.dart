@@ -24,7 +24,7 @@ class PlaybackEntryPage extends StatefulWidget {
     this.torrent,
     this.recordProgress = true,
     this.useCore =
-        const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: false),
+        const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true),
   });
 
   final MediaItem item;
@@ -80,7 +80,7 @@ class _PlaybackEntryPageState extends State<PlaybackEntryPage> {
   Widget build(BuildContext context) => _page;
 }
 
-Widget playbackPageForRequest(PlaybackRequest request, {bool useCore = false}) {
+Widget playbackPageForRequest(PlaybackRequest request, {bool useCore = true}) {
   if (useCore) {
     return CoreVideoPlayerPage(
       item: request.item,

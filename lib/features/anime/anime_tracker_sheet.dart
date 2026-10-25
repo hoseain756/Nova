@@ -296,7 +296,7 @@ class _TrackerSheetState extends State<_TrackerSheet> {
                                     style: theme.textTheme.titleLarge?.copyWith(
                                         color: theme.colorScheme.secondary))
                               ]),
-                              Slider(
+                              Slider.adaptive(
                                   value: _score,
                                   min: 0,
                                   max: 10,

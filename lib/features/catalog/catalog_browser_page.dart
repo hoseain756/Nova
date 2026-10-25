@@ -7,18 +7,17 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
+import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/poster_card.dart';
 import '../media/media_detail_page.dart';
 import '../shell/nova_browse_widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-enum CatalogBrowseMode { discover, movies, shows, catalogs }
-
 class CatalogBrowserPage extends StatefulWidget {
-  const CatalogBrowserPage({super.key, required this.mode});
+  const CatalogBrowserPage({super.key, this.initialType = 'all'});
 
-  final CatalogBrowseMode mode;
+  final String initialType;
 
   @override
   State<CatalogBrowserPage> createState() => _CatalogBrowserPageState();
@@ -36,13 +35,14 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
   List<MediaItem> _items = const [];
   bool _loading = true;
   String? _error;
-  String _typeFilter = 'all';
+  late String _typeFilter;
   String _sort = 'popular';
   int _request = 0;
 
   @override
   void initState() {
     super.initState();
+    _typeFilter = widget.initialType;
     unawaited(_load());
   }
 
@@ -53,18 +53,18 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
     super.dispose();
   }
 
-  String _title(bool english) => switch (widget.mode) {
-        CatalogBrowseMode.discover => NovaStrings.lookup(english, 'message576'),
-        CatalogBrowseMode.movies => NovaStrings.lookup(english, 'message577'),
-        CatalogBrowseMode.shows => NovaStrings.lookup(english, 'message578'),
-        CatalogBrowseMode.catalogs => NovaStrings.lookup(english, 'message579'),
-      };
-
   void _onSearch(String value) {
     _debounce?.cancel();
+    setState(() {});
     _debounce = Timer(const Duration(milliseconds: 350), () {
       unawaited(_load(query: value.trim()));
     });
+  }
+
+  int _yearOf(MediaItem item) {
+    final value = item.releaseDate ?? item.releaseInfo ?? '';
+    return int.tryParse(RegExp(r'\d{4}').firstMatch(value)?.group(0) ?? '') ??
+        0;
   }
 
   Future<List<MediaItem>> _safe(Future<List<MediaItem>> future) async {
@@ -86,40 +86,16 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
     final searchQuery = query.length >= 2 ? query : null;
     final jobs = <Future<List<MediaItem>>>[];
 
-    switch (widget.mode) {
-      case CatalogBrowseMode.discover:
-        if (searchQuery == null) {
-          jobs.add(catalog.homeTopTen());
-          jobs.add(catalog.catalog('movie', 'top'));
-          jobs.add(catalog.catalog('series', 'top'));
-          jobs.add(catalog.addonCatalogs(app.addons));
-        } else {
-          jobs.add(
-              catalog.catalog('movie', 'top', extras: {'search': searchQuery}));
-          jobs.add(catalog
-              .catalog('series', 'top', extras: {'search': searchQuery}));
-        }
-      case CatalogBrowseMode.movies:
-        jobs.add(catalog.catalog('movie', 'top',
-            extras: searchQuery == null ? const {} : {'search': searchQuery}));
-        if (searchQuery == null) {
-          jobs.add(catalog.catalog('movie', 'trailer'));
-        }
-      case CatalogBrowseMode.shows:
-        jobs.add(catalog.catalog('series', 'top',
-            extras: searchQuery == null ? const {} : {'search': searchQuery}));
-        if (searchQuery == null) {
-          jobs.add(catalog.catalog('series', 'trailer'));
-        }
-      case CatalogBrowseMode.catalogs:
-        jobs.add(
-            catalog.addonCatalogs(app.addons, showAll: searchQuery == null));
-        if (searchQuery != null) {
-          jobs.add(
-              catalog.catalog('movie', 'top', extras: {'search': searchQuery}));
-          jobs.add(catalog
-              .catalog('series', 'top', extras: {'search': searchQuery}));
-        }
+    if (searchQuery == null) {
+      jobs.add(catalog.homeTopTen());
+      jobs.add(catalog.catalog('movie', 'top'));
+      jobs.add(catalog.catalog('series', 'top'));
+      jobs.add(catalog.addonCatalogs(app.addons));
+    } else {
+      jobs.add(
+          catalog.catalog('movie', 'top', extras: {'search': searchQuery}));
+      jobs.add(
+          catalog.catalog('series', 'top', extras: {'search': searchQuery}));
     }
 
     try {
@@ -156,8 +132,6 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
     final app = context.read<AppState>();
-    final showTypeFilter = widget.mode == CatalogBrowseMode.discover ||
-        widget.mode == CatalogBrowseMode.catalogs;
     final items = _items
         .where((item) => _typeFilter == 'all' || item.type == _typeFilter)
         .toList();
@@ -166,19 +140,13 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
         items.sort(
             (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       case 'year':
-        items.sort((a, b) => (int.tryParse(b.releaseInfo ?? '') ?? 0)
-            .compareTo(int.tryParse(a.releaseInfo ?? '') ?? 0));
+        items.sort((a, b) => _yearOf(b).compareTo(_yearOf(a)));
       case 'rating':
         items.sort((a, b) => (double.tryParse(b.rating ?? '') ?? 0)
             .compareTo(double.tryParse(a.rating ?? '') ?? 0));
     }
     return Scaffold(
-      appBar: AppBar(title: Text(app.tr('message582')), actions: [
-        IconButton(
-            tooltip: app.tr('message68'),
-            onPressed: () => unawaited(_load(query: _search.text.trim())),
-            icon: const Icon(LucideIcons.refreshCw))
-      ]),
+      appBar: AppBar(title: Text(app.tr('message582'))),
       body: Center(
           child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1440),
@@ -189,57 +157,100 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
                 child: NovaBrowseHeader(
               compact: true,
               eyebrow: app.tr('message583'),
-              title: _title(app.english),
-              subtitle: widget.mode == CatalogBrowseMode.catalogs
-                  ? app.tr('message584')
-                  : app.tr('message585'),
+              title: app.tr('message576'),
+              subtitle: app.tr('message585'),
             )),
             SliverToBoxAdapter(
                 child: Padding(
                     padding:
-                        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 16),
-                    child: TextField(
-                        controller: _search,
-                        onChanged: _onSearch,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                            prefixIcon: const Icon(LucideIcons.search),
-                            hintText: app.tr('message586'),
-                            suffixIcon: _search.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    tooltip: app.tr('message473'),
-                                    onPressed: () {
-                                      _search.clear();
-                                      _onSearch('');
-                                    },
-                                    icon: const Icon(LucideIcons.x)))))),
+                        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
+                    child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 720),
+                            child: TextField(
+                              controller: _search,
+                              onChanged: _onSearch,
+                              onSubmitted: (value) {
+                                _debounce?.cancel();
+                                unawaited(_load(query: value.trim()));
+                              },
+                              textInputAction: TextInputAction.search,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: NovaSpace.md,
+                                    vertical: NovaSpace.md),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary)),
+                                prefixIcon: const Icon(LucideIcons.search),
+                                hintText: app.tr('message586'),
+                                suffixIcon: _search.text.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: app.tr('message473'),
+                                        onPressed: () {
+                                          _search.clear();
+                                          _debounce?.cancel();
+                                          unawaited(_load());
+                                          setState(() {});
+                                        },
+                                        icon: const Icon(LucideIcons.x)),
+                              ),
+                            ))))),
             SliverToBoxAdapter(
                 child: Padding(
                     padding:
                         const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
                     child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
+                        spacing: NovaSpace.md,
+                        runSpacing: NovaSpace.sm,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          if (showTypeFilter)
+                          Wrap(spacing: NovaSpace.sm, children: [
                             for (final entry in [
                               ('all', app.tr('message587')),
                               ('movie', app.tr('message106')),
                               ('series', app.tr('message107'))
                             ])
                               ChoiceChip(
+                                  avatar: Icon(
+                                      switch (entry.$1) {
+                                        'movie' => LucideIcons.film,
+                                        'series' => LucideIcons.tv,
+                                        _ => LucideIcons.layoutGrid,
+                                      },
+                                      size: 16),
                                   label: Text(entry.$2),
                                   selected: _typeFilter == entry.$1,
+                                  selectedColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  showCheckmark: false,
                                   onSelected: (_) =>
                                       setState(() => _typeFilter = entry.$1)),
+                          ]),
                           SizedBox(
-                              width: 200,
+                              width: 208,
                               child: DropdownButtonFormField<String>(
+                                  isExpanded: true,
                                   initialValue: _sort,
                                   decoration: InputDecoration(
-                                      labelText: app.tr('message588')),
+                                      labelText: app.tr('message588'),
+                                      isDense: true,
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12))),
                                   onChanged: (value) {
                                     if (value != null) {
                                       setState(() => _sort = value);
@@ -254,7 +265,9 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
                                     ])
                                       DropdownMenuItem(
                                           value: entry.$1,
-                                          child: Text(entry.$2))
+                                          child: Text(entry.$2,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis))
                                   ])),
                         ]))),
             if (_loading && _items.isEmpty)

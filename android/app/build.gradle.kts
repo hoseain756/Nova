@@ -90,6 +90,13 @@ flutter {
 }
 
 dependencies {
+    // Official Media3 only. Keep all modules aligned; no reference-app AARs.
+    val media3Version = "1.8.0"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-dash:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-smoothstreaming:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-rtsp:$media3Version")
     // On-device torrent streaming engine (libtorrent rasterbar via jlibtorrent).
     // Prebuilt natives ship inside the AARs below, so no NDK is required.
     // Keep Java wrappers and native ARM artifacts on the same maintained

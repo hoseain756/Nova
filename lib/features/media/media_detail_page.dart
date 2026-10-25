@@ -543,10 +543,11 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                   english: app.english,
                   downloadMode: true,
                   loader: () async => (await loadRankedSources(
-                          app: app, item: item, videoId: id))
-                      .where((source) =>
-                          source['url'] is String &&
-                          (source['url'] as String).startsWith('http'))
+                          app: app,
+                          item: item,
+                          videoId: id,
+                          reportFailures: true))
+                      .where(isDownloadableStreamMap)
                       .toList(),
                 )));
     if (picked == null || !mounted) return;
@@ -555,9 +556,33 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
         : '${item.name} · S${video['season']}:E${video['episode']}';
     try {
       final source = parsePlaybackSource(picked);
-      if (source == null) return;
-      await DownloadManager.instance
-          .enqueue(url: source.url, title: title, headers: source.headers);
+      if (source != null && source.url.startsWith('http')) {
+        await DownloadManager.instance
+            .enqueue(url: source.url, title: title, headers: source.headers);
+      } else {
+        final magnet =
+            source?.url.startsWith('magnet:') == true ? source!.url : null;
+        final hints = TorrentStreamHints.fromStream(picked,
+            magnetUri: magnet, fallbackName: title);
+        String? resolved;
+        if (app.api.debridService != null) {
+          resolved = await app.api.resolveDebridTorrent(
+              infoHash: hints.infoHash,
+              filename: hints.filename,
+              filesize: hints.filesize);
+        }
+        if (resolved != null && resolved.isNotEmpty) {
+          await DownloadManager.instance.enqueue(url: resolved, title: title);
+        } else {
+          if (app.webSettings['p2pEnabled'] == false ||
+              !await TorrentService.instance.isSupported) {
+            throw const TorrentException(
+                'unavailable', 'Torrent downloads unavailable');
+          }
+          await DownloadManager.instance.enqueueTorrent(
+              hints: hints, title: title, magnet: magnet, english: app.english);
+        }
+      }
       if (mounted) {
         NoorToast.show(context, NovaStrings.lookup(app.english, 'message179'));
       }
@@ -986,7 +1011,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           return null;
         }
       }
-      if (const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: false)) {
+      if (const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true)) {
         await PlaybackOwnership.shared.retireCurrent();
       }
       if (cancelled) return null;
@@ -1208,16 +1233,13 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
           alignment: widget.startAligned
               ? AlignmentDirectional.centerStart
               : AlignmentDirectional.topCenter,
-          child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 0, 0),
-            child: Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                for (final rating in ratings)
-                  _RatingChip(rating: rating, english: english),
-              ],
-            ),
+          child: Wrap(
+            spacing: NovaSpace.sm,
+            runSpacing: NovaSpace.sm,
+            children: [
+              for (final rating in ratings)
+                _RatingChip(rating: rating, english: english),
+            ],
           ),
         );
       },
@@ -1254,7 +1276,8 @@ class _RatingChip extends StatelessWidget {
     final color = Theme.of(context).colorScheme.secondary;
     return Semantics(
       button: url?.hasScheme == true,
-      label: '$label $display $scale',
+      label:
+          '$label $display $scale${votes > 0 ? ', ${_compactVotes(votes)}' : ''}',
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: url?.hasScheme == true
@@ -1271,7 +1294,9 @@ class _RatingChip extends StatelessWidget {
           // Task 136 (perf): the blur-6 backdrop is retired — a row of these
           // rating chips sat over the scrolling artwork and each re-blurred
           // its backdrop every frame; the .55 fill keeps the same contrast.
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+              horizontal: NovaSpace.sm, vertical: NovaSpace.xs),
+          constraints: const BoxConstraints(minHeight: 36),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHigh,
             border:
@@ -1282,7 +1307,8 @@ class _RatingChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: NovaSpace.xs, vertical: 1),
                 decoration: BoxDecoration(
                     color: color, borderRadius: BorderRadius.circular(999)),
                 child: Text(label,
@@ -1291,7 +1317,7 @@ class _RatingChip extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w900)),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: NovaSpace.xs),
               Text(display,
                   style: const TextStyle(
                       fontSize: 11, fontWeight: FontWeight.w600)),
@@ -1300,7 +1326,7 @@ class _RatingChip extends StatelessWidget {
                     style: TextStyle(
                         fontSize: 10, color: NovaTheme.of(context).muted)),
               if (votes > 0) ...[
-                const SizedBox(width: 4),
+                const SizedBox(width: NovaSpace.xs),
                 Text(_compactVotes(votes),
                     style: TextStyle(
                         fontSize: 10, color: NovaTheme.of(context).muted)),

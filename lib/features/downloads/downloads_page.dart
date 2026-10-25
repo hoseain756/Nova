@@ -86,6 +86,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
         'interrupted' => 'downloadInterrupted',
         'missingFile' => 'downloadMissingFile',
         'invalidSource' => 'downloadInvalidSource',
+        'backgroundLimit' => 'downloadBackgroundLimit',
         _ => 'downloadNetworkError',
       });
 

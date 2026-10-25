@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-24",
+  "device": "physical Android device (serial redacted)",
+  "model": "SM-A217F",
+  "android": "12",
+  "mode": "Profile",
+  "title": "Black Clover · S2:E3",
+  "source": "Torrent selected by the user; provider and release identity not recorded",
+  "backgroundTransfer": {
+    "status": "VERIFIED-ON-DEVICE",
+    "savedSamples": [
+      "background-torrent-sample-01.json",
+      "background-torrent-sample-02.json"
+    ],
+    "savedProgressPercent": [35, 43],
+    "lastLiveProgressPercent": 64,
+    "activityPresent": false,
+    "recentsTaskPresent": false,
+    "foregroundServiceActive": true,
+    "recentsRemoval": "Already absent at inspection; the assistant did not perform removal"
+  },
+  "completion": {
+    "status": "USER-REPORTED",
+    "userStatement": "اكتمل التنزيل وظهر الإشعار",
+    "independentFinalInspection": "NOT-VERIFIED: USB device disconnected"
+  },
+  "completedFileIntegrity": "NOT-VERIFIED",
+  "playback": {
+    "status": "USER-REPORTED",
+    "userStatement": "لقد اختبرت المشغلين وهم يعملو والتحميل يعمل",
+    "media3": "USER-REPORTED working",
+    "libmpv": "USER-REPORTED working",
+    "download": "USER-REPORTED working",
+    "sameDownloadedFileConfirmed": false,
+    "independentRuntimeInspection": "NOT-VERIFIED: USB device disconnected"
+  },
+  "offlinePlayback": "Exact local-file scenario not specified in user confirmation",
+  "enginePerformanceComparison": "NOT MEASURED"
+}

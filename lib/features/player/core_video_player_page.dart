@@ -17,6 +17,8 @@ import '../../core/torrent/torrent_service.dart';
 import '../media/sources_page.dart';
 import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
+import 'engine/playback_backend_preference.dart';
+import 'engine/media3_session_backend.dart';
 import 'engine/external_subtitle_loader.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
@@ -397,8 +399,25 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       torrent: widget.torrent,
       recordProgress: widget.recordProgress,
     );
+    final preference = playbackBackendPreference(_app.webSettings);
+    // Timing offsets use libmpv's native clock adjustment. Preserve saved offsets.
+    final hasOffsets =
+        ((_app.webSettings['subtitleOffsetMs'] as num?) ?? 0) != 0 ||
+            ((_app.webSettings['audioDelayMs'] as num?) ?? 0) != 0 ||
+            (widget.continuity?.subtitleDelayMs ?? 0) != 0 ||
+            (widget.continuity?.audioDelayMs ?? 0) != 0;
+    final useMedia3 =
+        preference != PlaybackBackendPreference.mpv && !hasOffsets;
     final session = PlaybackSession(
       request: request,
+      createBackend:
+          useMedia3 ? Media3SessionBackend.new : MediaKitSessionBackend.new,
+      createFallbackBackend: MediaKitSessionBackend.new,
+      canFallback: (backend) =>
+          preference == PlaybackBackendPreference.auto &&
+          backend is Media3SessionBackend &&
+          backend.engine.canFallback,
+      requiresTimingFallback: (backend) => backend is Media3SessionBackend,
       canRecord: () => !_resuming && !_resumeTransitioning,
       startInBackground: WidgetsBinding.instance.lifecycleState != null &&
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed,

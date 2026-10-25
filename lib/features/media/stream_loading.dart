@@ -10,12 +10,36 @@ import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/torrent/torrent_service.dart';
 
+bool isTorrentStreamMap(Map<String, dynamic> stream) {
+  final url = stream['url'];
+  final hash = (stream['infoHash'] ?? '').toString().trim().toLowerCase();
+  if (RegExp(r'^(?:[0-9a-f]{40}|[a-z2-7]{32})$').hasMatch(hash)) return true;
+  return url is String &&
+      url.startsWith('magnet:') &&
+      RegExp(r'urn:btih:(?:[0-9a-f]{40}|[a-z2-7]{32})(?![a-z0-9])',
+              caseSensitive: false)
+          .hasMatch(url);
+}
+
+bool isDownloadableStreamMap(Map<String, dynamic> stream) {
+  final url = stream['url'];
+  if (url is! String || !url.startsWith('http')) {
+    return isTorrentStreamMap(stream);
+  }
+  final uri = Uri.tryParse(url.split('|').first);
+  return uri != null &&
+      ['http', 'https'].contains(uri.scheme) &&
+      uri.host.isNotEmpty &&
+      !RegExp(r'\.(m3u8|mpd)$', caseSensitive: false).hasMatch(uri.path);
+}
+
 /// A stream the app can actually start: a direct HTTP URL (headers are
 /// normalized later by parsePlaybackSource) or an infoHash torrent row.
 bool isPlayableStreamMap(Map<String, dynamic> stream) {
   final url = stream['url'];
   return (url is String && url.startsWith('http')) ||
-      stream['infoHash'] is String;
+      stream['infoHash'] is String ||
+      isTorrentStreamMap(stream);
 }
 
 /// Detail-page ranking carried over verbatim (quality target + optional
@@ -87,7 +111,11 @@ Future<List<Map<String, dynamic>>> loadRankedSources({
     }
   }
   if (!torrentSourcesAllowed) {
-    streams = streams.where((stream) => stream['url'] is String).toList();
+    streams = streams
+        .where((stream) =>
+            stream['url'] is String &&
+            (stream['url'] as String).startsWith('http'))
+        .toList();
   }
   return rankStreams(streams, app.webSettings);
 }

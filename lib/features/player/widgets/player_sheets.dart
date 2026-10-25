@@ -870,7 +870,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
                         fontWeight: FontWeight.w700)),
               ],
             ),
-            Slider(
+            Slider.adaptive(
               value: value.clamp(min, max),
               min: min,
               max: max,

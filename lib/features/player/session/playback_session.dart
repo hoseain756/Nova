@@ -96,6 +96,7 @@ class PlaybackContinuity {
       : position = position ?? session.position,
         playing = session.playIntent,
         rate = session.rate,
+        volume = session.volume,
         audio = session.selectedAudio,
         subtitle = session.selectedSubtitle,
         subtitleDelayMs = session._subtitleDelayMs,
@@ -105,6 +106,7 @@ class PlaybackContinuity {
       : position = previous.position,
         playing = previous.playing && allowed,
         rate = previous.rate,
+        volume = previous.volume,
         audio = previous.audio,
         subtitle = previous.subtitle,
         subtitleDelayMs = previous.subtitleDelayMs,
@@ -115,6 +117,7 @@ class PlaybackContinuity {
   final Duration position;
   final bool playing;
   final double rate;
+  final double volume;
   final AudioTrack audio;
   final SubtitleTrack subtitle;
   final int subtitleDelayMs;
@@ -128,6 +131,9 @@ class PlaybackSession extends PlaybackEngine {
   PlaybackSession({
     required PlaybackRequest request,
     PlaybackBackend Function()? createBackend,
+    this.createFallbackBackend,
+    this.canFallback,
+    this.requiresTimingFallback,
     PlaybackOwnership? ownership,
     PlaybackCheckpointWriter? checkpointWriter,
     PlaybackCheckpointSink? persist,
@@ -160,6 +166,12 @@ class PlaybackSession extends PlaybackEngine {
   PlaybackRequest _request;
   PlaybackRequest get request => _request;
   final PlaybackBackend Function() _createBackend;
+  final PlaybackBackend Function()? createFallbackBackend;
+  final bool Function(PlaybackBackend backend)? canFallback;
+  final bool Function(PlaybackBackend backend)? requiresTimingFallback;
+  bool _usingFallback = false;
+  bool _fallbackQueued = false;
+  Future<PlaybackCommandResult>? _timingSwitch;
   final PlaybackOwnership _ownership;
   final PlaybackCheckpointWriter _writer;
   final PlaybackCheckpointSink? _persist;
@@ -270,9 +282,7 @@ class PlaybackSession extends PlaybackEngine {
   bool get isClosing =>
       phase == PlaybackPhase.closing || phase == PlaybackPhase.closed;
   bool get canSeek => _seekable == true && duration > Duration.zero;
-  MediaKitEngine? get nativeEngine => _backend?.engine is MediaKitEngine
-      ? _backend!.engine as MediaKitEngine
-      : null;
+  PlaybackEngine? get nativeEngine => _backend?.engine;
 
   PlaybackEngine? get _raw => _backend?.engine;
   @override
@@ -446,7 +456,13 @@ class PlaybackSession extends PlaybackEngine {
       if (!await _ownership.acquire(this) || generation != _generation) return;
       openStage = 'retire_previous_backend';
       final old = _backend;
-      if (old != null) await old.close();
+      if (old != null) {
+        try {
+          await old.close();
+        } catch (_) {
+          throw const PlaybackRetirementException();
+        }
+      }
       for (final lease in _leases.toList()) {
         if (!identical(lease, request.torrent)) {
           await lease.stop();
@@ -455,11 +471,37 @@ class PlaybackSession extends PlaybackEngine {
       }
       if (isClosing || generation != _generation) return;
       _nativeRetired = false;
-      final backend = _backend = _createBackend();
+      var backend = _backend = _usingFallback && createFallbackBackend != null
+          ? createFallbackBackend!()
+          : _createBackend();
       _attachBackend(backend, generation);
       _notify(); // Mount the stable video child before waiting for controller readiness.
       openStage = 'backend_open';
-      await backend.openPaused(url, httpHeaders);
+      try {
+        await backend.openPaused(url, httpHeaders);
+        if (backend.engine.failed) throw StateError('Backend open failed');
+      } catch (_) {
+        if (isClosing || generation != _generation) return;
+        if (_usingFallback ||
+            createFallbackBackend == null ||
+            canFallback?.call(backend) != true) {
+          rethrow;
+        }
+        final listener = _backendListener;
+        if (listener != null) backend.engine.removeListener(listener);
+        openStage = 'retire_incompatible_backend';
+        try {
+          await backend.close();
+        } catch (_) {
+          throw const PlaybackRetirementException();
+        }
+        if (isClosing || generation != _generation) return;
+        _usingFallback = true;
+        failure = null;
+        backend = _backend = createFallbackBackend!();
+        _attachBackend(backend, generation);
+        await backend.openPaused(url, httpHeaders);
+      }
       if (isClosing || generation != _generation) return;
       if (backend.engine.failed) throw StateError('Backend open failed');
       _seekable = await backend.seekable();
@@ -542,6 +584,26 @@ class PlaybackSession extends PlaybackEngine {
       failure = PlaybackFailure(
           classifyPlaybackFailure(raw.errorMessage), 'backend', generation);
       phase = PlaybackPhase.failed;
+      if (_prepared &&
+          !_usingFallback &&
+          !_fallbackQueued &&
+          createFallbackBackend != null &&
+          canFallback?.call(backend) == true) {
+        _fallbackQueued = true;
+        final saved = PlaybackContinuity(this, position: _retryPosition);
+        scheduleMicrotask(() {
+          _fallbackQueued = false;
+          if (isClosing ||
+              generation != _generation ||
+              !identical(backend, _backend)) {
+            return;
+          }
+          _usingFallback = true;
+          unawaited(open(request.url,
+              httpHeaders: request.headers,
+              continuity: saved.restrictPlay(_playIntent && !_backgrounded)));
+        });
+      }
     } else if (_prepared &&
         failure == null &&
         phase != PlaybackPhase.resolving) {
@@ -631,6 +693,8 @@ class PlaybackSession extends PlaybackEngine {
       PlaybackBackend backend, PlaybackContinuity saved, int generation) async {
     final raw = backend.engine;
     await raw.setRate(saved.rate);
+    if (isClosing || generation != _generation) return;
+    await raw.setVolume(saved.volume);
     if (isClosing || generation != _generation) return;
     await raw.setAudioDelayMs(saved.audioDelayMs);
     if (isClosing || generation != _generation) return;
@@ -770,17 +834,51 @@ class PlaybackSession extends PlaybackEngine {
         await _raw?.setSubtitleUri(url, title: title);
       });
   @override
-  Future<PlaybackCommandResult> setSubtitleDelayMs(int delayMs) =>
-      _command('subtitle_delay', (_) async {
-        await _raw?.setSubtitleDelayMs(delayMs);
-        _subtitleDelayMs = delayMs;
-      });
+  Future<PlaybackCommandResult> setSubtitleDelayMs(int delayMs) async {
+    final switching = await _ensureTimingBackend(delayMs);
+    if (switching != null) return switching;
+    return _command('subtitle_delay', (_) async {
+      await _raw?.setSubtitleDelayMs(delayMs);
+      _subtitleDelayMs = delayMs;
+    });
+  }
+
   @override
-  Future<PlaybackCommandResult> setAudioDelayMs(int delayMs) =>
-      _command('audio_delay', (_) async {
-        await _raw?.setAudioDelayMs(delayMs);
-        _audioDelayMs = delayMs;
-      });
+  Future<PlaybackCommandResult> setAudioDelayMs(int delayMs) async {
+    final switching = await _ensureTimingBackend(delayMs);
+    if (switching != null) return switching;
+    return _command('audio_delay', (_) async {
+      await _raw?.setAudioDelayMs(delayMs);
+      _audioDelayMs = delayMs;
+    });
+  }
+
+  Future<PlaybackCommandResult?> _ensureTimingBackend(int offset) async {
+    final pending = _timingSwitch;
+    if (pending != null) {
+      final result = await pending;
+      return result.applied ? null : result;
+    }
+    final backend = _backend;
+    if (offset == 0 ||
+        _usingFallback ||
+        backend == null ||
+        requiresTimingFallback?.call(backend) != true ||
+        createFallbackBackend == null) {
+      return null;
+    }
+    final saved = PlaybackContinuity(this);
+    _usingFallback = true;
+    final switching =
+        open(request.url, httpHeaders: request.headers, continuity: saved);
+    _timingSwitch = switching;
+    try {
+      final result = await switching;
+      return result.applied ? null : result;
+    } finally {
+      if (identical(_timingSwitch, switching)) _timingSwitch = null;
+    }
+  }
 
   PlaybackPanelToken pauseForPanel() {
     final wasPlaying = playIntent;

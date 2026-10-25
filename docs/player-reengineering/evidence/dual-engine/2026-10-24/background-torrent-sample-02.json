@@ -1,0 +1,17 @@
+{
+  "atUtc": "2026-10-24T03:10:58.8526460Z",
+  "notification": [
+    "        android.title=String (Black Clover · S2:E3)",
+    "        android.text=String (جارٍ التنزيل في الخلفية)",
+    "        android.progress=Integer (43)",
+    "        android.progressMax=Integer (100)",
+    "        android.progressIndeterminate=Boolean (false)"
+  ],
+  "foregroundService": [
+    "  * ServiceRecord{eb0d776 u0 app.nova.mobile/app.noor.mobile.NovaTorrentDownloadService}",
+    "    isForeground=true foregroundId=4100 foregroundNoti=Notification(channel=nova_torrent_progress shortcut=null contentView=null vibrate=null sound=null defaults=0x0 flags=0x6a color=0x00000000 vis=PRIVATE semFlags=0x0 semPriority=0 semMissedCount=0)",
+    "    startRequested=true delayedStop=false stopIfKilled=false callStart=true lastStartId=1"
+  ],
+  "activityEntries": null,
+  "recentEntries": null
+}

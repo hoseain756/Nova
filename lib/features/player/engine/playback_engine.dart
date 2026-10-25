@@ -19,6 +19,9 @@ export 'package:media_kit/media_kit.dart'
 /// [PlayerVideoSurface] widget below), so the engine implementation can be
 /// swapped without touching a single control widget.
 abstract class PlaybackEngine extends ChangeNotifier {
+  /// Native video only; the shared Flutter chrome and subtitle overlay stay above it.
+  Widget buildVideoSurface(BoxFit fit) => const SizedBox.shrink();
+
   /// Media is parsed and has a known duration (safe to seek).
   bool get ready;
 
@@ -218,6 +221,16 @@ class MediaKitEngine extends PlaybackEngine {
   /// Texture-backed video surface (subtitles render Flutter-side — see
   /// [PlayerVideoSurface.overlay] and widgets/subtitle_overlay.dart).
   VideoController get controller => _controller;
+
+  @override
+  Widget buildVideoSurface(BoxFit fit) => Video(
+        controller: controller,
+        fit: fit,
+        controls: null,
+        wakelock: true,
+        subtitleViewConfiguration:
+            const SubtitleViewConfiguration(visible: false),
+      );
 
   /// Captures the decoded frame from mpv for a local resume preview.
   Future<Uint8List?> captureFrame() async {
@@ -582,7 +595,7 @@ class PlayerVideoSurface extends StatelessWidget {
     this.overlay,
   });
 
-  final MediaKitEngine engine;
+  final PlaybackEngine engine;
   final BoxFit fit;
 
   /// Layered above the video inside the same surface (the settings-aware
@@ -596,20 +609,7 @@ class PlayerVideoSurface extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Video(
-          controller: engine.controller,
-          fit: fit,
-          // All chrome is rendered by this app's own player widgets.
-          controls: null,
-          wakelock: true,
-          // Subtitle text rendering is owned by [overlay]: media_kit's
-          // built-in SubtitleView carries a compile-time constant TextStyle
-          // (fixed white/26 — user settings could never reach the screen),
-          // and native libass rendering is disabled anyway
-          // (PlayerConfiguration.libass = false → mpv sub-visibility=no).
-          subtitleViewConfiguration:
-              const SubtitleViewConfiguration(visible: false),
-        ),
+        engine.buildVideoSurface(fit),
         if (overlay != null) Positioned.fill(child: overlay!),
       ],
     );

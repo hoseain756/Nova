@@ -116,9 +116,7 @@ void main() {
     expect(methods, ['getCapabilities', 'dispose']);
   });
 
-  test(
-      'iPad keeps Flutter navigation at wide sizes and dock in compact windows',
-      () async {
+  test('iPad uses Flutter rail when wide and dock when compact', () async {
     final methods = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
