@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart' show ValueListenable, mapEquals;
 import 'package:flutter/material.dart';
 import '../../../core/theme/nova_theme.dart';
+import '../../../core/storage/subtitle_font_store.dart';
 
 import '../engine/playback_engine.dart';
 
@@ -23,6 +24,7 @@ import '../engine/playback_engine.dart';
 class SubtitleStyle {
   const SubtitleStyle({
     this.fontSize = 28,
+    this.bold = false,
     this.color = NovaColors.white,
     this.borderColor = NovaColors.ink,
     this.borderSize = 0,
@@ -39,6 +41,8 @@ class SubtitleStyle {
 
   /// Reference pixel size at ≤1080p (scaled down on larger surfaces).
   final int fontSize;
+  final bool bold;
+  FontWeight get fontWeight => bold ? FontWeight.w700 : FontWeight.normal;
   final Color color;
   final Color borderColor;
 
@@ -107,14 +111,19 @@ class SubtitleStyle {
   static String _familyName(Object? raw) {
     if (raw is! String) return subtitleFontFamily;
     final value = raw.trim();
+    if (value.startsWith('NovaSubtitleUser_') &&
+        !SubtitleFontStore.instance.fonts.any((font) => font.family == value)) {
+      return subtitleFontFamily;
+    }
     return value.isEmpty ? subtitleFontFamily : value;
   }
 
   /// Parses the app settings map (keys: subFontSize, subFontColor, subStyle,
   /// subBorderColor, subBorderSize, subBackgroundOpacity, subPos,
-  /// subFontFamily).
+  /// subFontFamily, subFontBold).
   factory SubtitleStyle.fromMap(Map<String, Object?> map) => SubtitleStyle(
         fontSize: _int(map, 'subFontSize', 28, 14, 64),
+        bold: map['subFontBold'] == true,
         color: _color(map['subFontColor'], NovaColors.white),
         borderColor: _color(map['subBorderColor'], NovaColors.ink),
         borderSize: _int(map, 'subBorderSize', 0, 0, 8),
@@ -127,6 +136,7 @@ class SubtitleStyle {
   /// The webSettings keys this style (plus the mpv sub-delay) consumes.
   static const Set<String> settingsKeys = {
     'subFontSize',
+    'subFontBold',
     'subFontColor',
     'subStyle',
     'subBorderColor',
@@ -292,6 +302,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: fontSize,
+              fontWeight: style.fontWeight,
               color: style.color,
               fontFamily: style.fontFamily,
             ),
@@ -300,6 +311,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
       case 'outline':
         final stroke = TextStyle(
           fontSize: fontSize,
+          fontWeight: style.fontWeight,
           fontFamily: style.fontFamily,
           foreground: Paint()
             ..style = PaintingStyle.stroke
@@ -315,6 +327,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: fontSize,
+                fontWeight: style.fontWeight,
                 color: style.color,
                 fontFamily: style.fontFamily,
               ),
@@ -327,6 +340,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: fontSize,
+            fontWeight: style.fontWeight,
             color: style.color,
             fontFamily: style.fontFamily,
             shadows: style.shadows,

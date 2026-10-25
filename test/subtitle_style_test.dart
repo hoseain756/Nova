@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show Alignment, Color, Size;
+import 'package:flutter/material.dart' show Alignment, Color, FontWeight, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
@@ -9,6 +9,8 @@ void main() {
     test('empty map yields the documented defaults', () {
       final s = SubtitleStyle.fromMap({});
       expect(s.fontSize, 28);
+      expect(s.bold, isFalse);
+      expect(s.fontWeight, FontWeight.normal);
       expect(s.color, const Color(0xFFFFFFFF));
       expect(s.borderColor, NovaColors.ink);
       expect(s.borderSize, 0);
@@ -47,6 +49,15 @@ void main() {
         'NetflixSans',
       );
     });
+  });
+
+  test('bold setting accepts only true and resolves the visible font weight',
+      () {
+    expect(SubtitleStyle.fromMap({'subFontBold': true}).fontWeight,
+        FontWeight.w700);
+    expect(SubtitleStyle.fromMap({'subFontBold': false}).fontWeight,
+        FontWeight.normal);
+    expect(SubtitleStyle.fromMap({'subFontBold': 'true'}).bold, isFalse);
   });
 
   group('SubtitleStyle.fromMap — parsing', () {

@@ -179,6 +179,24 @@ void main() {
     expect(second.raw.position, const Duration(seconds: 25));
   });
 
+  test('local subtitle selects libmpv after retiring Media3', () async {
+    final first = _Backend();
+    final second = _Backend();
+    final session = create(first,
+        fallback: () {
+          expect(first.closed, isTrue);
+          return second;
+        },
+        requiresTimingFallback: (backend) => identical(backend, first));
+    await session.open(_request().url);
+    await session.seekTo(const Duration(seconds: 25));
+    final track =
+        SubtitleTrack.uri('file:///tmp/movie.ass', title: 'movie.ass');
+    expect((await session.selectSubtitle(track)).applied, isTrue);
+    expect(second.raw.position, const Duration(seconds: 25));
+    expect(second.raw.selectedSubtitle.id, track.id);
+  });
+
   test('rapid offset gestures share one switch and preserve latest value',
       () async {
     final first = _Backend();

@@ -52,6 +52,7 @@ class AppState extends ChangeNotifier {
     'resumePrompt': false, 'playerConfirmLeave': true,
     'resumeSnapshotRetentionDays': 30,
     'seekBackStepSec': 10, 'seekForwardStepSec': 10, 'subFontSize': 28,
+    'subFontBold': false,
     'subFontColor': '#FFFFFF', 'subBorderColor': '#000000',
     'subBorderSize': 0, 'subBackgroundOpacity': 0.35,
     'subStyle': 'shadow', 'preferredSubLangs': <String>['English'],

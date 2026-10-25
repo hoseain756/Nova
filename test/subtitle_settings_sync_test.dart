@@ -35,12 +35,14 @@ void main() {
     test('projects only the subtitle keys that are present', () {
       final values = SubtitleStyle.valuesFrom(const {
         'subFontSize': 34,
+        'subFontBold': true,
         'subFontColor': '#00FF00',
         'subtitlesOffByDefault': true, // NOT a style key
         'watchedCount': 7, // unrelated
         'subPos': null, // absent values are dropped
       });
-      expect(values.keys, containsAll(['subFontSize', 'subFontColor']));
+      expect(values.keys,
+          containsAll(['subFontSize', 'subFontBold', 'subFontColor']));
       expect(values.containsKey('subtitlesOffByDefault'), isFalse);
       expect(values.containsKey('watchedCount'), isFalse);
       expect(values.containsKey('subPos'), isFalse);
@@ -49,6 +51,7 @@ void main() {
     test('projection round-trips into fromMap without data loss', () {
       const settings = {
         'subFontSize': 30,
+        'subFontBold': true,
         'subFontColor': '#123456',
         'subBorderColor': '#654321',
         'subBorderSize': 3,
@@ -63,6 +66,7 @@ void main() {
         SubtitleStyle.valuesFrom(settings),
       );
       expect(projected.fontSize, direct.fontSize);
+      expect(projected.bold, direct.bold);
       expect(projected.color, direct.color);
       expect(projected.borderColor, direct.borderColor);
       expect(projected.borderSize, direct.borderSize);

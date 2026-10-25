@@ -524,6 +524,7 @@ class SubtitleTracksPanelBody extends StatefulWidget {
     required this.loadingExternal,
     this.loadFailed = false,
     this.onOpenSettings,
+    this.onImportLocal,
     this.onRefresh,
     this.refreshing = false,
   });
@@ -544,6 +545,7 @@ class SubtitleTracksPanelBody extends StatefulWidget {
 
   /// Subtitle style/timing shortcut beside the search field.
   final VoidCallback? onOpenSettings;
+  final VoidCallback? onImportLocal;
   final VoidCallback? onRefresh;
   final bool refreshing;
 
@@ -564,6 +566,15 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
 
   List<SubtitleChoice> get _choices {
     final choices = <SubtitleChoice>[];
+    if (widget.selected.uri &&
+        Uri.tryParse(widget.selected.id)?.scheme == 'file') {
+      choices.add(SubtitleChoice(
+        track: widget.selected,
+        groupKey: 'local',
+        title: widget.selected.title ??
+            NovaStrings.lookup(widget.english, 'subtitleImportFile'),
+      ));
+    }
     for (final track in widget.embedded) {
       if (track.id == 'no' || track.id == 'auto') continue;
       choices.add(SubtitleChoice(
@@ -614,6 +625,7 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
       groups.putIfAbsent(choice.groupKey, () => []).add(choice);
     }
     int rank(String key) {
+      if (key == 'local') return -1;
       if (key == 'ar') return 0;
       if (key == 'embedded') return 2;
       return 1;
@@ -640,6 +652,9 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
   }
 
   String _groupTitle(String key) {
+    if (key == 'local') {
+      return NovaStrings.lookup(widget.english, 'subtitleLocalFile');
+    }
     if (key == 'embedded') {
       return NovaStrings.lookup(widget.english, 'message76');
     }
@@ -741,7 +756,7 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(fontSize: 14),
       ),
-      subtitle: choice.subtitle?.isEmpty != true
+      subtitle: choice.subtitle?.isNotEmpty == true
           ? Text(
               choice.subtitle!,
               maxLines: 2,
@@ -773,42 +788,54 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Expanded(
-              child: TextField(
-            controller: _search,
-            onChanged: (_) => setState(() {}),
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: Icon(LucideIcons.search, size: 20),
-              suffixIcon: _search.text.isEmpty
-                  ? null
-                  : IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(LucideIcons.x, size: 16),
-                      onPressed: () {
-                        _search.clear();
-                        setState(() {});
-                      },
+          Flexible(
+              fit: FlexFit.loose,
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: TextField(
+                    controller: _search,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    onChanged: (_) => setState(() {}),
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      prefixIcon: Icon(LucideIcons.search, size: 18),
+                      prefixIconConstraints:
+                          const BoxConstraints(minWidth: 40, minHeight: 40),
+                      suffixIcon: _search.text.isEmpty
+                          ? null
+                          : IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: Icon(LucideIcons.x, size: 16),
+                              onPressed: () {
+                                _search.clear();
+                                setState(() {});
+                              },
+                            ),
+                      hintText: NovaStrings.lookup(widget.english, 'message78'),
+                      hintStyle: Theme.of(context).textTheme.bodyMedium,
+                      constraints: const BoxConstraints(minHeight: 48),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color:
+                                Theme.of(context).colorScheme.outlineVariant),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 1.4),
+                      ),
                     ),
-              hintText: NovaStrings.lookup(widget.english, 'message78'),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                    color: Theme.of(context).colorScheme.primary, width: 1.4),
-              ),
-            ),
-          )),
+                  ))),
           if (widget.onOpenSettings != null)
             PanelSettingsButton(onTap: widget.onOpenSettings!),
           if (widget.onRefresh != null)
@@ -819,6 +846,16 @@ class _SubtitleTracksPanelBodyState extends State<SubtitleTracksPanelBody> {
               spinning: widget.refreshing,
             ),
         ]),
+        if (widget.onImportLocal != null)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton.icon(
+              onPressed: widget.onImportLocal,
+              icon: const Icon(LucideIcons.fileUp, size: 18),
+              label: Text(
+                  NovaStrings.lookup(widget.english, 'subtitleImportFile')),
+            ),
+          ),
         SizedBox(height: 10),
         Divider(
             color: Theme.of(context).colorScheme.outlineVariant, height: 14),

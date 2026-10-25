@@ -19,6 +19,7 @@ import '../media/sources_page.dart';
 import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
 import 'engine/external_subtitle_loader.dart';
+import 'engine/local_subtitle_picker.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
@@ -1227,6 +1228,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
             loadingExternal: _panelLoading,
             loadFailed: _panelLoadFailed,
             onOpenSettings: _openSubtitleStyleSheet,
+            onImportLocal: () => unawaited(_importLocalSubtitle()),
             onRefresh: () => unawaited(_loadPanelData(refresh: true)),
             refreshing: _panelRefreshing,
           ),
@@ -1370,7 +1372,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     final target = _engine;
     if (target == null) return;
     try {
-      final resolved = await loadExternalSubtitleTrack(_app.api, track);
+      final resolved = track.uri && Uri.tryParse(track.id)?.scheme == 'file'
+          ? track
+          : await loadExternalSubtitleTrack(_app.api, track);
       if (!mounted || !identical(_engine, target)) return;
       await target.selectSubtitle(resolved);
       if (!mounted || !identical(_engine, target)) return;
@@ -1390,6 +1394,22 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           },
         ))),
       );
+    }
+  }
+
+  Future<void> _importLocalSubtitle() async {
+    try {
+      final track = await pickLocalSubtitleTrack();
+      if (track != null && mounted) await _pickSubtitleTrack(track);
+    } catch (error) {
+      if (!mounted) return;
+      final key = error is FormatException && error.message == 'subtitleSize'
+          ? 'subtitleFileTooLarge'
+          : error is FormatException
+              ? 'subtitleFileInvalid'
+              : 'subtitleLoadFailed';
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(NovaStrings.lookup(english, key))));
     }
   }
 

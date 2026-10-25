@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
+import '../player/widgets/subtitle_font_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/color_picker_dialog.dart';
 import 'widgets/settings_tiles.dart';
@@ -316,6 +317,11 @@ final _subtitlePreferences = <_Preference>[
       step: 2,
       suffix: ' px'),
   _Preference(
+      key: 'subFontBold',
+      arabic: NovaStrings.lookup(false, 'subtitleBoldFont'),
+      english: NovaStrings.lookup(true, 'subtitleBoldFont'),
+      control: _Control.toggle),
+  _Preference(
       key: 'subFontColor',
       arabic: NovaStrings.lookup(false, 'message52'),
       english: NovaStrings.lookup(true, 'message52'),
@@ -392,6 +398,7 @@ class SettingsPreferencesPage extends StatelessWidget {
             ],
             app.tr('message497'): [
               'subFontSize',
+              'subFontBold',
               'subFontColor',
               'subPos',
               'subStyle',
@@ -452,12 +459,12 @@ class SettingsPreferencesPage extends StatelessWidget {
                           ? LucideIcons.captions
                           : LucideIcons.circlePlay),
                   for (final group in groups.entries)
-                    SettingsContentSection(
-                        title: group.key,
-                        children: group.value
-                            .map((key) => _PreferenceTile(
-                                item: rows.firstWhere((row) => row.key == key)))
-                            .toList()),
+                    SettingsContentSection(title: group.key, children: [
+                      if (subtitles && group.key == app.tr('message497'))
+                        const SubtitleFontPicker(),
+                      ...group.value.map((key) => _PreferenceTile(
+                          item: rows.firstWhere((row) => row.key == key))),
+                    ]),
                   SettingsInfoBanner(
                       message: subtitles
                           ? app.tr('message507')

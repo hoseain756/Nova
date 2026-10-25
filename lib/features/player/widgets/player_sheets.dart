@@ -10,6 +10,7 @@ import '../../../core/theme/nova_theme.dart';
 import '../../../shared/widgets/color_picker_dialog.dart';
 import '../engine/playback_engine.dart';
 import 'precise_delay_value.dart';
+import 'subtitle_font_picker.dart';
 import 'subtitle_overlay.dart' show SubtitleStyle;
 
 /// Dark-glass bottom sheets used by the player (settings, episodes,
@@ -466,6 +467,9 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
     final savedFontSize = intVal('subFontSize', 28).clamp(14, 64).toInt();
     return <String, Object?>{
       'subFontSize': savedFontSize.isOdd ? savedFontSize - 1 : savedFontSize,
+      'subFontBold': st['subFontBold'] == true,
+      'subFontFamily':
+          (st['subFontFamily'] as String?) ?? SubtitleStyle.subtitleFontFamily,
       'subFontColor': (st['subFontColor'] as String?) ?? '#FFFFFF',
       'subStyle': (st['subStyle'] as String?) ?? 'shadow',
       'subBorderColor': (st['subBorderColor'] as String?) ?? '#000000',
@@ -505,6 +509,8 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
 
   static const Map<String, Object?> _defaults = <String, Object?>{
     'subFontSize': 28,
+    'subFontBold': false,
+    'subFontFamily': SubtitleStyle.subtitleFontFamily,
     'subFontColor': '#FFFFFF',
     'subStyle': 'shadow',
     'subBorderColor': '#000000',
@@ -553,6 +559,15 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             step: 2,
             display: '${_v['subFontSize']} px',
             onChanged: (v) => _commit('subFontSize', v),
+          ),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(NovaStrings.lookup(english, 'subtitleBoldFont')),
+            value: _v['subFontBold'] == true,
+            onChanged: (value) => _commit('subFontBold', value),
+          ),
+          SubtitleFontPicker(
+            onSelected: (family) => _commit('subFontFamily', family),
           ),
           // Position is the one control that remains a slider.
           _sliderRow(
@@ -710,6 +725,8 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
   Widget _previewBoxInner({required double height}) {
     final text = NovaStrings.lookup(widget.english, 'message63');
     final fontSize = ((_v['subFontSize']! as int).clamp(12, 26)).toDouble();
+    final fontWeight =
+        _v['subFontBold'] == true ? FontWeight.w700 : FontWeight.normal;
     final color = _hex(_v['subFontColor']! as String);
     final borderColor = _hex(_v['subBorderColor']! as String);
     final style = _v['subStyle']! as String;
@@ -727,8 +744,9 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             text,
             style: TextStyle(
               fontSize: fontSize,
+              fontWeight: fontWeight,
               color: color,
-              fontFamily: SubtitleStyle.subtitleFontFamily,
+              fontFamily: _v['subFontFamily'] as String?,
             ),
           ),
         );
@@ -741,7 +759,8 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
               text,
               style: TextStyle(
                 fontSize: fontSize,
-                fontFamily: SubtitleStyle.subtitleFontFamily,
+                fontWeight: fontWeight,
+                fontFamily: _v['subFontFamily'] as String?,
                 foreground: Paint()
                   ..style = PaintingStyle.stroke
                   ..strokeWidth = stroke
@@ -752,8 +771,9 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
               text,
               style: TextStyle(
                 fontSize: fontSize,
+                fontWeight: fontWeight,
                 color: color,
-                fontFamily: SubtitleStyle.subtitleFontFamily,
+                fontFamily: _v['subFontFamily'] as String?,
               ),
             ),
           ],
@@ -764,8 +784,9 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
           text,
           style: TextStyle(
             fontSize: fontSize,
+            fontWeight: fontWeight,
             color: color,
-            fontFamily: SubtitleStyle.subtitleFontFamily,
+            fontFamily: _v['subFontFamily'] as String?,
             shadows: [
               Shadow(
                 color: NovaColors.ink.withValues(alpha: .9),

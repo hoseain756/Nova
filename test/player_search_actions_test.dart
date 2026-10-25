@@ -68,6 +68,9 @@ void main() {
       ));
       expect(tester.takeException(), isNull);
       final search = tester.getCenter(find.byType(TextField).first);
+      final searchSize = tester.getSize(find.byType(TextField).first);
+      expect(searchSize.height, inInclusiveRange(48, 56));
+      expect(searchSize.width, lessThanOrEqualTo(280));
       final style = tester.getCenter(find.byIcon(LucideIcons.settings2));
       final refresh = tester.getCenter(find.byIcon(LucideIcons.refreshCw));
       expect((search.dy - style.dy).abs(), lessThan(1));
@@ -75,6 +78,34 @@ void main() {
       await tester.tap(find.byIcon(LucideIcons.settings2));
       await tester.tap(find.byIcon(LucideIcons.refreshCw));
       expect((styles, refreshes), (1, 1));
+    });
+
+    testWidgets('subtitle search stays narrow in a wide panel in $direction',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Directionality(
+          textDirection: direction,
+          child: Scaffold(
+            body: SizedBox(
+              width: 640,
+              height: 400,
+              child: SubtitleTracksPanelBody(
+                english: direction == TextDirection.ltr,
+                embedded: const [],
+                selected: SubtitleTrack.no(),
+                onPick: (_) {},
+                external: const [],
+                loadingExternal: false,
+                onOpenSettings: () {},
+                onRefresh: () {},
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(tester.getSize(find.byType(TextField).first).width,
+          lessThanOrEqualTo(280));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('source search shares a row with refresh in $direction',

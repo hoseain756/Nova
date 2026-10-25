@@ -66,6 +66,7 @@ dependencies:
   flutter_cache_manager: ^3.4.5
   package_info_plus: 10.2.2
   open_filex: 5.0.0
+  file_picker: ^13.2.0
 
 dependency_overrides:
   # Sandbox/user builds have no NDK: pin the last pre-jnigen path_provider_android

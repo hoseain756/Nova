@@ -941,7 +941,7 @@
   "hebrewLanguage": "العبرية",
   "settingsSearchAccountKeywords": "account cloud sync device backup حساب مزامنة",
   "settingsSearchPlaybackKeywords": "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة لقطة توقف صورة مدة احتفاظ",
-  "settingsSearchSubtitleKeywords": "subtitle font size offset translation ترجمة خط حجم تأخير",
+  "settingsSearchSubtitleKeywords": "subtitle font bold size offset translation ترجمة خط عريض حجم تأخير",
   "settingsSearchDownloadKeywords": "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
   "settingsSearchAppearanceKeywords": "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
   "settingsSearchDisplayKeywords": "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
@@ -977,5 +977,16 @@
   "playbackBackendDescription": "يُطبّق على الفيديو التالي. يبدأ الوضع التلقائي بـExoPlayer، وينتقل إلى libmpv للصيغ غير المتوافقة. تعويض توقيت الصوت والترجمة يستخدم libmpv.",
   "playbackBackendAuto": "تلقائي (ExoPlayer ثم libmpv)",
   "playbackBackendMedia3": "Media3 ExoPlayer",
-  "playbackBackendMpv": "libmpv"
+  "playbackBackendMpv": "libmpv",
+  "subtitleBoldFont": "خط ترجمة عريض",
+  "subtitleFont": "خط الترجمة",
+  "subtitleDefaultFont": "الافتراضي (Netflix Sans)",
+  "subtitleAddFont": "إضافة خط من الجهاز",
+  "subtitleFontFormats": "TTF أو OTF، حتى 10 ميغابايت. يُحفظ على هذا الجهاز.",
+  "subtitleFontInvalid": "اختر ملف خط TTF أو OTF صالحًا.",
+  "subtitleFontTooLarge": "يجب ألا يتجاوز ملف الخط 10 ميغابايت.",
+  "subtitleImportFile": "استيراد ملف ترجمة",
+  "subtitleLocalFile": "من الجهاز",
+  "subtitleFileInvalid": "اختر ملف ترجمة بصيغة مدعومة.",
+  "subtitleFileTooLarge": "يجب ألا يتجاوز ملف الترجمة 30 ميغابايت."
 }

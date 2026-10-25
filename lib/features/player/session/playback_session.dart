@@ -824,10 +824,18 @@ class PlaybackSession extends PlaybackEngine {
         await _raw?.selectAudio(track);
       });
   @override
-  Future<PlaybackCommandResult> selectSubtitle(SubtitleTrack track) =>
-      _command('subtitle', (_) async {
-        await _raw?.selectSubtitle(track);
-      });
+  Future<PlaybackCommandResult> selectSubtitle(SubtitleTrack track) async {
+    // Local imports can use formats beyond Media3's SRT/VTT/SSA parser. The
+    // existing continuity handoff retains position, play intent and track.
+    if (track.uri && Uri.tryParse(track.id)?.scheme == 'file') {
+      final switching = await _ensureMpvBackend(true);
+      if (switching != null) return switching;
+    }
+    return _command('subtitle', (_) async {
+      await _raw?.selectSubtitle(track);
+    });
+  }
+
   @override
   Future<PlaybackCommandResult> setSubtitleUri(String url, {String? title}) =>
       _command('subtitle', (_) async {
@@ -853,14 +861,17 @@ class PlaybackSession extends PlaybackEngine {
     });
   }
 
-  Future<PlaybackCommandResult?> _ensureTimingBackend(int offset) async {
+  Future<PlaybackCommandResult?> _ensureTimingBackend(int offset) =>
+      _ensureMpvBackend(offset != 0);
+
+  Future<PlaybackCommandResult?> _ensureMpvBackend(bool required) async {
     final pending = _timingSwitch;
     if (pending != null) {
       final result = await pending;
       return result.applied ? null : result;
     }
     final backend = _backend;
-    if (offset == 0 ||
+    if (!required ||
         _usingFallback ||
         backend == null ||
         requiresTimingFallback?.call(backend) != true ||

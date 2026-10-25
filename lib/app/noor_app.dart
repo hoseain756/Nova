@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/data/cache_reset_service.dart';
 import '../core/state/app_state.dart';
+import '../core/storage/subtitle_font_store.dart';
 import '../core/theme/nova_theme.dart';
 import '../features/shell/main_shell.dart';
 import '../features/settings/settings_data_page.dart';
@@ -94,6 +95,7 @@ class _LaunchGateState extends State<_LaunchGate> {
           _onboarding = prefs.getBool('nova.onboarding.complete') != true);
       final app = context.read<AppState>();
       await app.initialize();
+      await SubtitleFontStore.instance.initialize();
       CacheResetService.instance.start(app);
       unawaited(_checkForForcedUpdate());
     } catch (error) {

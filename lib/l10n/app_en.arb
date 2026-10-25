@@ -941,7 +941,7 @@
   "hebrewLanguage": "Hebrew",
   "settingsSearchAccountKeywords": "account cloud sync device backup حساب مزامنة",
   "settingsSearchPlaybackKeywords": "autoplay speed quality player source torrent pause frame retention screenshot تشغيل تلقائي سرعة جودة",
-  "settingsSearchSubtitleKeywords": "subtitle font size offset translation ترجمة خط حجم تأخير",
+  "settingsSearchSubtitleKeywords": "subtitle font bold size offset translation ترجمة خط عريض حجم تأخير",
   "settingsSearchDownloadKeywords": "downloads storage cache reset تنزيل تخزين ذاكرة مؤقتة",
   "settingsSearchAppearanceKeywords": "theme light dark motion transparency accessibility navigation bar dock classic compact mini bottom مظهر نهاري داكن حركة شفافية شريط التنقل",
   "settingsSearchDisplayKeywords": "poster catalog library episodes navigation home blur ملصقات كتالوج مكتبة حلقات الرئيسية تمويه",
@@ -977,5 +977,16 @@
   "playbackBackendDescription": "Applies to the next video. Auto tries ExoPlayer, then libmpv for incompatible formats. Timing offsets use libmpv.",
   "playbackBackendAuto": "Auto (ExoPlayer → libmpv)",
   "playbackBackendMedia3": "Media3 ExoPlayer",
-  "playbackBackendMpv": "libmpv"
+  "playbackBackendMpv": "libmpv",
+  "subtitleBoldFont": "Bold subtitles",
+  "subtitleFont": "Subtitle font",
+  "subtitleDefaultFont": "Default (Netflix Sans)",
+  "subtitleAddFont": "Add font from device",
+  "subtitleFontFormats": "TTF or OTF, up to 10 MB. Saved on this device.",
+  "subtitleFontInvalid": "Choose a valid TTF or OTF font file.",
+  "subtitleFontTooLarge": "The font file must be 10 MB or smaller.",
+  "subtitleImportFile": "Import subtitle file",
+  "subtitleLocalFile": "From device",
+  "subtitleFileInvalid": "Choose a supported subtitle file.",
+  "subtitleFileTooLarge": "The subtitle file must be 30 MB or smaller."
 }

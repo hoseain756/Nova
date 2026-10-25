@@ -19,6 +19,7 @@ import 'package:nova_mobile/features/settings/catalog_settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_personalization_page.dart';
 import 'package:nova_mobile/features/settings/settings_preferences_page.dart';
 import 'package:nova_mobile/features/settings/stats_page.dart';
+import 'package:nova_mobile/features/player/widgets/player_sheets.dart';
 
 class _SettingsApp extends AppState {
   _SettingsApp(NoorApi api) : super(api, CatalogRepository(api)) {
@@ -83,6 +84,55 @@ Widget _harness(_SettingsApp app, Widget page,
         }));
 
 void main() {
+  testWidgets('in-player subtitle bold switch updates preview and saves',
+      (tester) async {
+    final app = _SettingsApp(NoorApi());
+    Map<String, Object?>? applied;
+    await tester.pumpWidget(_harness(
+      app,
+      Scaffold(
+        body: SubtitleStyleSheet(
+          english: true,
+          onApply: (values) => applied = values,
+        ),
+      ),
+    ));
+    final label = find.text('Bold subtitles');
+    await tester.ensureVisible(label);
+    await tester.pumpAndSettle();
+    await tester.tap(label);
+    await tester.pump();
+    expect(app.webSettings['subFontBold'], isTrue);
+    expect(applied?['subFontBold'], isTrue);
+    expect(
+        tester
+            .widget<Text>(find.text(NovaStrings.lookup(true, 'message63')))
+            .style
+            ?.fontWeight,
+        FontWeight.w700);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final english in [true, false]) {
+    testWidgets(
+        'subtitle bold switch saves its value (${english ? 'English' : 'Arabic'})',
+        (tester) async {
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(
+          _harness(app, const SettingsPreferencesPage(subtitles: true)));
+      final label = find.text(NovaStrings.lookup(english, 'subtitleBoldFont'));
+      await tester.ensureVisible(label);
+      await tester.pumpAndSettle();
+      await tester.tap(label);
+      await tester.pump();
+      expect(app.webSettings['subFontBold'], isTrue);
+      await tester.tap(label);
+      await tester.pump();
+      expect(app.webSettings['subFontBold'], isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final english in [true, false]) {
     testWidgets(
         'Android engine selection persists (${english ? 'LTR light' : 'RTL dark'})',

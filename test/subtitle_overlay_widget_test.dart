@@ -79,13 +79,23 @@ void main() {
 
     // THE regression: a settings change during playback must reach the
     // rendered Text — no restart, no re-open (Task 130 root cause).
-    style.value = SubtitleStyle.fromMap(
-        {'subFontSize': 40, 'subFontColor': '#00FF00', 'subStyle': 'box'});
+    style.value = SubtitleStyle.fromMap({
+      'subFontSize': 40,
+      'subFontColor': '#00FF00',
+      'subStyle': 'box',
+      'subFontBold': true,
+    });
     await tester.pump();
 
     final after = tester.widget<Text>(find.text('نص الترجمة')).style!;
     expect(after.fontSize, 40);
     expect(after.color, const Color(0xFF00FF00));
+    expect(after.fontWeight, FontWeight.w700);
+
+    style.value = SubtitleStyle.fromMap({'subStyle': 'box'});
+    await tester.pump();
+    expect(tester.widget<Text>(find.text('نص الترجمة')).style!.fontWeight,
+        FontWeight.normal);
   });
 
   testWidgets('position setting moves the overlay on screen', (tester) async {
