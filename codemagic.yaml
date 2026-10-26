@@ -33,6 +33,23 @@ workflows:
           fi
       - name: Compile unsigned iOS app
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter build ios --release --no-codesign --no-pub"
+      - name: Package release IPA for iloader signing
+        script: |
+          set -e
+          app_dir="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
+          assets_dir="$app_dir/Frameworks/App.framework/flutter_assets"
+          output_dir="$CM_BUILD_DIR/build/ios/ipa"
+          test -d "$app_dir"
+          test -f "$app_dir/Frameworks/App.framework/App"
+          test ! -e "$assets_dir/kernel_blob.bin"
+          test ! -e "$assets_dir/isolate_snapshot_data"
+          test ! -e "$assets_dir/vm_snapshot_data"
+          mkdir -p "$output_dir/Payload"
+          ditto "$app_dir" "$output_dir/Payload/Runner.app"
+          (cd "$output_dir" && ditto -c -k --keepParent Payload Nova-release-unsigned.ipa)
+          unzip -tq "$output_dir/Nova-release-unsigned.ipa"
+          shasum -a 256 "$output_dir/Nova-release-unsigned.ipa"
     artifacts:
       - build/ios/iphoneos/*.app
+      - build/ios/ipa/Nova-release-unsigned.ipa
       - /tmp/xcodebuild_logs/*.log
