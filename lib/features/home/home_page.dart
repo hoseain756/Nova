@@ -52,9 +52,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
   Future<List<MediaItem>>? _newEpisodes;
   Future<List<MediaItem>>? _recommendations;
 
-  /// Per-catalog home rows (web AddonRail parity): every eligible add-on
-  /// catalog gets its own rail with its own future, deduped against the
-  /// anchor rows above.
+  /// Add-on requests start when their rows enter the sliver's build window.
   List<AddonCatalogRow> _catalogRows = const [];
   final Map<String, Future<List<MediaItem>>> _catalogRowFutures = {};
   String? _addonSignature;
@@ -144,18 +142,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             app.webSettings['hideKidsCatalogsHome'] != true ||
             !CatalogRepository.isKidsCatalog(row))
         .toList();
-    _catalogRowFutures
-      ..clear()
-      ..addEntries(
-        _catalogRows.map(
-          (row) => MapEntry(
-            row.key,
-            app.catalogs
-                .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
-                .then((items) => _visibleItems(app, items)),
-          ),
-        ),
-      );
+    _catalogRowFutures.clear();
     // First useful catalog wins; a slow addon must not hold the hero hostage.
     final firstFeatured = Completer<List<MediaItem>>();
     var finished = 0;
@@ -201,6 +188,11 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
                 ));
     }
   }
+
+  Future<List<MediaItem>> _loadCatalogRow(AppState app, AddonCatalogRow row) =>
+      app.catalogs
+          .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
+          .then((items) => _visibleItems(app, items));
 
   List<MediaItem> _visibleItems(AppState app, List<MediaItem> items) {
     final hidden = app.webSettings['hideContent'] as Map? ?? const {};
@@ -395,17 +387,21 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
             english: english,
           ),
         ),
-        // One rail per eligible add-on catalog (web AddonRail parity) —
-        // rows that fail or stay empty simply don't render.
-        for (final row in _catalogRows)
-          SliverToBoxAdapter(
-            child: AsyncMediaSection(
+        // Build rows on demand. Flutter may mount the first child early to
+        // estimate the sliver, but the remaining offscreen add-ons stay idle.
+        SliverList.builder(
+          itemCount: _catalogRows.length,
+          itemBuilder: (context, index) {
+            final row = _catalogRows[index];
+            return AsyncMediaSection(
+              key: ValueKey(row.key),
               title: row.title,
               subtitle: row.subtitle,
-              future: _catalogRowFutures[row.key] ??
-                  Future<List<MediaItem>>.value(const <MediaItem>[]),
+              future: _catalogRowFutures.putIfAbsent(
+                  row.key, () => _loadCatalogRow(app, row)),
               onTap: _open,
-              onRetry: () => setState(() => _load(app)),
+              onRetry: () => setState(() =>
+                  _catalogRowFutures[row.key] = _loadCatalogRow(app, row)),
               onOpenSection: () => _openSection(
                 CatalogGridPage(
                   title: row.title,
@@ -419,8 +415,9 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
                 ),
               ),
               english: english,
-            ),
-          ),
+            );
+          },
+        ),
         SliverToBoxAdapter(
           child: AsyncMediaSection(
             title: NovaStrings.lookup(english, 'message115'),

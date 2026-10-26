@@ -35,6 +35,7 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
   List<MediaItem> _items = const [];
   bool _loading = true;
   String? _error;
+  String _loadedQuery = '';
   late String _typeFilter;
   String _sort = 'popular';
   int _request = 0;
@@ -80,6 +81,7 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
     setState(() {
       _loading = true;
       _error = null;
+      if (query != _loadedQuery) _items = const [];
     });
     final app = context.read<AppState>();
     final catalog = app.catalogs;
@@ -98,34 +100,44 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
           catalog.catalog('series', 'top', extras: {'search': searchQuery}));
     }
 
-    try {
-      final results = await Future.wait(jobs.map(_safe));
+    final results = List<List<MediaItem>?>.filled(jobs.length, null);
+    final normalizedQuery = query.toLowerCase();
+    void publish() {
       if (!mounted || request != _request) return;
       final seen = <String>{};
       final hideWatched = app.webSettings['hideWatchedInCatalogs'] == true;
       final watchedIds = app.history.map((entry) => entry.item.id).toSet();
-      final items = results.expand((rows) => rows).where((item) {
+      final items = results
+          .whereType<List<MediaItem>>()
+          .expand((rows) => rows)
+          .where((item) {
         if (query.isNotEmpty &&
-            !item.name.toLowerCase().contains(query.toLowerCase())) {
+            !item.name.toLowerCase().contains(normalizedQuery)) {
           return false;
         }
         if (hideWatched && watchedIds.contains(item.id)) return false;
         return seen.add(item.id);
       }).toList();
+      final complete = results.every((rows) => rows != null);
       setState(() {
         _items = items;
-        _loading = false;
-        if (items.isEmpty && results.every((rows) => rows.isEmpty)) {
+        _loadedQuery = query;
+        _loading = !complete;
+        if (complete && items.isEmpty) {
           _error = NovaStrings.lookup(app.english, 'message580');
         }
       });
-    } catch (_) {
-      if (!mounted || request != _request) return;
-      setState(() {
-        _loading = false;
-        _error = NovaStrings.lookup(app.english, 'message581');
-      });
     }
+
+    // Render each completed source immediately; keep source order and the
+    // final deduplication stable even when add-ons respond out of order.
+    await Future.wait([
+      for (var index = 0; index < jobs.length; index++)
+        _safe(jobs[index]).then((rows) {
+          results[index] = rows;
+          publish();
+        }),
+    ]);
   }
 
   @override

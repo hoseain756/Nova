@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
@@ -12,6 +13,7 @@ class CatalogResponseCache extends ChangeNotifier {
   static final instance = CatalogResponseCache._();
   final _memory = <String, (DateTime, dynamic)>{};
   final _pending = <String, Future<dynamic>>{};
+  final _catalogLoads = CatalogLoadQueue(maxConcurrent: 4);
   Future<Directory?>? _root;
   int revision = 0;
   Future<Directory?> _directory() => _root ??= () async {
@@ -23,7 +25,11 @@ class CatalogResponseCache extends ChangeNotifier {
           return null;
         }
       }();
-  Future<dynamic> get(String key, Future<dynamic> Function() loader) async {
+  Future<dynamic> get(
+    String key,
+    Future<dynamic> Function() loader, {
+    bool limitNetworkConcurrency = false,
+  }) async {
     final digest = sha256.convert(utf8.encode(key)).toString();
     var cached = _memory[digest];
     if (cached == null) {
@@ -50,12 +56,15 @@ class CatalogResponseCache extends ChangeNotifier {
     }
     if (cached != null) {
       if (DateTime.now().difference(cached.$1) > const Duration(minutes: 10)) {
-        unawaited(_refresh(digest, loader, announce: true)
+        unawaited(_refresh(digest, loader,
+                announce: true,
+                limitNetworkConcurrency: limitNetworkConcurrency)
             .then<void>((_) {}, onError: (_) {}));
       }
       return cached.$2;
     }
-    return _refresh(digest, loader);
+    return _refresh(digest, loader,
+        limitNetworkConcurrency: limitNetworkConcurrency);
   }
 
   void _remember(String key, (DateTime, dynamic) entry) {
@@ -67,10 +76,12 @@ class CatalogResponseCache extends ChangeNotifier {
   }
 
   Future<dynamic> _refresh(String key, Future<dynamic> Function() loader,
-      {bool announce = false}) {
+      {bool announce = false, bool limitNetworkConcurrency = false}) {
     return _pending.putIfAbsent(key, () async {
       try {
-        final value = await loader();
+        final value = await (limitNetworkConcurrency
+            ? _catalogLoads.run(loader)
+            : loader());
         final time = DateTime.now();
         _remember(key, (time, value));
         unawaited(_persist(key, time, value));
@@ -113,6 +124,39 @@ class CatalogResponseCache extends ChangeNotifier {
       await for (final file in root.list()) {
         if (file is File) await file.delete();
       }
+    }
+  }
+}
+
+/// Caps simultaneous catalog fetches without delaying an already cached read.
+/// Failed jobs release their slot so one slow provider cannot block the queue.
+class CatalogLoadQueue {
+  CatalogLoadQueue({required this.maxConcurrent}) : assert(maxConcurrent > 0);
+
+  final int maxConcurrent;
+  final Queue<void Function()> _waiting = Queue<void Function()>();
+  int _active = 0;
+
+  Future<T> run<T>(Future<T> Function() job) {
+    final result = Completer<T>();
+    _waiting.add(() async {
+      try {
+        result.complete(await job());
+      } catch (error, stack) {
+        result.completeError(error, stack);
+      } finally {
+        _active--;
+        _drain();
+      }
+    });
+    _drain();
+    return result.future;
+  }
+
+  void _drain() {
+    while (_active < maxConcurrent && _waiting.isNotEmpty) {
+      _active++;
+      _waiting.removeFirst()();
     }
   }
 }

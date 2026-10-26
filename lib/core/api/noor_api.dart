@@ -322,9 +322,11 @@ class NoorApi {
     }
 
     final path = Uri.tryParse(url)?.path ?? '';
+    final isCatalog = path.contains('/catalog/');
     if ((headers == null || headers.isEmpty) &&
-        (path.contains('/catalog/') || path.contains('/meta/'))) {
-      return CatalogResponseCache.instance.get(url, load);
+        (isCatalog || path.contains('/meta/'))) {
+      return CatalogResponseCache.instance
+          .get(url, load, limitNetworkConcurrency: isCatalog);
     }
     return load();
   }
