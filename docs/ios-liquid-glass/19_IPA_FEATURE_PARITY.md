@@ -32,6 +32,14 @@ The added regressions cover an ancestor alias with both present and missing file
 and a leaf symlink to an external file. Release build acceptance is still pending
 the next Codemagic run.
 
+Build `6adf1d484a72334e32e5455c` on `a61be1e` then passed analysis and all
+**696/696** Flutter tests on Mac. The dependency-preparation step failed because
+the fresh pinned SDK did not contain `bin/cache/artifacts/engine/ios/Flutter.xcframework`.
+Flutter dependency resolution had generated `ios/Podfile`; its manual CocoaPods
+post-install hook requires `flutter precache --ios` first. The workflow now
+downloads those engine artifacts immediately after pinning the SDK. Native Release
+compilation/package verification remain pending the subsequent run.
+
 ## Source-level feature inventory
 
 | Feature | iOS implementation / difference | Acceptance evidence still needed |

@@ -14,6 +14,8 @@ workflows:
           git -C "$CM_BUILD_DIR/.codemagic-flutter" checkout 38ec981bad973156ad05bdef0aa8e82d1a58905b
           test "$(git -C "$CM_BUILD_DIR/.codemagic-flutter" rev-parse HEAD)" = "38ec981bad973156ad05bdef0aa8e82d1a58905b"
           "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter" --version
+      - name: Precache iOS engine artifacts
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter precache --ios"
       - name: Resolve Flutter dependencies
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter pub get"
       - name: Analyze Flutter source
