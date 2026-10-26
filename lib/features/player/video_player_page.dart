@@ -21,6 +21,7 @@ import '../media/stream_loading.dart';
 import 'engine/playback_engine.dart';
 import 'engine/external_subtitle_loader.dart';
 import 'engine/local_subtitle_picker.dart';
+import 'engine/picture_quality.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
@@ -482,6 +483,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       engine = MediaKitEngine(
         hardwareAcceleration: !softwareDecoding,
         fileSubtitleStyling: _app.webSettings['subUseFileStyle'] == true,
+        pictureQuality: PictureQualityPreset.fromSettings(_app.webSettings),
       );
     } catch (error) {
       // Task 127: degrade to the in-page error panel — never let a ctor

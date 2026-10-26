@@ -8,6 +8,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../player_diagnostics.dart';
+import 'picture_quality.dart';
 import 'startup_resume_seek.dart';
 
 export 'package:media_kit/media_kit.dart'
@@ -112,6 +113,7 @@ class MediaKitEngine extends PlaybackEngine {
   MediaKitEngine({
     this.hardwareAcceleration = true,
     bool fileSubtitleStyling = false,
+    this.pictureQuality = PictureQualityPreset.balanced,
   }) : _requestedFileSubtitleStyling = fileSubtitleStyling {
     if (PlayerDiagnostics.enabled) {
       PlayerDiagnostics.instance.record('engineCreated');
@@ -180,6 +182,7 @@ class MediaKitEngine extends PlaybackEngine {
 
   /// Whether the video controller uses hardware decoding (see [ctor]).
   final bool hardwareAcceleration;
+  final PictureQualityPreset pictureQuality;
 
   /// True once the page's stuck-watchdog forced a software-decoding retry —
   /// a second stall must surface as an error instead of retrying forever.
@@ -303,6 +306,8 @@ class MediaKitEngine extends PlaybackEngine {
       return;
     }
     if (_disposed) return;
+    await _applyPictureQuality();
+    if (_disposed) return;
     _nativeSubtitleReady = true;
     await _queueFileSubtitleStyling(_requestedFileSubtitleStyling);
     if (_disposed) return;
@@ -344,6 +349,22 @@ class MediaKitEngine extends PlaybackEngine {
     if (!_disposed && playWhenReady) await _player.play();
     if (Uri.tryParse(url)?.host == '127.0.0.1') {
       unawaited(_logTorrentDecoderPath());
+    }
+  }
+
+  Future<void> _applyPictureQuality() async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return;
+    for (final option in pictureQuality.mpvProperties.entries) {
+      if (_disposed) return;
+      try {
+        await platform.setProperty(option.key, option.value);
+      } catch (error) {
+        // A renderer may not expose every mpv option on every device. Keep
+        // playback available and leave that option at the renderer's default.
+        debugPrint('[NoorPlayback] picture option ${option.key} unavailable: '
+            '$error');
+      }
     }
   }
 

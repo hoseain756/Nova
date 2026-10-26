@@ -260,6 +260,70 @@ void main() {
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
+  for (final (platform, english, light) in [
+    (TargetPlatform.android, false, false),
+    (TargetPlatform.iOS, true, true),
+  ]) {
+    testWidgets(
+        'picture quality presets save on $platform in ${english ? 'English' : 'Arabic'}',
+        (tester) async {
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(_harness(
+          app, const SettingsPreferencesPage(subtitles: false),
+          light: light));
+      final title =
+          find.text(NovaStrings.lookup(english, 'pictureQualityTitle'));
+      await tester.scrollUntilVisible(title, 300);
+      expect(app.webSettings['mpvQuality'], 'balanced');
+      expect(find.text(NovaStrings.lookup(english, 'pictureQualityBalanced')),
+          findsOneWidget);
+
+      final maximum =
+          find.text(NovaStrings.lookup(english, 'pictureQualityMaximum'));
+      await tester.ensureVisible(maximum);
+      await tester.pumpAndSettle();
+      await tester.tap(maximum);
+      await tester.pump();
+      expect(app.webSettings['mpvQuality'], 'quality');
+
+      final performance =
+          find.text(NovaStrings.lookup(english, 'pictureQualityPerformance'));
+      await tester.ensureVisible(performance);
+      await tester.pumpAndSettle();
+      await tester.tap(performance);
+      await tester.pump();
+      expect(app.webSettings['mpvQuality'], 'performance');
+      expect(
+          find.textContaining(
+              NovaStrings.lookup(english, 'pictureQualityAndroidNote')),
+          platform == TargetPlatform.android ? findsOneWidget : findsNothing);
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.only(platform));
+  }
+
+  testWidgets(
+      'picture quality remains reachable on a narrow RTL phone at 200% text',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final app = _SettingsApp(NoorApi())..english = false;
+    await tester.pumpWidget(_harness(
+        app, const SettingsPreferencesPage(subtitles: false),
+        scale: 2));
+    final title = find.text(NovaStrings.lookup(false, 'pictureQualityTitle'));
+    await tester.scrollUntilVisible(title, 300);
+    final maximum =
+        find.text(NovaStrings.lookup(false, 'pictureQualityMaximum'));
+    await tester.ensureVisible(maximum);
+    await tester.pumpAndSettle();
+    await tester.tap(maximum);
+    await tester.pump();
+    expect(app.webSettings['mpvQuality'], 'quality');
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
   testWidgets('required update dialog keeps the lockup and action reachable',
       (tester) async {
     tester.view.physicalSize = const Size(360, 800);

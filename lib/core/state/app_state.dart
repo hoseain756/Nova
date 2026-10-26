@@ -67,6 +67,7 @@ class AppState extends ChangeNotifier {
     'customPlaybackSpeeds': <double>[], 'showQualityInfo': false,
     'videoFill': 'fit', 'playerTheme': 'auto',
     'playerImplementation': 'core',
+    'mpvQuality': 'balanced',
     'pickerLayout': 'stremio', 'streamSort': 'addon',
     'p2pEnabled': true, 'browserEngineEnabled': false,
     'proxyMode': 'auto', 'transcodeMode': 'ask', 'playableOnly': true,

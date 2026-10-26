@@ -6,6 +6,7 @@ import '../../../core/models/playback_resume_policy.dart';
 import '../../../core/torrent/torrent_models.dart';
 
 import '../engine/playback_engine.dart';
+import '../engine/picture_quality.dart';
 import 'playback_checkpoint.dart';
 import 'playback_progress.dart';
 import 'playback_state.dart';
@@ -19,8 +20,13 @@ abstract interface class PlaybackBackend {
 }
 
 class MediaKitSessionBackend implements PlaybackBackend {
-  MediaKitSessionBackend({bool fileSubtitleStyling = false})
-      : engine = MediaKitEngine(fileSubtitleStyling: fileSubtitleStyling);
+  MediaKitSessionBackend({
+    bool fileSubtitleStyling = false,
+    PictureQualityPreset pictureQuality = PictureQualityPreset.balanced,
+  }) : engine = MediaKitEngine(
+          fileSubtitleStyling: fileSubtitleStyling,
+          pictureQuality: pictureQuality,
+        );
   @override
   final MediaKitEngine engine;
   @override

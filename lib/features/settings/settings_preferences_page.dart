@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
 import '../player/playback_entry_page.dart' show useCorePlayerByDefault;
+import '../player/engine/picture_quality.dart';
 import '../player/widgets/subtitle_font_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/color_picker_dialog.dart';
@@ -488,7 +489,7 @@ class SettingsPreferencesPage extends StatelessWidget {
                       icon: subtitles
                           ? LucideIcons.captions
                           : LucideIcons.circlePlay),
-                  for (final group in groups.entries)
+                  for (final group in groups.entries) ...[
                     SettingsContentSection(title: group.key, children: [
                       if (subtitles && group.key == app.tr('message497'))
                         const SubtitleFontPicker(),
@@ -508,12 +509,75 @@ class SettingsPreferencesPage extends StatelessWidget {
                       ...group.value.map((key) => _PreferenceTile(
                           item: rows.firstWhere((row) => row.key == key))),
                     ]),
+                    if (!subtitles &&
+                        !kIsWeb &&
+                        group.key == app.tr('message499'))
+                      const _PictureQualitySettings(),
+                  ],
                   SettingsInfoBanner(
                       message: subtitles
                           ? app.tr('message507')
                           : app.tr('message508')),
                 ],
               ))),
+    );
+  }
+}
+
+class _PictureQualitySettings extends StatelessWidget {
+  const _PictureQualitySettings();
+
+  @override
+  Widget build(BuildContext context) {
+    final (english, rawValue) = context.select<AppState, (bool, Object?)>(
+        (app) => (app.english, app.webSettings['mpvQuality']));
+    final selected = PictureQualityPreset.fromValue(rawValue);
+    final description =
+        NovaStrings.lookup(english, 'pictureQualityDescription');
+    final androidNote = defaultTargetPlatform == TargetPlatform.android
+        ? '\n${NovaStrings.lookup(english, 'pictureQualityAndroidNote')}'
+        : '';
+    final choices = [
+      (
+        PictureQualityPreset.performance,
+        LucideIcons.feather,
+        'pictureQualityPerformance',
+        'pictureQualityPerformanceDescription'
+      ),
+      (
+        PictureQualityPreset.balanced,
+        LucideIcons.gauge,
+        'pictureQualityBalanced',
+        'pictureQualityBalancedDescription'
+      ),
+      (
+        PictureQualityPreset.quality,
+        LucideIcons.sparkles,
+        'pictureQualityMaximum',
+        'pictureQualityMaximumDescription'
+      ),
+    ];
+    return SettingsContentSection(
+      title: NovaStrings.lookup(english, 'pictureQualityTitle'),
+      description: '$description$androidNote',
+      children: [
+        for (final choice in choices)
+          Semantics(
+            selected: selected == choice.$1,
+            child: SettingsTile(
+              icon: choice.$2,
+              title: NovaStrings.lookup(english, choice.$3),
+              subtitle: NovaStrings.lookup(english, choice.$4),
+              trailing: selected == choice.$1
+                  ? Icon(LucideIcons.check,
+                      size: 20, color: Theme.of(context).colorScheme.secondary)
+                  : const SizedBox(width: 20),
+              onTap: () => context
+                  .read<AppState>()
+                  .setSetting('mpvQuality', choice.$1.name),
+            ),
+          ),
+      ],
     );
   }
 }

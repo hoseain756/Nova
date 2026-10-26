@@ -22,6 +22,7 @@ import 'engine/playback_backend_preference.dart';
 import 'engine/media3_session_backend.dart';
 import 'engine/external_subtitle_loader.dart';
 import 'engine/local_subtitle_picker.dart';
+import 'engine/picture_quality.dart';
 import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
@@ -464,8 +465,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final useMedia3 = preference != PlaybackBackendPreference.mpv &&
         !hasOffsets &&
         _app.webSettings['subUseFileStyle'] != true;
+    final pictureQuality = PictureQualityPreset.fromSettings(_app.webSettings);
     MediaKitSessionBackend createMpvBackend() => MediaKitSessionBackend(
-        fileSubtitleStyling: _app.webSettings['subUseFileStyle'] == true);
+        fileSubtitleStyling: _app.webSettings['subUseFileStyle'] == true,
+        pictureQuality: pictureQuality);
     final session = PlaybackSession(
       request: request,
       createBackend: useMedia3 ? Media3SessionBackend.new : createMpvBackend,
