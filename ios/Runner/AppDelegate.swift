@@ -5,6 +5,7 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var chromeChannel: FlutterMethodChannel?
   private var downloadsChannel: FlutterMethodChannel?
+  private var appIconChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -45,6 +46,43 @@ import UIKit
     )
     downloadsChannel?.setMethodCallHandler { call, result in
       NovaBackgroundDownloads.shared.handle(call, result: result)
+    }
+    appIconChannel = FlutterMethodChannel(
+      name: "nova/app_icon",
+      binaryMessenger: registrar.messenger()
+    )
+    appIconChannel?.setMethodCallHandler { call, result in
+      let app = UIApplication.shared
+      let names = ["clear": "AppIconClear", "dark": "AppIconDark"]
+      func snapshot() -> [String: Any] {
+        let selected = names.first(where: { $0.value == app.alternateIconName })?.key ?? "classic"
+        return [
+          "supported": app.supportsAlternateIcons,
+          "selected": selected,
+          "ids": ["classic", "clear", "dark"]
+        ]
+      }
+      switch call.method {
+      case "get": result(snapshot())
+      case "set":
+        guard app.supportsAlternateIcons,
+              let args = call.arguments as? [String: Any],
+              let id = args["id"] as? String,
+              id == "classic" || names[id] != nil else {
+          result(FlutterError(code: "invalid_icon", message: nil, details: nil))
+          return
+        }
+        app.setAlternateIconName(names[id]) { error in
+          DispatchQueue.main.async {
+            if error == nil {
+              result(snapshot())
+            } else {
+              result(FlutterError(code: "icon_change_failed", message: nil, details: nil))
+            }
+          }
+        }
+      default: result(FlutterMethodNotImplemented)
+      }
     }
     chromeChannel?.setMethodCallHandler { [weak self] call, result in
       switch call.method {

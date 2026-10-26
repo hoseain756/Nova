@@ -98,6 +98,9 @@ flutter:
 
   assets:
     - assets/brand/svg/
+    - assets/brand/ios/with_background/AppIcon-120.png
+    - assets/brand/ios/no_background/red_glyph/AppIcon-120.png
+    - assets/brand/ios/ios18_variants/AppIcon-dark-1024.png
     - lib/l10n/
 
   fonts:

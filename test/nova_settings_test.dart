@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:nova_mobile/core/api/noor_api.dart';
+import 'package:nova_mobile/core/platform/app_icon_service.dart';
 import 'package:nova_mobile/core/data/catalog_repository.dart';
 import 'package:nova_mobile/core/models/addon.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
@@ -10,6 +11,7 @@ import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/core/update/app_update_service.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/features/settings/addons_page.dart';
+import 'package:nova_mobile/features/settings/app_icon_settings_page.dart';
 import 'package:nova_mobile/features/settings/integrations_page.dart';
 import 'package:nova_mobile/features/settings/settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_display_page.dart';
@@ -75,6 +77,27 @@ class _StaticUpdateService extends AppUpdateService {
       );
 }
 
+class _IconController implements AppIconController {
+  String selected = 'classic';
+  bool failNext = false;
+
+  @override
+  Future<AppIconSelection> current() async => AppIconSelection(
+      supported: true,
+      selected: selected,
+      ids: const ['classic', 'clear', 'dark']);
+
+  @override
+  Future<AppIconSelection> select(String id) async {
+    if (failNext) {
+      failNext = false;
+      throw StateError('Native icon change failed');
+    }
+    selected = id;
+    return current();
+  }
+}
+
 Widget _harness(_SettingsApp app, Widget page,
         {double scale = 1, bool light = false}) =>
     ChangeNotifierProvider<AppState>.value(
@@ -100,6 +123,46 @@ Widget _harness(_SettingsApp app, Widget page,
         }));
 
 void main() {
+  for (final english in [true, false]) {
+    testWidgets(
+        'app icon picker keeps native selection and fits ${english ? 'English dark' : 'Arabic light'} at 200%',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final app = _SettingsApp(NoorApi())..english = english;
+      final icons = _IconController();
+      await tester.pumpWidget(_harness(
+          app, AppIconSettingsPage(controller: icons),
+          scale: 2, light: !english));
+      await tester.pumpAndSettle();
+      final clear = find.text(NovaStrings.lookup(english, 'appIconClear'));
+      await tester.ensureVisible(clear);
+      await tester.pumpAndSettle();
+      await tester.tap(clear);
+      await tester.pumpAndSettle();
+      expect(icons.selected, 'clear');
+      expect(
+          tester
+              .widget<RadioListTile<String>>(find.widgetWithText(
+                  RadioListTile<String>,
+                  NovaStrings.lookup(english, 'appIconClear')))
+              .selected,
+          isTrue);
+      icons.failNext = true;
+      final dark = find.text(NovaStrings.lookup(english, 'appIconDark'));
+      await tester.ensureVisible(dark);
+      await tester.pumpAndSettle();
+      await tester.tap(dark);
+      await tester.pumpAndSettle();
+      expect(icons.selected, 'clear');
+      expect(find.text(NovaStrings.lookup(english, 'appIconChangeFailed')),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test('OLED theme uses pure black without changing the standard themes', () {
     expect(NovaTheme.dark.scaffoldBackgroundColor, NovaColors.ink);
     expect(NovaTheme.darkOled.scaffoldBackgroundColor, NovaColors.oledBlack);
