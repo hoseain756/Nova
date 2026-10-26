@@ -1,6 +1,6 @@
 workflows:
   nova-ios-validation:
-    name: NOVA iOS unsigned validation
+    name: NOVA iOS Release IPA (iLoader)
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
@@ -50,6 +50,5 @@ workflows:
           unzip -tq "$output_dir/Nova-release-unsigned.ipa"
           shasum -a 256 "$output_dir/Nova-release-unsigned.ipa"
     artifacts:
-      - build/ios/iphoneos/*.app
       - build/ios/ipa/Nova-release-unsigned.ipa
       - /tmp/xcodebuild_logs/*.log

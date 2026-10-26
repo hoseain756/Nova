@@ -826,12 +826,22 @@ class DownloadManager extends ChangeNotifier {
     final extension =
         _filePattern.firstMatch(job.path)?.group(1)?.toLowerCase();
     if (extension == null) return false;
+    final parent = File(job.path).parent;
+    if (_normalized(job.path) !=
+            _normalized(
+                '${parent.path}${Platform.pathSeparator}${job.id}.$extension') ||
+        await FileSystemEntity.type(parent.path, followLinks: false) !=
+            FileSystemEntityType.directory) {
+      return false;
+    }
+    // Darwin can return /var/... while the same directory resolves to
+    // /private/var/.... Compare the existing parent, not the leaf: a missing
+    // download must remain a retryable row, and symlinked files stay forbidden.
+    final resolvedParent = await parent.resolveSymbolicLinks();
     final roots = [_root!, if (_legacyRoot != null) _legacyRoot!];
     final root = roots
         .where((candidate) =>
-            _normalized(job.path) ==
-            _normalized(
-                '${candidate.path}${Platform.pathSeparator}${job.id}.$extension'))
+            _normalized(resolvedParent) == _normalized(candidate.path))
         .firstOrNull;
     if (root == null || !await root.exists()) return false;
     if (_normalized(await root.resolveSymbolicLinks()) !=

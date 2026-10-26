@@ -429,6 +429,64 @@ void main() {
         manager.jobs.map((job) => job.error), ['missingFile', 'interrupted']);
   });
 
+  test('ancestor path aliases retain completed and missing download rows',
+      () async {
+    await store.root.create(recursive: true);
+    final alias = Link('${sandbox.path}${Platform.pathSeparator}alias');
+    try {
+      await alias.create(await sandbox.resolveSymbolicLinks());
+    } on FileSystemException {
+      markTestSkipped('This host does not permit directory symbolic links.');
+      return;
+    }
+    const goodId = 'bdf22432-d1e6-4305-aee8-7eec6e66fcad';
+    const missingId = 'c9ebc339-fffd-4d24-b5b0-a33254c881f2';
+    final good = File('${store.root.path}${Platform.pathSeparator}$goodId.mp4');
+    await good.writeAsBytes(_video);
+    store.metadata = jsonEncode([
+      for (final id in [goodId, missingId])
+        NovaDownload(
+          id: id,
+          title: id,
+          path: '${alias.path}${Platform.pathSeparator}nova_downloads'
+              '${Platform.pathSeparator}$id.mp4',
+          status: 'complete',
+        ).toJson(),
+    ]);
+    final manager = make(_Adapter((_, __) async => _response(_video)));
+    await manager.initialize();
+    expect(manager.initialized, isTrue);
+    expect(manager.jobs.map((job) => job.status), ['complete', 'failed']);
+    expect(manager.jobs.last.error, 'missingFile');
+    await manager.remove(manager.jobs.first);
+    expect(await good.exists(), isFalse);
+  });
+
+  test('a symlinked download file is rejected without touching its target',
+      () async {
+    await store.root.create(recursive: true);
+    const id = 'c9ebc339-fffd-4d24-b5b0-a33254c881f2';
+    final external =
+        await File('${sandbox.path}${Platform.pathSeparator}outside.mp4')
+            .writeAsBytes(_video);
+    final link = Link('${store.root.path}${Platform.pathSeparator}$id.mp4');
+    try {
+      await link.create(external.path);
+    } on FileSystemException {
+      markTestSkipped('This host does not permit file symbolic links.');
+      return;
+    }
+    store.metadata = jsonEncode([
+      NovaDownload(id: id, title: 'Link', path: link.path, status: 'complete')
+          .toJson(),
+    ]);
+    final manager = make(_Adapter((_, __) async => _response(_video)));
+    await manager.initialize();
+    expect(manager.initialized, isTrue);
+    expect(manager.jobs, isEmpty);
+    expect(await external.readAsBytes(), _video);
+  });
+
   test('metadata read failure is visible, blocks enqueue and can be retried',
       () async {
     store.failRead = true;
