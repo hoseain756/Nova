@@ -1187,14 +1187,14 @@ class _EpisodeThumbnailState extends State<EpisodeThumbnail> {
                 bottom: 6,
                 end: 6,
                 child: _OverlayPill(
+                  padding: const EdgeInsets.all(2),
                   child: Directionality(
                     textDirection: TextDirection.ltr,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 1),
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             color: _kImdbYellow,
                             borderRadius: BorderRadius.circular(3),
@@ -1278,14 +1278,17 @@ class _EpisodeThumbnailState extends State<EpisodeThumbnail> {
 
 /// rgba(8,8,10,.72) rounded-full overlay pill with the web's soft shadow.
 class _OverlayPill extends StatelessWidget {
-  const _OverlayPill({required this.child});
+  const _OverlayPill(
+      {required this.child,
+      this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 2)});
 
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: padding,
       decoration: BoxDecoration(
         color: _kOverlayBg,
         borderRadius: BorderRadius.circular(999),

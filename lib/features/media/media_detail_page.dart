@@ -1311,8 +1311,7 @@ class _RatingChip extends StatelessWidget {
           // Task 136 (perf): the blur-6 backdrop is retired — a row of these
           // rating chips sat over the scrolling artwork and each re-blurred
           // its backdrop every frame; the .55 fill keeps the same contrast.
-          padding: const EdgeInsets.symmetric(
-              horizontal: NovaSpace.sm, vertical: NovaSpace.xs),
+          padding: const EdgeInsets.all(2),
           constraints: const BoxConstraints(minHeight: 36),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -1324,8 +1323,7 @@ class _RatingChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: NovaSpace.xs, vertical: 1),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                     color: color, borderRadius: BorderRadius.circular(999)),
                 child: Text(label,
