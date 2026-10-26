@@ -107,6 +107,19 @@ void main() {
     expect(latest.forceRequired, isFalse);
   });
 
+  test('Android release metadata cannot force an iOS update', () {
+    final manifest = AppUpdateManifest.fromJson(manifestJson);
+    final ios = AppUpdateStatus(
+      manifest: manifest,
+      currentVersion: '1.0.1',
+      currentBuild: 1,
+      platform: AppUpdatePlatform.ios,
+    );
+
+    expect(ios.hasUpdate, isFalse);
+    expect(ios.forceRequired, isFalse);
+  });
+
   test('rejects invalid version metadata and non-HTTPS APK URLs', () {
     expect(
       () => AppUpdateManifest.fromJson({

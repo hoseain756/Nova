@@ -925,13 +925,19 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
         await _showRequiredUpdate(status);
       } else if (!automatic) {
         final app = context.read<AppState>();
-        _showMessage(status.hasUpdate
-            ? (!app.english && status.manifest.messageAr.isNotEmpty
-                ? status.manifest.messageAr
-                : app.tr('updateAvailable', {
-                    'version': status.manifest.latestVersion,
-                  }))
-            : app.tr('updateCurrent'));
+        final String message;
+        if (status.platform == AppUpdatePlatform.ios) {
+          message = app.tr('updateIosUnavailable');
+        } else if (status.hasUpdate) {
+          message = !app.english && status.manifest.messageAr.isNotEmpty
+              ? status.manifest.messageAr
+              : app.tr('updateAvailable', {
+                  'version': status.manifest.latestVersion,
+                });
+        } else {
+          message = app.tr('updateCurrent');
+        }
+        _showMessage(message);
       }
     } catch (error) {
       if (mounted && !automatic) {
@@ -1144,7 +1150,9 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
                     'version': status!.manifest.latestVersion,
                   }))
             : status != null
-                ? app.tr('updateCurrent')
+                ? app.tr(status.platform == AppUpdatePlatform.ios
+                    ? 'updateIosUnavailable'
+                    : 'updateCurrent')
                 : app.tr('updateDescription');
     return SettingsContentSection(
       title: app.tr('updateSection'),

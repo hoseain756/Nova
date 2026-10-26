@@ -160,15 +160,25 @@ class AppUpdateStatus {
     required this.manifest,
     required this.currentVersion,
     required this.currentBuild,
+    this.platform = AppUpdatePlatform.android,
   });
 
   final AppUpdateManifest manifest;
   final String currentVersion;
   final int currentBuild;
+  final AppUpdatePlatform platform;
 
-  bool get hasUpdate => manifest.latestBuild > currentBuild;
-  bool get forceRequired => currentBuild < manifest.minBuild;
+  // The current manifest's build numbers and minimum build describe the
+  // Android APK. iOS needs its own release metadata before it can offer or
+  // require an update; the Android minimum must never lock an iPhone out.
+  bool get hasUpdate =>
+      platform == AppUpdatePlatform.android &&
+      manifest.latestBuild > currentBuild;
+  bool get forceRequired =>
+      platform == AppUpdatePlatform.android && currentBuild < manifest.minBuild;
 }
+
+enum AppUpdatePlatform { android, ios }
 
 class AppUpdateException implements Exception {
   const AppUpdateException(this.failure, [this.cause]);
@@ -232,6 +242,8 @@ class AppUpdateService {
       manifest: manifest,
       currentVersion: packageInfo.version,
       currentBuild: int.tryParse(packageInfo.buildNumber) ?? 0,
+      platform:
+          Platform.isIOS ? AppUpdatePlatform.ios : AppUpdatePlatform.android,
     );
   }
 

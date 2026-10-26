@@ -4,7 +4,7 @@
 
 - `lib/main.dart` starts the app; `lib/app/noor_app.dart` composes launch, theme, and localization.
 - `lib/core/` contains API, data/cache, downloads, models, OAuth, state, sync, theme, torrent, tracking, and Trakt.
-- lib/core/update/app_update_service.dart validates root version.json and APK content, compares installed build metadata, classifies update failures, downloads to app cache, and opens the package installer.
+- lib/core/update/app_update_service.dart validates root version.json and APK content, compares installed build metadata, classifies update failures, downloads to app cache, and opens the package installer. The manifest's build numbers are Android-only; iOS must not offer or require an update from them until separate iOS release metadata exists.
 - `lib/core/models/integration_cw.dart` normalizes linked-service playback progress (Trakt/Simkl pause points and AniList/MyAnimeList episode counters); `AppState.refreshLinkedContent` refreshes it, and `AppState.historyForTitle` merges provider episode state with local history for details.
 - `lib/core/storage/resume_snapshot_store.dart` saves compressed, expiring video pause frames locally; its metadata stays separate from synced watch history.
 - `lib/core/models/playback_resume_policy.dart` holds the shared resume prompt/seek and last-two-minute completion predicates used by both player routes, checkpoint frame capture, and local history/Continue Watching. These preserve existing short-media and storage semantics; linked-service progress remains separate.

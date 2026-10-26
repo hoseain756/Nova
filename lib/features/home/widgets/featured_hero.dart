@@ -551,5 +551,5 @@ double featuredHeroHeight(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
   final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
   final base = size.height * .68;
-  return base + (scale - 1).clamp(0.0, 2.0) * 160;
+  return base + (scale - 1).clamp(0.0, 2.0) * 200;
 }
