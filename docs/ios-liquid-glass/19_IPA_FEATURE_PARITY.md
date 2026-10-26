@@ -61,7 +61,7 @@ need a new IPA/device review before runtime acceptance.
 | Kids and parental gate | Shared Flutter authorization, including route handling | Gate persistence and all entry paths on device |
 | Library, history, Continue Watching and resume | Shared AppState/storage/checkpoint code | App relaunch, actual video seek and linked-provider reconciliation |
 | Direct HTTP(S) video and live sources | media_kit/libmpv on iOS | Real files, streams, codecs, headers and seek capabilities |
-| Media3 backend selection | Android-specific backend; iOS selects libmpv | This engine choice is not an iOS feature; verify equivalent controls and playback through libmpv |
+| Media3 backend selection | Android Core offers Auto (default), Media3 ExoPlayer and libmpv; Legacy uses libmpv. iOS selects libmpv and the Playback settings page shows that fact without offering an unusable Media3 choice | Rebuild and confirm Android option selection and iOS read-only engine label; verify equivalent controls and playback through libmpv on device |
 | Subtitles, imported files/fonts, appearance and delays | Shared controls plus iOS file-picker/storage plugins and libmpv | Native file picker, font import, embedded/external tracks and file-styled libass rendering |
 | Skip markers, external timing and Up Next | Shared Core/Legacy implementations | Timing against real frames, source/episode continuity and automatic advance |
 | OLED, themes, accessibility and language | Shared Flutter preferences; guarded UIKit presentation on supported phones | VoiceOver, Dynamic Type, Reduce Transparency, rotation and keyboard |

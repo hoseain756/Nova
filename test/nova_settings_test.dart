@@ -225,19 +225,38 @@ void main() {
       final title =
           find.text(NovaStrings.lookup(english, 'playbackBackendTitle'));
       await tester.ensureVisible(title);
+      expect(find.text(NovaStrings.lookup(english, 'playbackBackendAuto')),
+          findsOneWidget);
       await tester.tap(title);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Media3 ExoPlayer'));
       await tester.pumpAndSettle();
       expect(app.webSettings['playbackBackend'], 'media3');
+      await tester.tap(title);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('libmpv').last);
+      await tester.pumpAndSettle();
+      expect(app.webSettings['playbackBackend'], 'mpv');
+      await tester.tap(title);
+      await tester.pumpAndSettle();
+      await tester.tap(
+          find.text(NovaStrings.lookup(english, 'playbackBackendAuto')).last);
+      await tester.pumpAndSettle();
+      expect(app.webSettings['playbackBackend'], 'auto');
       expect(tester.takeException(), isNull);
     }, variant: TargetPlatformVariant.only(TargetPlatform.android));
   }
-  testWidgets('iOS never offers the Android-only engine selector',
+  testWidgets('iOS shows its actual libmpv engine without Android choices',
       (tester) async {
     await tester.pumpWidget(_harness(_SettingsApp(NoorApi()),
         const SettingsPreferencesPage(subtitles: false)));
-    expect(find.text('Playback engine'), findsNothing);
+    final title = find.text('Playback engine');
+    await tester.ensureVisible(title);
+    expect(title, findsOneWidget);
+    expect(find.text('libmpv'), findsOneWidget);
+    await tester.tap(title);
+    await tester.pump();
+    expect(find.byType(BottomSheet), findsNothing);
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
 
@@ -356,6 +375,19 @@ void main() {
         TextDirection.rtl);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Media3 search opens the Android playback engine setting',
+      (tester) async {
+    final app = _SettingsApp(NoorApi());
+    await tester.pumpWidget(_harness(app, const SettingsPage()));
+    await tester.enterText(find.byType(TextField), 'Media3');
+    await tester.pump();
+    await tester.tap(find.text('Playback'));
+    await tester.pumpAndSettle();
+    expect(find.text('Playback engine'), findsOneWidget);
+    expect(find.text('Auto (ExoPlayer → libmpv)'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   for (final size in [const Size(360, 800), const Size(1200, 800)]) {
     for (final english in [true, false]) {

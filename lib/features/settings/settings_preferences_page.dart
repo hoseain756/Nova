@@ -439,9 +439,9 @@ class SettingsPreferencesPage extends StatelessWidget {
           }
         : <String, List<String>>{
             app.tr('message499'): [
-              if (useCorePlayerByDefault) 'playerImplementation',
               if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
                 'playbackBackend',
+              if (useCorePlayerByDefault) 'playerImplementation',
               'autoPlayNextEpisode',
               'resumePlayback',
               'resumePrompt',
@@ -492,6 +492,19 @@ class SettingsPreferencesPage extends StatelessWidget {
                     SettingsContentSection(title: group.key, children: [
                       if (subtitles && group.key == app.tr('message497'))
                         const SubtitleFontPicker(),
+                      if (!subtitles &&
+                          !kIsWeb &&
+                          defaultTargetPlatform == TargetPlatform.iOS &&
+                          group.key == app.tr('message499'))
+                        SettingsTile(
+                          icon: LucideIcons.circlePlay,
+                          title: app.tr('playbackBackendTitle'),
+                          subtitle: app.tr('playbackBackendIosDescription'),
+                          trailing: Text(
+                            app.tr('playbackBackendMpv'),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
                       ...group.value.map((key) => _PreferenceTile(
                           item: rows.firstWhere((row) => row.key == key))),
                     ]),
