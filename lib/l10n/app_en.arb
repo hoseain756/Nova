@@ -74,7 +74,7 @@
   "downloadDelete": "Delete download?",
   "downloadDeleteBody": "This removes the saved video from this device. Your library is kept.",
   "playOffline": "Play offline",
-  "downloadForeground": "On Android, downloads continue after closing NOVA and notify you when complete. Force stop or system limits may pause a transfer; reopen NOVA to retry. Protected streams and live playlists cannot be saved offline.",
+  "downloadForeground": "Android downloads and direct-file iPhone downloads continue in the background. On iPhone, allow notifications for progress milestones and completion. iOS can delay progress updates while NOVA is suspended; force quit or system limits may stop a transfer. Protected streams and live playlists cannot be saved offline.",
   "downloadBackgroundLimit": "Android stopped or could not start this background transfer. Open NOVA and retry.",
   "downloadInBackground": "Downloading in the background",
   "downloadCompleteNotification": "Download complete",

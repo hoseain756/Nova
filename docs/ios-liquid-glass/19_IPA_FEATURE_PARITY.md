@@ -69,12 +69,12 @@ need a new IPA/device review before runtime acceptance.
 | About page and tablet rail | About page uses the shared Flutter `SettingsAboutPage` on Android/iOS, with platform-specific update action. The About logo is centered without its former enclosing card in the next build. A 72-point icon-only Flutter rail is selected for windows at least 840 points wide when the device is not a phone; compact iPads use the dock | Rebuild, compare About on the iPhone and Android, then verify rail, labels and navigation on a physical iPad |
 | OAuth/tracking/sync | Shared services; `noor` and `app.noor.mobile` callback schemes registered in Info.plist | Real provider accounts and cold/warm callback return |
 | Sharing | `share_plus` plugin included for iOS | Native share sheet and correct shared item |
-| Direct-file offline downloads | In-process Dio worker on iOS; shared queue, cancel/retry, validation, persistence and local playback UI | Completion/cancel/retry/open/remove on a real iPhone |
-| Background direct-file downloads | **NOT IMPLEMENTED as an iOS background transfer service**; Dart worker cannot promise continuation while suspended | Implement a persisted background URLSession adapter, then test lifecycle and completion |
+| Direct-file offline downloads | New iOS jobs use native background `URLSession`; Flutter keeps local rows, secure source storage, cancel/retry/remove and offline playback UI. Older in-process rows remain readable | Codemagic native Release build, then completion/cancel/retry/open/remove on a real iPhone |
+| Background direct-file downloads | Native session is recreated at launch and iOS delivers completion through `AppDelegate`; native metadata and final video validation survive Flutter suspension | Test home/background, system termination, relaunch, interrupted network, notification denial and iOS 18/26 on real devices; force quit is not guaranteed |
 | On-device torrent playback / magnet flow | **NOT IMPLEMENTED on iOS**; no `noor/torrent` native handler. `TorrentService.isSupported` returns false. An iOS 26.6 user report confirmed that the source picker hid torrent results without Debrid; a follow-up source change keeps them visible but disabled with a reason | Requires a native iOS torrent engine and lifecycle integration; packaging cannot provide it. Rebuild and retest the visibility change |
 | On-device torrent offline download | **ANDROID ONLY**; `enqueueTorrent` rejects non-Android native capability | Requires an iOS transfer implementation; cannot reuse Android's service |
 | Debrid-backed torrent sources | Existing resolver can supply HTTP(S) URLs without local P2P | Real linked Debrid account, source resolution and download/playback |
-| Android download notifications/service | Android-specific implementation; no equivalent iOS completion-notification implementation here | Native iOS implementation and permission/device checks |
+| Download notifications | Android has its existing notification/service path. iOS requests local-notification permission at download start and schedules background progress milestones plus completion/failure notices. iOS can defer progress callbacks while suspended, so notifications are not a continuously updating live progress display | Confirm authorization, progress and completion delivery in foreground/background on a physical iPhone |
 | External magnet links | Android registers `magnet`; iOS currently registers only the two OAuth schemes and has no local torrent backend | Do not advertise external magnet/P2P parity on iOS |
 | In-app updates | Android APK manifest/install mechanism; iOS is protected from Android build-number enforcement | iOS distribution remains iLoader or a separately configured Apple distribution path |
 
@@ -105,20 +105,22 @@ it from the deployment target or build SDK.
   app, restore progress and change source/episode.
 - Select embedded/external/local subtitles, import a font, change appearance,
   test file styles and audio/subtitle offsets.
-- Download a direct video, cancel/retry it, complete/open it offline and remove it.
-  Treat background continuation as an open implementation gap.
+- Download a direct video, background NOVA, watch progress notifications, lock
+  the screen, verify the completion notification, then reopen and play offline.
+  Repeat with notification permission denied and with network interruption;
+  cancel/retry/remove. Record iOS behavior after system termination separately
+  from user force-quit.
 - Link each used provider, complete its callback, and verify synced progress.
 - Check iOS 18 Flutter chrome and newer iPhone native chrome independently.
 
 Full Android/iOS feature parity remains **NOT ACHIEVED** while the native torrent
-and background-download gaps above remain open. A successful Release build must
+gap and iOS device acceptance remain open. A successful Release build alone must
 not change that status.
 
 ## Platform references
 
 - [Apple: downloading files in the background](https://developer.apple.com/documentation/foundation/downloading-files-in-the-background)
-  describes a background URLSession implementation; it is not present in NOVA's
-  current iOS host.
+  defines the native URLSession lifecycle implemented in the iOS host.
 - [Apple: background session configuration](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/background(withidentifier:))
   distinguishes system termination from user force-quit. Even a future iOS
   background-download implementation must respect those lifecycle rules.

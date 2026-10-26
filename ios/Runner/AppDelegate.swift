@@ -4,12 +4,30 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var chromeChannel: FlutterMethodChannel?
+  private var downloadsChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    NovaBackgroundDownloads.shared.startAtLaunch()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    if !NovaBackgroundDownloads.shared.acceptBackgroundEvents(
+      identifier: identifier, completionHandler: completionHandler
+    ) {
+      super.application(
+        application,
+        handleEventsForBackgroundURLSession: identifier,
+        completionHandler: completionHandler
+      )
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
@@ -21,6 +39,13 @@ import UIKit
       name: "nova/ios_chrome/v1",
       binaryMessenger: registrar.messenger()
     )
+    downloadsChannel = FlutterMethodChannel(
+      name: "nova/ios_downloads",
+      binaryMessenger: registrar.messenger()
+    )
+    downloadsChannel?.setMethodCallHandler { call, result in
+      NovaBackgroundDownloads.shared.handle(call, result: result)
+    }
     chromeChannel?.setMethodCallHandler { [weak self] call, result in
       switch call.method {
       case "getCapabilities":

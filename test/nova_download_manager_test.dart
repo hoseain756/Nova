@@ -48,9 +48,11 @@ class _Store {
   DownloadManager manager(
     _Adapter adapter, {
     bool nativeTorrentDownloads = false,
+    bool nativeIosDownloads = false,
   }) =>
       DownloadManager.forTesting(
         nativeTorrentDownloads: nativeTorrentDownloads,
+        nativeIosDownloads: nativeIosDownloads,
         downloadDirectory: () async => root,
         readMetadata: () async {
           reads++;
@@ -78,6 +80,7 @@ class _Store {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const native = MethodChannel('nova/torrent_downloads');
+  const iosNative = MethodChannel('nova/ios_downloads');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late Directory sandbox;
@@ -117,9 +120,11 @@ void main() {
   DownloadManager make(
     _Adapter adapter, {
     bool nativeTorrentDownloads = false,
+    bool nativeIosDownloads = false,
   }) {
-    final manager =
-        store.manager(adapter, nativeTorrentDownloads: nativeTorrentDownloads);
+    final manager = store.manager(adapter,
+        nativeTorrentDownloads: nativeTorrentDownloads,
+        nativeIosDownloads: nativeIosDownloads);
     managers.add(manager);
     return manager;
   }
@@ -131,6 +136,82 @@ void main() {
       trackers: ['https://tracker.test/announce']);
   tearDown(() {
     messenger.setMockMethodCallHandler(native, null);
+    messenger.setMockMethodCallHandler(iosNative, null);
+  });
+
+  test(
+      'iOS system transfer survives Dart disposal and restores a verified file',
+      () async {
+    final calls = <MethodCall>[];
+    var state = 'downloading';
+    var received = 12;
+    messenger.setMockMethodCallHandler(iosNative, (call) async {
+      calls.add(call);
+      if (call.method == 'query') {
+        return {'status': state, 'received': received, 'total': _video.length};
+      }
+      return null;
+    });
+    final adapter = _Adapter((_, __) async => _response(_video));
+    final manager = make(adapter, nativeIosDownloads: true);
+    await manager.enqueue(
+        url: 'https://example.test/movie.mp4?token=secret',
+        title: 'Movie',
+        english: true,
+        headers: {'Authorization': 'Bearer secret'});
+    final job = manager.jobs.single;
+    final enqueue = calls.singleWhere((call) => call.method == 'enqueue');
+    expect(enqueue.arguments['id'], job.id);
+    expect(enqueue.arguments['labels']['complete'], 'Download complete');
+    expect(enqueue.arguments['headers']['Authorization'], 'Bearer secret');
+    expect(adapter.requests, isEmpty);
+    expect(store.metadata, isNot(contains('secret')));
+    await manager.refreshSystemDownloads();
+    expect(job.received, received);
+    manager.dispose();
+    managers.remove(manager);
+    expect(calls.where((call) => call.method == 'cancel'), isEmpty);
+
+    await File(job.path).writeAsBytes(_video);
+    state = 'complete';
+    received = _video.length;
+    final restored = make(adapter, nativeIosDownloads: true);
+    await restored.initialize();
+    expect(restored.jobs.single.status, 'complete');
+    expect(restored.jobs.single.received, _video.length);
+    expect(adapter.requests, isEmpty);
+    await restored.remove(restored.jobs.single);
+    expect(calls.last.method, 'remove');
+    expect(await File(job.path).exists(), isFalse);
+  });
+
+  test('iOS cancel and retry stay native and reject false completion',
+      () async {
+    final calls = <String>[];
+    var state = 'downloading';
+    messenger.setMockMethodCallHandler(iosNative, (call) async {
+      calls.add(call.method);
+      if (call.method == 'enqueue') state = 'downloading';
+      if (call.method == 'cancel') state = 'cancelled';
+      if (call.method == 'query') {
+        return {'status': state, 'received': 64, 'total': 64};
+      }
+      return null;
+    });
+    final adapter = _Adapter((_, __) async => _response(_video));
+    final manager = make(adapter, nativeIosDownloads: true);
+    await manager.enqueue(url: 'https://example.test/a.mkv', title: 'Episode');
+    final job = manager.jobs.single;
+    await manager.cancel(job);
+    expect(job.status, 'cancelled');
+    await manager.retry(job);
+    expect(job.status, 'downloading');
+    expect(calls.where((method) => method == 'enqueue').length, 2);
+    expect(adapter.requests, isEmpty);
+    state = 'complete';
+    await manager.refreshSystemDownloads();
+    expect(job.status, 'failed');
+    expect(job.error, 'missingFile');
   });
 
   test(

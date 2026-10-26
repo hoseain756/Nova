@@ -24,7 +24,9 @@ class NovaDownload {
       this.total = 0,
       this.error,
       this.systemId,
-      this.sourceType = 'http'});
+      this.sourceType = 'http',
+      this.iosBackground = false,
+      this.english = false});
   final String id, title, path;
   String status;
   int received, total;
@@ -35,6 +37,8 @@ class NovaDownload {
   /// Android DownloadManager id. Null for legacy and non-Android jobs.
   int? systemId;
   final String sourceType;
+  final bool iosBackground;
+  final bool english;
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -45,6 +49,8 @@ class NovaDownload {
         if (error != null) 'error': error,
         if (systemId != null) 'systemId': systemId,
         if (sourceType != 'http') 'sourceType': sourceType,
+        if (iosBackground) 'iosBackground': true,
+        if (english) 'english': true,
       };
   factory NovaDownload.fromJson(Map<String, dynamic> json) => NovaDownload(
       id: json['id'] as String,
@@ -55,7 +61,9 @@ class NovaDownload {
       total: (json['total'] as num?)?.toInt() ?? 0,
       error: json['error'] as String?,
       systemId: (json['systemId'] as num?)?.toInt(),
-      sourceType: json['sourceType'] == 'torrent' ? 'torrent' : 'http');
+      sourceType: json['sourceType'] == 'torrent' ? 'torrent' : 'http',
+      iosBackground: json['iosBackground'] == true,
+      english: json['english'] == true);
 }
 
 /// Standalone video downloads. Sources stay in secure storage; metadata is local.
@@ -97,6 +105,7 @@ class DownloadManager extends ChangeNotifier {
     required Future<void> Function(String) deleteSecret,
     required Dio dio,
     bool nativeTorrentDownloads = false,
+    bool nativeIosDownloads = false,
   }) : this._withDependencies(
             downloadDirectory: downloadDirectory,
             readMetadata: readMetadata,
@@ -105,7 +114,8 @@ class DownloadManager extends ChangeNotifier {
             writeSecret: writeSecret,
             deleteSecret: deleteSecret,
             dio: dio,
-            nativeTorrentDownloads: nativeTorrentDownloads);
+            nativeTorrentDownloads: nativeTorrentDownloads,
+            nativeIosDownloads: nativeIosDownloads);
 
   DownloadManager._withDependencies({
     required Future<Directory> Function() downloadDirectory,
@@ -116,6 +126,7 @@ class DownloadManager extends ChangeNotifier {
     required Future<void> Function(String) deleteSecret,
     Dio? dio,
     bool? nativeTorrentDownloads,
+    bool? nativeIosDownloads,
   })  : _downloadDirectory = downloadDirectory,
         _readMetadata = readMetadata,
         _writeMetadata = writeMetadata,
@@ -123,6 +134,7 @@ class DownloadManager extends ChangeNotifier {
         _writeSecret = writeSecret,
         _deleteSecret = deleteSecret,
         _nativeTorrentDownloads = nativeTorrentDownloads ?? Platform.isAndroid,
+        _nativeIosDownloads = nativeIosDownloads ?? Platform.isIOS,
         _dio = dio ??
             Dio(BaseOptions(
                 connectTimeout: const Duration(seconds: 20),
@@ -133,6 +145,7 @@ class DownloadManager extends ChangeNotifier {
   static const _metadataKey = 'nova.downloads.v1';
   static const _systemChannel = MethodChannel('nova/downloads');
   static const _torrentChannel = MethodChannel('nova/torrent_downloads');
+  static const _iosChannel = MethodChannel('nova/ios_downloads');
   static final _idPattern = RegExp(
       r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
       caseSensitive: false);
@@ -146,6 +159,7 @@ class DownloadManager extends ChangeNotifier {
   final Future<void> Function(String) _deleteSecret;
   final Dio _dio;
   final bool _nativeTorrentDownloads;
+  final bool _nativeIosDownloads;
   final _jobs = <NovaDownload>[];
   Future<void>? _initializing, _pumpFuture;
   Future<void> _operations = Future<void>.value();
@@ -242,6 +256,9 @@ class DownloadManager extends ChangeNotifier {
             } else if (job.systemId != null) {
               await _refreshSystemJob(job);
               repaired = true;
+            } else if (_usesIosBackground(job)) {
+              await _refreshIosJob(job);
+              repaired = true;
             } else if (job.status == 'queued' || job.status == 'downloading') {
               job.status = 'failed';
               job.error = 'interrupted';
@@ -288,6 +305,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> enqueue(
           {required String url,
           required String title,
+          bool english = false,
           Map<String, String> headers = const {}}) =>
       _serial(() async {
         final uri = _validateSource(url, headers);
@@ -297,7 +315,9 @@ class DownloadManager extends ChangeNotifier {
         final job = NovaDownload(
             id: id,
             title: title,
-            path: '${_root!.path}${Platform.pathSeparator}$id.$extension');
+            path: '${_root!.path}${Platform.pathSeparator}$id.$extension',
+            iosBackground: _nativeIosDownloads,
+            english: english);
         if (!await _managedPath(job)) {
           throw const FileSystemException('Unsafe download destination');
         }
@@ -342,6 +362,8 @@ class DownloadManager extends ChangeNotifier {
             _notify();
             rethrow;
           }
+        } else if (_usesIosBackground(job)) {
+          await _startIosDownload(job);
         } else {
           _startPump();
         }
@@ -422,6 +444,9 @@ class DownloadManager extends ChangeNotifier {
           job.systemId = null;
           await _deleteManagedFile(job);
         }
+        if (_usesIosBackground(job)) {
+          await _deleteManagedFile(job);
+        }
         if (!await _managedPath(job)) {
           throw const FileSystemException('Unsafe download destination');
         }
@@ -474,6 +499,8 @@ class DownloadManager extends ChangeNotifier {
           }
         } else if (_usesNativeTorrent(job)) {
           await _startNativeTorrent(job);
+        } else if (_usesIosBackground(job)) {
+          await _startIosDownload(job);
         } else {
           _startPump();
         }
@@ -481,6 +508,7 @@ class DownloadManager extends ChangeNotifier {
 
   Future<void> cancel(NovaDownload job) => _serial(() async {
         if (!_jobs.contains(job) || job.status == 'complete') return;
+        final previousStatus = job.status;
         job.status = 'cancelled';
         job.error = null;
         _notify();
@@ -488,6 +516,15 @@ class DownloadManager extends ChangeNotifier {
         if (_usesNativeTorrent(job)) {
           await _torrentChannel.invokeMethod<void>('cancel', {'id': job.id});
           await _refreshNativeTorrent(job);
+        }
+        if (_usesIosBackground(job)) {
+          try {
+            await _iosChannel.invokeMethod<void>('cancel', {'id': job.id});
+          } catch (_) {
+            job.status = previousStatus;
+            _notify();
+            rethrow;
+          }
         }
         if (job.systemId != null) {
           await _systemChannel
@@ -505,6 +542,9 @@ class DownloadManager extends ChangeNotifier {
         await _settleActive(job);
         if (_usesNativeTorrent(job)) {
           await _torrentChannel.invokeMethod<void>('remove', {'id': job.id});
+        }
+        if (_usesIosBackground(job)) {
+          await _iosChannel.invokeMethod<void>('remove', {'id': job.id});
         }
         if (job.systemId != null) {
           await _systemChannel
@@ -557,6 +597,90 @@ class DownloadManager extends ChangeNotifier {
 
   bool _usesNativeTorrent(NovaDownload job) =>
       _nativeTorrentDownloads && job.sourceType == 'torrent';
+
+  bool _usesIosBackground(NovaDownload job) =>
+      _nativeIosDownloads && job.iosBackground && job.sourceType == 'http';
+
+  Future<void> _startIosDownload(NovaDownload job) async {
+    try {
+      final raw = await _readSecret('nova.download.${job.id}');
+      if (raw == null) throw const FormatException('Missing download source');
+      final source = jsonDecode(raw) as Map;
+      final url = source['url'] as String;
+      final headers =
+          Map<String, String>.from(source['headers'] as Map? ?? const {});
+      _validateSource(url, headers);
+      await _iosChannel.invokeMethod<void>('enqueue', {
+        'id': job.id,
+        'title': job.title,
+        'fileName': job.path.split(Platform.pathSeparator).last,
+        'url': url,
+        'headers': headers,
+        'labels': {
+          'progress': NovaStrings.lookup(job.english, 'downloadInBackground'),
+          'complete':
+              NovaStrings.lookup(job.english, 'downloadCompleteNotification'),
+          'stopped':
+              NovaStrings.lookup(job.english, 'downloadStoppedNotification'),
+        },
+      });
+      job.status = 'downloading';
+      job.error = null;
+      await _persistSafely();
+    } catch (error) {
+      job.status = 'failed';
+      job.error = error is FormatException ||
+              (error is PlatformException && error.code == 'invalid_source')
+          ? 'invalidSource'
+          : error is FileSystemException ||
+                  (error is PlatformException && error.code == 'storage')
+              ? 'storage'
+              : 'network';
+      await _persistSafely();
+      rethrow;
+    } finally {
+      _notify();
+    }
+  }
+
+  Future<bool> _refreshIosJob(NovaDownload job) async {
+    final previous = (job.status, job.received, job.total, job.error);
+    try {
+      final row = await _iosChannel
+          .invokeMapMethod<String, dynamic>('query', {'id': job.id});
+      if (row == null) {
+        job.status = 'failed';
+        job.error = 'interrupted';
+      } else {
+        final status = row['status'] as String?;
+        job.status = {
+          'queued',
+          'downloading',
+          'cancelled',
+          'complete',
+          'failed'
+        }.contains(status)
+            ? status!
+            : 'failed';
+        job.received =
+            ((row['received'] as num?)?.toInt() ?? 0).clamp(0, 1 << 60).toInt();
+        job.total =
+            ((row['total'] as num?)?.toInt() ?? 0).clamp(0, 1 << 60).toInt();
+        job.error = row['error'] as String?;
+        if (job.status == 'complete' &&
+            (!await _isVideoFile(File(job.path)) ||
+                job.total <= 0 ||
+                await File(job.path).length() != job.total)) {
+          job.status = 'failed';
+          job.error = 'missingFile';
+        }
+      }
+    } catch (_) {
+      // The OS-owned transfer continues even if Flutter cannot query it.
+      return false;
+    }
+    return previous != (job.status, job.received, job.total, job.error);
+  }
 
   Future<void> _startNativeTorrent(NovaDownload job) async {
     try {
@@ -634,11 +758,15 @@ class DownloadManager extends ChangeNotifier {
   Future<void> refreshSystemDownloads() => _serial(() async {
         var changed = false;
         for (final job in _jobs.where((job) =>
-            (job.systemId != null || _usesNativeTorrent(job)) &&
+            (job.systemId != null ||
+                _usesNativeTorrent(job) ||
+                _usesIosBackground(job)) &&
             (job.status == 'queued' || job.status == 'downloading'))) {
           changed = (_usesNativeTorrent(job)
                   ? await _refreshNativeTorrent(job)
-                  : await _refreshSystemJob(job)) ||
+                  : _usesIosBackground(job)
+                      ? await _refreshIosJob(job)
+                      : await _refreshSystemJob(job)) ||
               changed;
         }
         if (changed) {
@@ -694,7 +822,8 @@ class DownloadManager extends ChangeNotifier {
   bool _queuedLocally(NovaDownload job) =>
       job.status == 'queued' &&
       !_usesAndroidSystem(job) &&
-      !_usesNativeTorrent(job);
+      !_usesNativeTorrent(job) &&
+      !_usesIosBackground(job);
 
   void _startPump() {
     if (_disposed || _pumpFuture != null) return;

@@ -53,6 +53,11 @@ final class NoorLinkForwarder: NSObject, FlutterStreamHandler {
 class SceneDelegate: FlutterSceneDelegate {
     private var chromeOverlay: NovaChromeOverlay?
 
+    override func sceneDidEnterBackground(_ scene: UIScene) {
+        NovaBackgroundDownloads.shared.publishProgressSnapshots()
+        super.sceneDidEnterBackground(scene)
+    }
+
     var canPresentChrome: Bool {
         if #available(iOS 26.0, *) {
             return UIDevice.current.userInterfaceIdiom == .phone

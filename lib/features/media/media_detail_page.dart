@@ -557,8 +557,11 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     try {
       final source = parsePlaybackSource(picked);
       if (source != null && source.url.startsWith('http')) {
-        await DownloadManager.instance
-            .enqueue(url: source.url, title: title, headers: source.headers);
+        await DownloadManager.instance.enqueue(
+            url: source.url,
+            title: title,
+            headers: source.headers,
+            english: app.english);
       } else {
         final magnet =
             source?.url.startsWith('magnet:') == true ? source!.url : null;
@@ -572,7 +575,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
               filesize: hints.filesize);
         }
         if (resolved != null && resolved.isNotEmpty) {
-          await DownloadManager.instance.enqueue(url: resolved, title: title);
+          await DownloadManager.instance
+              .enqueue(url: resolved, title: title, english: app.english);
         } else {
           if (app.webSettings['p2pEnabled'] == false ||
               !await TorrentService.instance.isSupported) {
