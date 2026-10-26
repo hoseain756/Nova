@@ -386,12 +386,14 @@ void main() {
     await first.enqueue(
         url: 'https://video.example/movie.mp4?token=private',
         title: 'Movie',
+        poster: 'https://images.example/movie.jpg',
         headers: {'Authorization': 'Bearer saved'});
     await first.waitForIdle();
     expect(first.jobs.single.status, 'failed');
     final adapter = _Adapter((_, __) async => _response(_video));
     final restored = make(adapter);
     await restored.initialize();
+    expect(restored.jobs.single.poster, 'https://images.example/movie.jpg');
     await restored.retry(restored.jobs.single);
     await restored.waitForIdle();
     expect(restored.jobs.single.status, 'complete');

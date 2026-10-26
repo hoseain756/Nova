@@ -11,8 +11,10 @@ import 'package:nova_mobile/core/downloads/download_manager.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/features/downloads/downloads_page.dart';
+import 'package:nova_mobile/features/downloads/downloads_view.dart';
 import 'package:nova_mobile/features/onboarding/onboarding_page.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
+import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:provider/provider.dart';
 
 class _FlowApp extends AppState {
@@ -174,6 +176,37 @@ Widget _downloadsHarness({
     );
 
 void main() {
+  testWidgets('download row uses saved poster artwork when available',
+      (tester) async {
+    final job = NovaDownload(
+      id: '44444444-4444-4444-8444-444444444444',
+      title: 'Movie with artwork',
+      path: 'movie.mp4',
+      poster: 'https://images.example/poster.jpg',
+      status: 'complete',
+    );
+    await tester.pumpWidget(MaterialApp(
+      theme: NovaTheme.dark,
+      locale: const Locale('en'),
+      supportedLocales: const [Locale('en'), Locale('ar')],
+      localizationsDelegates: const [
+        NovaStrings.delegate,
+        ...GlobalMaterialLocalizations.delegates,
+      ],
+      home: Scaffold(
+        body: DownloadRow(
+          job: job,
+          onPlay: () {},
+          onCancel: () {},
+          onRetry: () {},
+          onRemove: () {},
+        ),
+      ),
+    ));
+    expect(find.byType(NovaNetworkImage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   const scenarios = <({
     String name,
     Size size,
@@ -203,6 +236,12 @@ void main() {
       size: Size(740, 320),
       english: false,
       brightness: Brightness.dark,
+    ),
+    (
+      name: 'Arabic light tablet at 200%',
+      size: Size(1200, 800),
+      english: false,
+      brightness: Brightness.light,
     ),
   ];
 

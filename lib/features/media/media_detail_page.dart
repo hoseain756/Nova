@@ -554,12 +554,18 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final title = video == null
         ? item.name
         : '${item.name} · S${video['season']}:E${video['episode']}';
+    final itemPoster = item.poster?.trim();
+    final poster = itemPoster?.isNotEmpty == true
+        ? itemPoster
+        : (video?['thumbnail'] ?? video?['thumb'] ?? item.background)
+            ?.toString();
     try {
       final source = parsePlaybackSource(picked);
       if (source != null && source.url.startsWith('http')) {
         await DownloadManager.instance.enqueue(
             url: source.url,
             title: title,
+            poster: poster,
             headers: source.headers,
             english: app.english);
       } else {
@@ -575,8 +581,11 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
               filesize: hints.filesize);
         }
         if (resolved != null && resolved.isNotEmpty) {
-          await DownloadManager.instance
-              .enqueue(url: resolved, title: title, english: app.english);
+          await DownloadManager.instance.enqueue(
+              url: resolved,
+              title: title,
+              poster: poster,
+              english: app.english);
         } else {
           if (app.webSettings['p2pEnabled'] == false ||
               !await TorrentService.instance.isSupported) {
@@ -584,7 +593,11 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                 'unavailable', 'Torrent downloads unavailable');
           }
           await DownloadManager.instance.enqueueTorrent(
-              hints: hints, title: title, magnet: magnet, english: app.english);
+              hints: hints,
+              title: title,
+              poster: poster,
+              magnet: magnet,
+              english: app.english);
         }
       }
       if (mounted) {

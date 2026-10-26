@@ -19,6 +19,7 @@ class NovaDownload {
       {required this.id,
       required this.title,
       required this.path,
+      this.poster,
       this.status = 'queued',
       this.received = 0,
       this.total = 0,
@@ -28,6 +29,7 @@ class NovaDownload {
       this.iosBackground = false,
       this.english = false});
   final String id, title, path;
+  final String? poster;
   String status;
   int received, total;
 
@@ -43,6 +45,7 @@ class NovaDownload {
         'id': id,
         'title': title,
         'path': path,
+        if (poster != null && poster!.isNotEmpty) 'poster': poster,
         'status': status,
         'received': received,
         'total': total,
@@ -56,6 +59,7 @@ class NovaDownload {
       id: json['id'] as String,
       title: json['title'] as String,
       path: json['path'] as String,
+      poster: json['poster'] is String ? json['poster'] as String : null,
       status: json['status'] as String? ?? 'failed',
       received: (json['received'] as num?)?.toInt() ?? 0,
       total: (json['total'] as num?)?.toInt() ?? 0,
@@ -305,6 +309,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> enqueue(
           {required String url,
           required String title,
+          String? poster,
           bool english = false,
           Map<String, String> headers = const {}}) =>
       _serial(() async {
@@ -315,6 +320,7 @@ class DownloadManager extends ChangeNotifier {
         final job = NovaDownload(
             id: id,
             title: title,
+            poster: poster,
             path: '${_root!.path}${Platform.pathSeparator}$id.$extension',
             iosBackground: _nativeIosDownloads,
             english: english);
@@ -373,6 +379,7 @@ class DownloadManager extends ChangeNotifier {
   Future<void> enqueueTorrent({
     required TorrentStreamHints hints,
     required String title,
+    String? poster,
     String? magnet,
     bool english = false,
   }) =>
@@ -391,6 +398,7 @@ class DownloadManager extends ChangeNotifier {
         final job = NovaDownload(
             id: id,
             title: title,
+            poster: poster,
             path: '${_root!.path}${Platform.pathSeparator}$id.$extension',
             sourceType: 'torrent');
         if (!await _managedPath(job)) {
