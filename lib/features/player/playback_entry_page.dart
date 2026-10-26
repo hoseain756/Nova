@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/state/app_state.dart';
 import '../../core/torrent/torrent_models.dart';
 import 'core_video_player_page.dart';
 import 'session/playback_state.dart';
 import 'video_player_page.dart';
 
 /// Chooses once before allocating either playback implementation.
+const bool useCorePlayerByDefault =
+    bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true);
+
+bool selectedCorePlayer(Map<String, dynamic> settings) =>
+    useCorePlayerByDefault && settings['playerImplementation'] != 'legacy';
+
 class PlaybackEntryPage extends StatefulWidget {
   const PlaybackEntryPage({
     super.key,
@@ -23,8 +31,7 @@ class PlaybackEntryPage extends StatefulWidget {
     this.filename,
     this.torrent,
     this.recordProgress = true,
-    this.useCore =
-        const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true),
+    this.useCore,
   });
 
   final MediaItem item;
@@ -51,7 +58,7 @@ class PlaybackEntryPage extends StatefulWidget {
   /// Prepared on-device torrent stream (when source was an infoHash).
   final PreparedTorrent? torrent;
   final bool recordProgress;
-  final bool useCore;
+  final bool? useCore;
 
   @override
   State<PlaybackEntryPage> createState() => _PlaybackEntryPageState();
@@ -74,7 +81,9 @@ class _PlaybackEntryPageState extends State<PlaybackEntryPage> {
         torrent: widget.torrent,
         recordProgress: widget.recordProgress,
       ),
-      useCore: widget.useCore);
+      useCore: useCorePlayerByDefault &&
+          (widget.useCore ??
+              selectedCorePlayer(context.read<AppState>().webSettings)));
 
   @override
   Widget build(BuildContext context) => _page;

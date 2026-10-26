@@ -7,6 +7,7 @@ abstract final class NovaColors {
   static const redSoft = Color(0xFFE8858D);
   static const blush = Color(0xFFF9E4E6);
   static const ink = Color(0xFF141417);
+  static const oledBlack = Color(0xFF000000);
   static const graphite = Color(0xFF232329);
   static const surfaceHigh = Color(0xFF2E2E35);
   static const divider = Color(0xFF3A3A42);
@@ -62,10 +63,15 @@ class NovaPalette {
 abstract final class NovaTheme {
   static NovaPalette of(BuildContext context) => NovaPalette(Theme.of(context));
   static final dark = build(Brightness.dark);
+  static final darkOled = build(Brightness.dark, oled: true);
   static final light = build(Brightness.light);
 
-  static ThemeData build(Brightness brightness, {bool arabic = false}) {
+  static ThemeData build(Brightness brightness,
+      {bool arabic = false, bool oled = false}) {
     final dark = brightness == Brightness.dark;
+    final oledDark = dark && oled;
+    final canvas = oledDark ? NovaColors.oledBlack : NovaColors.ink;
+    final surface = oledDark ? NovaColors.oledBlack : NovaColors.graphite;
     final text = dark ? NovaColors.white : NovaColors.ink;
     final muted = dark ? NovaColors.mist : NovaColors.lightTextSecondary;
     final accent = dark ? NovaColors.redSoft : NovaColors.lightAccent;
@@ -85,12 +91,13 @@ abstract final class NovaTheme {
       onError: dark ? NovaColors.ink : NovaColors.white,
       errorContainer: dark ? NovaColors.redDeep : NovaColors.blush,
       onErrorContainer: dark ? NovaColors.white : NovaColors.redDeep,
-      surface: dark ? NovaColors.graphite : NovaColors.white,
+      surface: dark ? surface : NovaColors.white,
       onSurface: text,
-      surfaceContainerLowest: dark ? NovaColors.ink : NovaColors.white,
-      surfaceContainerLow:
-          dark ? NovaColors.graphite : NovaColors.lightBackground,
-      surfaceContainer: dark ? NovaColors.graphite : NovaColors.lightBackground,
+      surfaceContainerLowest: dark ? canvas : NovaColors.white,
+      surfaceContainerLow: dark ? surface : NovaColors.lightBackground,
+      surfaceContainer: dark
+          ? (oledDark ? NovaColors.ink : NovaColors.graphite)
+          : NovaColors.lightBackground,
       surfaceContainerHigh:
           dark ? NovaColors.surfaceHigh : NovaColors.lightBackground,
       // Keep small accent text AA-readable even on the highest surface.
@@ -98,12 +105,12 @@ abstract final class NovaTheme {
       surfaceContainerHighest: Color.alphaBlend(
           (dark ? NovaColors.divider : NovaColors.lightDivider)
               .withValues(alpha: .8),
-          dark ? NovaColors.ink : NovaColors.white),
+          dark ? canvas : NovaColors.white),
       onSurfaceVariant: muted,
       outline: muted,
       outlineVariant: dark ? NovaColors.divider : NovaColors.lightDivider,
-      shadow: NovaColors.ink,
-      scrim: NovaColors.ink,
+      shadow: canvas,
+      scrim: canvas,
       inverseSurface: dark ? NovaColors.white : NovaColors.graphite,
       onInverseSurface: dark ? NovaColors.ink : NovaColors.white,
       inversePrimary: dark ? NovaColors.lightAccent : NovaColors.redSoft,
@@ -162,8 +169,7 @@ abstract final class NovaTheme {
       fontFamilyFallback: const ['IBMPlexSansArabic', 'Poppins'],
       textTheme: textTheme,
       primaryTextTheme: textTheme,
-      scaffoldBackgroundColor:
-          dark ? NovaColors.ink : NovaColors.lightBackground,
+      scaffoldBackgroundColor: dark ? canvas : NovaColors.lightBackground,
       canvasColor: scheme.surface,
       cardColor: scheme.surface,
       dividerColor: scheme.outlineVariant,
@@ -172,7 +178,7 @@ abstract final class NovaTheme {
       splashFactory: InkRipple.splashFactory,
       iconTheme: IconThemeData(color: text, size: 22),
       appBarTheme: AppBarTheme(
-          backgroundColor: dark ? NovaColors.ink : NovaColors.lightBackground,
+          backgroundColor: dark ? canvas : NovaColors.lightBackground,
           foregroundColor: text,
           elevation: 0,
           scrolledUnderElevation: 0,
@@ -268,7 +274,7 @@ abstract final class NovaTheme {
           surfaceTintColor: Colors.transparent,
           showDragHandle: true,
           elevation: 0,
-          modalBarrierColor: NovaColors.ink.withValues(alpha: .72),
+          modalBarrierColor: scheme.scrim.withValues(alpha: .72),
           shape: const RoundedRectangleBorder(
               borderRadius:
                   BorderRadiusDirectional.vertical(top: Radius.circular(24)))),

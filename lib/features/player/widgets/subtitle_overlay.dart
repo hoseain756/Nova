@@ -14,17 +14,14 @@ import '../engine/playback_engine.dart';
 /// the settings map (`webSettings` / the live sheet values) with safe
 /// defaults + clamps so corrupt or missing keys can never break rendering.
 ///
-/// Why a Flutter-side style at all: media_kit is created with the default
-/// `PlayerConfiguration(libass: false)` → mpv runs with `sub-visibility=no`,
-/// so libmpv renders nothing and the subtitle text is delivered as plain
-/// lines on `player.stream.subtitle`. Styling therefore lives entirely in
-/// [SubtitleOverlay]; mpv keeps ownership of timing (`sub-delay`) and track
-/// selection only. Writing mpv `sub-color`/`sub-font-size`/… would style a
-/// renderer that is not visible — the exact bug this class replaces.
+/// The Flutter overlay applies this style while native file styling is off.
+/// The opt-in file-style mode delegates text rendering to libass so ASS/SSA
+/// positioning, font weight, and other supported file styles can survive.
 class SubtitleStyle {
   const SubtitleStyle({
     this.fontSize = 28,
     this.bold = false,
+    this.useFileStyling = false,
     this.color = NovaColors.white,
     this.borderColor = NovaColors.ink,
     this.borderSize = 0,
@@ -42,6 +39,7 @@ class SubtitleStyle {
   /// Reference pixel size at ≤1080p (scaled down on larger surfaces).
   final int fontSize;
   final bool bold;
+  final bool useFileStyling;
   FontWeight get fontWeight => bold ? FontWeight.w700 : FontWeight.normal;
   final Color color;
   final Color borderColor;
@@ -120,10 +118,11 @@ class SubtitleStyle {
 
   /// Parses the app settings map (keys: subFontSize, subFontColor, subStyle,
   /// subBorderColor, subBorderSize, subBackgroundOpacity, subPos,
-  /// subFontFamily, subFontBold).
+  /// subFontFamily, subFontBold, subUseFileStyle).
   factory SubtitleStyle.fromMap(Map<String, Object?> map) => SubtitleStyle(
         fontSize: _int(map, 'subFontSize', 28, 14, 64),
         bold: map['subFontBold'] == true,
+        useFileStyling: map['subUseFileStyle'] == true,
         color: _color(map['subFontColor'], NovaColors.white),
         borderColor: _color(map['subBorderColor'], NovaColors.ink),
         borderSize: _int(map, 'subBorderSize', 0, 0, 8),
@@ -137,6 +136,7 @@ class SubtitleStyle {
   static const Set<String> settingsKeys = {
     'subFontSize',
     'subFontBold',
+    'subUseFileStyle',
     'subFontColor',
     'subStyle',
     'subBorderColor',
@@ -200,10 +200,10 @@ class SubtitleStyle {
 ///
 /// Replaces media_kit's built-in `SubtitleView` (whose TextStyle is a
 /// compile-time constant, so no user setting could ever reach the screen).
-/// Every visual change flows through the [style] listenable — updates appear
-/// on the running video immediately, with no restart, no re-open and no
-/// episode exit. Text source: mpv itself (embedded + external tracks alike),
-/// already shifted by `sub-delay` for the timing offset.
+/// Every manual visual change flows through [style]. When native file styling
+/// becomes active, this overlay steps aside and libass renders the selected
+/// track in the existing video surface. Text source: mpv itself (embedded +
+/// external tracks alike), already shifted by `sub-delay`.
 class SubtitleOverlay extends StatefulWidget {
   const SubtitleOverlay({
     super.key,
@@ -260,26 +260,33 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
   Widget build(BuildContext context) {
     return IgnorePointer(
       // Never steal gestures from the player chrome beneath.
-      child: ValueListenableBuilder<SubtitleStyle>(
-        valueListenable: widget.style,
-        builder: (context, style, _) {
-          final text = [
-            for (final line in _lines)
-              if (line.trim().isNotEmpty) line.trim(),
-          ].join('\n');
-          if (text.isEmpty) return const SizedBox.shrink();
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final scale = SubtitleStyle.scaleFactor(
-                Size(constraints.maxWidth, constraints.maxHeight),
-              );
-              return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Align(
-                  alignment: style.alignment,
-                  child: _render(style, text, style.fontSizeAt(scale), scale),
-                ),
+      child: ValueListenableBuilder<bool>(
+        valueListenable: widget.engine.fileSubtitleRendering,
+        builder: (context, nativeStyleActive, _) {
+          if (nativeStyleActive) return const SizedBox.shrink();
+          return ValueListenableBuilder<SubtitleStyle>(
+            valueListenable: widget.style,
+            builder: (context, style, _) {
+              final text = [
+                for (final line in _lines)
+                  if (line.trim().isNotEmpty) line.trim(),
+              ].join('\n');
+              if (text.isEmpty) return const SizedBox.shrink();
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  final scale = SubtitleStyle.scaleFactor(
+                    Size(constraints.maxWidth, constraints.maxHeight),
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                    child: Align(
+                      alignment: style.alignment,
+                      child:
+                          _render(style, text, style.fontSizeAt(scale), scale),
+                    ),
+                  );
+                },
               );
             },
           );

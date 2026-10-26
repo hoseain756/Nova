@@ -18,8 +18,8 @@ workflows:
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter pub get"
       - name: Analyze Flutter source
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter analyze --no-pub"
-      - name: Test iOS presentation contract
-        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter test --no-pub test/ios_chrome_bridge_test.dart"
+      - name: Run all Flutter unit and widget tests
+        script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter test --no-pub"
       - name: Verify iOS 15 deployment settings
         script: |
           test "$(grep -c 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;' ios/Runner.xcodeproj/project.pbxproj)" -eq 6

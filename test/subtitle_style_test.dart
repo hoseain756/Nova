@@ -10,6 +10,7 @@ void main() {
       final s = SubtitleStyle.fromMap({});
       expect(s.fontSize, 28);
       expect(s.bold, isFalse);
+      expect(s.useFileStyling, isFalse);
       expect(s.fontWeight, FontWeight.normal);
       expect(s.color, const Color(0xFFFFFFFF));
       expect(s.borderColor, NovaColors.ink);
@@ -58,6 +59,14 @@ void main() {
     expect(SubtitleStyle.fromMap({'subFontBold': false}).fontWeight,
         FontWeight.normal);
     expect(SubtitleStyle.fromMap({'subFontBold': 'true'}).bold, isFalse);
+  });
+
+  test('file style preference is projected and accepts only true', () {
+    const settings = {'subUseFileStyle': true};
+    expect(SubtitleStyle.valuesFrom(settings), settings);
+    expect(SubtitleStyle.fromMap(settings).useFileStyling, isTrue);
+    expect(SubtitleStyle.fromMap({'subUseFileStyle': 'true'}).useFileStyling,
+        isFalse);
   });
 
   group('SubtitleStyle.fromMap — parsing', () {

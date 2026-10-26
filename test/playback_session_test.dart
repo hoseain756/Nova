@@ -197,6 +197,33 @@ void main() {
     expect(second.raw.selectedSubtitle.id, track.id);
   });
 
+  test('file styling switches to libmpv and preserves playback continuity',
+      () async {
+    final first = _Backend();
+    final second = _Backend();
+    var replacements = 0;
+    final session = create(first,
+        fallback: () {
+          expect(first.closed, isTrue);
+          replacements++;
+          return second;
+        },
+        requiresTimingFallback: (backend) => identical(backend, first));
+    await session.open(_request().url);
+    await session.seekTo(const Duration(seconds: 25));
+    await session.pause();
+
+    await session.setFileSubtitleStyling(true);
+    expect(replacements, 1);
+    expect(second.raw.position, const Duration(seconds: 25));
+    expect(second.raw.playing, isFalse);
+    expect(second.raw.fileSubtitleStyling, isTrue);
+
+    await session.setFileSubtitleStyling(false);
+    expect(replacements, 1);
+    expect(second.raw.fileSubtitleStyling, isFalse);
+  });
+
   test('rapid offset gestures share one switch and preserve latest value',
       () async {
     final first = _Backend();
@@ -919,6 +946,7 @@ class _Engine extends PlaybackEngine {
   void Function()? onPlay;
   int subtitleDelayMs = 0;
   int audioDelayMs = 0;
+  bool fileSubtitleStyling = false;
   @override
   bool ready = false;
   @override
@@ -1022,6 +1050,12 @@ class _Engine extends PlaybackEngine {
   @override
   Future<void> setSubtitleUri(String url, {String? title}) =>
       selectSubtitle(SubtitleTrack.uri(url, title: title));
+  @override
+  Future<void> setFileSubtitleStyling(bool enabled) async {
+    fileSubtitleStyling = enabled;
+    fileSubtitleRendering.value = enabled;
+  }
+
   @override
   Future<void> setSubtitleDelayMs(int delayMs) async {
     subtitleDelayMs = delayMs;

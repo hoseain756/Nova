@@ -84,6 +84,40 @@ Widget _harness(_SettingsApp app, Widget page,
         }));
 
 void main() {
+  test('OLED theme uses pure black without changing the standard themes', () {
+    expect(NovaTheme.dark.scaffoldBackgroundColor, NovaColors.ink);
+    expect(NovaTheme.darkOled.scaffoldBackgroundColor, NovaColors.oledBlack);
+    expect(NovaTheme.darkOled.colorScheme.surface, NovaColors.oledBlack);
+    expect(NovaTheme.darkOled.colorScheme.surfaceContainerLow,
+        NovaColors.oledBlack);
+    expect(
+        NovaTheme.build(Brightness.dark, arabic: true, oled: true)
+            .scaffoldBackgroundColor,
+        NovaColors.oledBlack);
+    expect(
+        NovaTheme.build(Brightness.light, oled: true).scaffoldBackgroundColor,
+        NovaTheme.light.scaffoldBackgroundColor);
+  });
+
+  for (final english in [true, false]) {
+    testWidgets(
+        'OLED appearance switch saves its value in ${english ? 'English' : 'Arabic'}',
+        (tester) async {
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(_harness(
+          app, const SettingsPersonalizationPage(section: 'appearance')));
+      final title = english ? 'OLED mode' : 'وضع OLED';
+      final toggle = find.widgetWithText(SwitchListTile, title);
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(app.webSettings['oledMode'], isTrue);
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    });
+  }
+
   testWidgets('in-player subtitle bold switch updates preview and saves',
       (tester) async {
     final app = _SettingsApp(NoorApi());
@@ -130,6 +164,37 @@ void main() {
       await tester.pump();
       expect(app.webSettings['subFontBold'], isFalse);
       expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final english in [true, false]) {
+    testWidgets(
+        'file subtitle styling syncs across settings and player sheet '
+        '(${english ? 'English' : 'Arabic'})', (tester) async {
+      final app = _SettingsApp(NoorApi())..english = english;
+      final label = NovaStrings.lookup(english, 'subtitleUseFileStyle');
+      await tester.pumpWidget(
+          _harness(app, const SettingsPreferencesPage(subtitles: true)));
+      await tester.ensureVisible(find.text(label));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pump();
+      expect(app.webSettings['subUseFileStyle'], isTrue);
+
+      Map<String, Object?>? applied;
+      await tester.pumpWidget(_harness(
+          app,
+          Scaffold(
+              body: SubtitleStyleSheet(
+                  english: english, onApply: (values) => applied = values))));
+      final toggle = find.widgetWithText(SwitchListTile, label);
+      await tester.ensureVisible(toggle);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(app.webSettings['subUseFileStyle'], isFalse);
+      expect(applied?['subUseFileStyle'], isFalse);
     });
   }
 

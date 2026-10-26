@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
+import '../player/playback_entry_page.dart' show useCorePlayerByDefault;
 import '../player/widgets/subtitle_font_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/color_picker_dialog.dart';
@@ -47,6 +48,24 @@ class _Preference {
 }
 
 final _playerPreferences = <_Preference>[
+  if (useCorePlayerByDefault)
+    _Preference(
+        key: 'playerImplementation',
+        arabic: NovaStrings.lookup(false, 'playerImplementation'),
+        english: NovaStrings.lookup(true, 'playerImplementation'),
+        descriptionArabic:
+            NovaStrings.lookup(false, 'playerImplementationDescription'),
+        descriptionEnglish:
+            NovaStrings.lookup(true, 'playerImplementationDescription'),
+        control: _Control.select,
+        options: [
+          _Option('core', NovaStrings.lookup(false, 'playerImplementationCore'),
+              NovaStrings.lookup(true, 'playerImplementationCore')),
+          _Option(
+              'legacy',
+              NovaStrings.lookup(false, 'playerImplementationLegacy'),
+              NovaStrings.lookup(true, 'playerImplementationLegacy')),
+        ]),
   _Preference(
       key: 'playbackBackend',
       arabic: NovaStrings.lookup(false, 'playbackBackendTitle'),
@@ -308,6 +327,15 @@ final _subtitlePreferences = <_Preference>[
       english: NovaStrings.lookup(true, 'message771'),
       control: _Control.toggle),
   _Preference(
+      key: 'subUseFileStyle',
+      arabic: NovaStrings.lookup(false, 'subtitleUseFileStyle'),
+      english: NovaStrings.lookup(true, 'subtitleUseFileStyle'),
+      descriptionArabic:
+          NovaStrings.lookup(false, 'subtitleUseFileStyleDescription'),
+      descriptionEnglish:
+          NovaStrings.lookup(true, 'subtitleUseFileStyleDescription'),
+      control: _Control.toggle),
+  _Preference(
       key: 'subFontSize',
       arabic: NovaStrings.lookup(false, 'message53'),
       english: NovaStrings.lookup(true, 'message53'),
@@ -397,6 +425,7 @@ class SettingsPreferencesPage extends StatelessWidget {
               'subtitlesOffByDefault'
             ],
             app.tr('message497'): [
+              'subUseFileStyle',
               'subFontSize',
               'subFontBold',
               'subFontColor',
@@ -410,6 +439,7 @@ class SettingsPreferencesPage extends StatelessWidget {
           }
         : <String, List<String>>{
             app.tr('message499'): [
+              if (useCorePlayerByDefault) 'playerImplementation',
               if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
                 'playbackBackend',
               'autoPlayNextEpisode',
@@ -500,6 +530,12 @@ class _PreferenceTile extends StatelessWidget {
     if (item.control == _Control.toggle) {
       return SettingsOptimisticSwitchTile(
           title: Text(title),
+          subtitle:
+              item.descriptionArabic == null && item.descriptionEnglish == null
+                  ? null
+                  : Text(english
+                      ? item.descriptionEnglish ?? ''
+                      : item.descriptionArabic ?? ''),
           value: value == true,
           onChanged: (next) =>
               context.read<AppState>().setSetting(item.key, next));

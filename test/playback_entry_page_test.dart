@@ -6,6 +6,13 @@ import 'package:nova_mobile/features/player/session/playback_state.dart';
 import 'package:nova_mobile/features/player/video_player_page.dart';
 
 void main() {
+  test('saved player choice honors Core default and Legacy rollback', () {
+    expect(selectedCorePlayer({}), useCorePlayerByDefault);
+    expect(selectedCorePlayer({'playerImplementation': 'core'}),
+        useCorePlayerByDefault);
+    expect(selectedCorePlayer({'playerImplementation': 'legacy'}), isFalse);
+  });
+
   test('core is default and every playback argument survives legacy rollback',
       () {
     final request = PlaybackRequest(

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nova_mobile/features/player/segments/playback_segments.dart';
+import 'package:nova_mobile/features/player/segments/skip_segment.dart';
 
 void main() {
   group('PlaybackSegmentsResolver — absence means unknown', () {
@@ -97,6 +98,18 @@ void main() {
   });
 
   group('PlaybackSegmentsResolver — validation & malformed tolerance', () {
+    test('malformed behaviorHints leaves valid stream markers usable', () {
+      final segments = PlaybackSegmentsResolver.resolve(
+        stream: const {
+          'introStart': 10,
+          'introEnd': 30,
+          'behaviorHints': 'invalid',
+        },
+      );
+      expect(segments.introStartMs, 10000);
+      expect(segments.introEndMs, 30000);
+    });
+
     test('start >= end is rejected', () {
       final s = PlaybackSegmentsResolver.resolve(
         stream: const {'introStart': 90, 'introEnd': 10},
@@ -237,6 +250,214 @@ void main() {
         SegmentWindows.autoAdvanceAtMs(segments: s2, durationMs: 900000),
         900000,
       );
+    });
+  });
+
+  group('Station 14 generalized segments', () {
+    test('normalizes all five types without inventing missing markers', () {
+      final segments = PlaybackSegmentsResolver.resolve(stream: const {
+        'recapStart': 0,
+        'recapEnd': 20,
+        'introStartMs': 20000,
+        'introEndMs': 45000,
+        'opening': {'start': 45, 'end': 70},
+        'outroStart': 1200,
+        'outroEnd': 1240,
+        'creditsStartMs': 1240000,
+        'creditsEndMs': 1290000,
+      });
+      expect(segments.skipSegments.map((s) => s.type).toList(),
+          SkipSegmentType.values);
+      expect(segments.skipSegments[0].startMs, 0);
+      expect(segments.skipSegments[2].endMs, 70000);
+      expect(segments.skipSegments.last.endMs, 1290000);
+      expect(segments.skipSegments.every((s) => s.source == 'stream'), isTrue);
+    });
+
+    test('typed list carries provenance and confidence; stream wins per type',
+        () {
+      final segments = PlaybackSegmentsResolver.resolve(
+        stream: const {
+          'skipSegments': [
+            {'type': 'recap', 'startMs': 0, 'endMs': 25000, 'confidence': .9},
+            {'type': 'recap', 'start': 40, 'end': 50},
+            {'type': 'credits', 'start': -2, 'end': 60},
+          ],
+        },
+        video: const {
+          'recapStart': 1,
+          'recapEnd': 10,
+          'creditsStart': 90,
+          'creditsEnd': 110
+        },
+      );
+      expect(
+          segments.skipSegments
+              .where((s) => s.type == SkipSegmentType.recap)
+              .length,
+          2);
+      expect(segments.skipSegments.first.confidence, .9);
+      expect(segments.skipSegments.first.source, 'stream');
+      expect(segments.skipSegments.last.type, SkipSegmentType.credits);
+      expect(segments.skipSegments.last.source, 'episode');
+    });
+
+    test('known duration rejects invalid marker; boundaries are half-open', () {
+      final segments = PlaybackSegmentsResolver.resolve(
+        stream: const {
+          'openingStart': 10,
+          'openingEnd': 150,
+          'recapStartMs': 0,
+          'recapEndMs': 10000,
+        },
+        mediaDurationMs: 120000,
+      );
+      expect(segments.skipSegments.length, 1);
+      final recap = segments.skipSegments.single;
+      expect(recap.contains(0, 120000), isTrue);
+      expect(recap.contains(9999, 120000), isTrue);
+      expect(recap.contains(10000, 120000), isFalse);
+    });
+
+    test(
+        'overlap chooses latest start, then earliest end, independent of order',
+        () {
+      const short = SkipSegment(
+          type: SkipSegmentType.intro,
+          startMs: 10000,
+          endMs: 30000,
+          source: 'test');
+      const long = SkipSegment(
+          type: SkipSegmentType.opening,
+          startMs: 15000,
+          endMs: 45000,
+          source: 'test');
+      const sameEnd = SkipSegment(
+          type: SkipSegmentType.recap,
+          startMs: 17000,
+          endMs: 45000,
+          source: 'test');
+      final tracker = SkipSegmentController();
+      expect(
+          tracker.active([short, long, sameEnd],
+              positionMs: 20000, durationMs: 100000),
+          sameEnd);
+      expect(
+          tracker.active([sameEnd, long, short],
+              positionMs: 20000, durationMs: 100000),
+          sameEnd);
+      const earlierEnd = SkipSegment(
+          type: SkipSegmentType.intro,
+          startMs: 17000,
+          endMs: 35000,
+          source: 'test');
+      expect(
+          tracker.active([sameEnd, earlierEnd, long],
+              positionMs: 20000, durationMs: 100000),
+          earlierEnd);
+      expect(tracker.begin(earlierEnd, [sameEnd, earlierEnd, long]), isTrue);
+      tracker.finish(applied: true);
+      expect(
+          tracker.active([sameEnd, earlierEnd, long],
+              positionMs: 35000, durationMs: 100000),
+          isNull); // The outer marker must not re-prompt after the seek.
+    });
+
+    test('tap suppresses repeat ticks; seek away/back rearms; failure restores',
+        () {
+      const intro = SkipSegment(
+          type: SkipSegmentType.intro,
+          startMs: 10000,
+          endMs: 30000,
+          source: 'test');
+      final tracker = SkipSegmentController();
+      expect(tracker.active([intro], positionMs: 10000, durationMs: 100000),
+          intro);
+      expect(tracker.begin(intro, [intro]), isTrue);
+      expect(tracker.begin(intro, [intro]), isFalse);
+      expect(tracker.active([intro], positionMs: 12000, durationMs: 100000),
+          isNull);
+      expect(tracker.active([intro], positionMs: 35000, durationMs: 100000),
+          isNull); // No prompt while the native command is pending.
+      tracker.finish(applied: true);
+      expect(tracker.active([intro], positionMs: 29000, durationMs: 100000),
+          isNull);
+      expect(tracker.active([intro], positionMs: 30000, durationMs: 100000),
+          isNull);
+      expect(tracker.active([intro], positionMs: 15000, durationMs: 100000),
+          intro);
+      expect(tracker.begin(intro, [intro]), isTrue);
+      tracker.finish(applied: false);
+      expect(tracker.active([intro], positionMs: 15000, durationMs: 100000),
+          intro);
+    });
+
+    test('ending window includes credits and obeys known duration', () {
+      const segments = PlaybackSegments(skipSegments: [
+        SkipSegment(
+            type: SkipSegmentType.credits,
+            startMs: 500000,
+            endMs: 600000,
+            source: 'test'),
+      ]);
+      expect(
+          SegmentWindows.endingVisible(
+              segments: segments, positionMs: 550000, durationMs: 600000),
+          isTrue);
+      expect(
+          SegmentWindows.endingVisible(
+              segments: segments, positionMs: 600000, durationMs: 600000),
+          isFalse);
+      expect(
+          SegmentWindows.endingVisible(
+              segments: segments, positionMs: 550000, durationMs: 580000),
+          isFalse);
+    });
+
+    test('ending skip preserves completion and next-episode boundaries', () {
+      const credits = SkipSegment(
+          type: SkipSegmentType.credits,
+          startMs: 1500000,
+          endMs: 1800000,
+          source: 'test');
+      bool opens(int position, {bool hasNext = true}) =>
+          SegmentWindows.opensNextEpisodeAfterSkip(
+            segment: credits,
+            positionMs: position,
+            durationMs: 1800000,
+            hasNextEpisode: hasNext,
+          );
+      expect(opens(1679999), isFalse);
+      expect(opens(1680000), isTrue); // Shared last-two-minute rule.
+      expect(opens(1680000, hasNext: false), isFalse);
+      const intro = SkipSegment(
+          type: SkipSegmentType.intro,
+          startMs: 0,
+          endMs: 60000,
+          source: 'test');
+      expect(
+          SegmentWindows.opensNextEpisodeAfterSkip(
+              segment: intro,
+              positionMs: 1790000,
+              durationMs: 1800000,
+              hasNextEpisode: true),
+          isFalse);
+    });
+
+    test('long episode markers remain exact without a guessed duration', () {
+      final segments = PlaybackSegmentsResolver.resolve(stream: const {
+        'openingStartMs': 180000,
+        'openingEndMs': 240000,
+        'creditsStartMs': 10300000,
+        'creditsEndMs': 10700000,
+      }, mediaDurationMs: 10800000);
+      expect(segments.skipSegments.length, 2);
+      expect(
+          SkipSegmentController()
+              .active(segments.skipSegments,
+                  positionMs: 10300000, durationMs: 10800000)
+              ?.type,
+          SkipSegmentType.credits);
     });
   });
 }

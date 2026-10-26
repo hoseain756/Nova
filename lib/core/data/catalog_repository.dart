@@ -928,6 +928,39 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     return result.expand((rows) => rows).toList();
   }
 
+  /// Resolve the exact AniZip episode before requesting AniSkip times.
+  Future<({int malId, int episode})?> exactAnimeSkipIdentity(
+      MediaItem item, String videoId) async {
+    final query = AnimeSubtitleIds.mappingQuery(item);
+    if (query == null) return null;
+    final mapping = await _animeSubtitleMappings.putIfAbsent(query, () async {
+      try {
+        final body = await api
+            .proxyGet('https://api.ani.zip/mappings?$query')
+            .timeout(const Duration(seconds: 5));
+        final decoded = body is String ? jsonDecode(body) : body;
+        return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+      } catch (_) {
+        return null;
+      }
+    });
+    if (mapping == null) {
+      _animeSubtitleMappings.remove(query);
+      return null;
+    }
+    final number = AnimeSubtitleIds.exactEpisodeNumber(
+      item: item,
+      videoId: videoId,
+      mapping: mapping,
+    );
+    final ids = mapping['mappings'];
+    final rawMal = ids is Map ? ids['mal_id'] : null;
+    final malId =
+        rawMal is num ? rawMal.toInt() : int.tryParse(rawMal?.toString() ?? '');
+    if (number == null || malId == null || malId <= 0) return null;
+    return (malId: malId, episode: number);
+  }
+
   /// Keep the normal add-on lookup first. Only an empty anime result permits
   /// alternate IDs, and only when AniZip confirms this exact season/episode.
   Future<List<Map<String, dynamic>>> subtitlesForEpisode(

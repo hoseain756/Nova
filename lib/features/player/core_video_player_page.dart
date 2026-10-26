@@ -11,6 +11,7 @@ import 'package:volume_controller/volume_controller.dart';
 
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
+import '../../core/storage/skip_timing_credentials.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
@@ -25,6 +26,9 @@ import 'gesture_math.dart';
 import 'playback_preferences.dart';
 import 'player_diagnostics.dart';
 import 'segments/playback_segments.dart';
+import 'segments/next_episode_policy.dart';
+import 'segments/skip_segment.dart';
+import 'segments/skip_timing_sources.dart';
 import 'session/playback_progress.dart';
 import 'session/playback_session.dart';
 import 'session/playback_state.dart';
@@ -33,6 +37,8 @@ import 'temporary_speed_hold.dart';
 import 'widgets/player_session_surface.dart';
 import 'stream_headers.dart';
 import 'widgets/player_chrome.dart';
+import 'widgets/player_blur_action_pill.dart';
+import 'widgets/player_skip_segment_pill.dart';
 import 'widgets/player_episodes_sheet.dart';
 import 'widgets/player_panel_request.dart';
 import 'widgets/player_side_panel.dart';
@@ -195,8 +201,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   // Workstream B: timing segments resolved once per page instance, plus the
   // guards against double next-episode navigation.
   late PlaybackSegments _segments;
+  bool _externalSegmentsRequested = false;
+  final SkipSegmentController _skipSegments = SkipSegmentController();
   bool _episodeTransitionBusy = false;
   bool _autoAdvanceFired = false;
+  int? _lastAutoAdvancePositionMs;
+  int _autoAdvanceSeekDepth = 0;
 
   // Workstream A2: the volume gesture captures the system level ONCE per
   // drag (the old per-tick getVolume() raced the platform round-trip and
@@ -252,6 +262,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// row. Episode switches push a NEW page (pushReplacement), so a fresh
   /// resolve happens naturally — no per-episode bookkeeping needed.
   void _resolveSegments() {
+    _externalSegmentsRequested = false;
+    _skipSegments.reset();
     Map<String, dynamic>? currentVideo;
     for (final v in widget.item.videos) {
       if (v['id'] == widget.videoId) {
@@ -267,6 +279,43 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       video: currentVideo,
       stream: currentStream,
     );
+  }
+
+  Future<void> _loadExternalSegments(
+      PlaybackSession session, int durationMs) async {
+    final chapters = SkipTimingSources.parseChapterList(
+      await session.readChapterList(),
+      durationMs,
+    );
+    if (!mounted || !identical(_engine, session)) return;
+    if (chapters.isNotEmpty) {
+      setState(() => _segments = _segments.withExternal(chapters));
+    }
+    final animeIdentity =
+        await _app.catalogs.exactAnimeSkipIdentity(widget.item, widget.videoId);
+    String? theIntroDbKey;
+    try {
+      theIntroDbKey = await SkipTimingCredentials.shared.readTheIntroDbKey();
+    } catch (_) {
+      // Public lookups remain available if secure storage is unavailable.
+    }
+    final found = await SkipTimingSources.shared.fetch(
+      item: widget.item,
+      season: widget.season,
+      episode: widget.episode,
+      exactMalId: animeIdentity?.malId,
+      exactAnimeEpisode: animeIdentity?.episode,
+      durationMs: durationMs,
+      theIntroDbKey: theIntroDbKey,
+      credentialsRevision: SkipTimingCredentials.shared.revision,
+    );
+    if (!mounted || !identical(_engine, session) || found.isEmpty) return;
+    final actualDuration = session.duration.inMilliseconds;
+    if ((actualDuration - durationMs).abs() >
+        (durationMs ~/ 100 > 10000 ? durationMs ~/ 100 : 10000)) {
+      return;
+    }
+    setState(() => _segments = _segments.withExternal(found));
   }
 
   /// Workstream C: any subtitle-relevant write that did NOT come from the
@@ -286,8 +335,13 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final oldOffset =
         (_lastSubValues['subtitleOffsetMs'] as num?)?.toInt() ?? 0;
     final newOffset = (values['subtitleOffsetMs'] as num?)?.toInt() ?? 0;
+    final oldFileStyle = _lastSubValues['subUseFileStyle'] == true;
+    final newFileStyle = values['subUseFileStyle'] == true;
     _lastSubValues = Map<String, Object?>.of(values);
     _subStyle.value = SubtitleStyle.fromMap(values);
+    if (newFileStyle != oldFileStyle) {
+      unawaited(_engine?.setFileSubtitleStyling(newFileStyle));
+    }
     if (newOffset != oldOffset) {
       unawaited(_engine?.setSubtitleDelayMs(newOffset));
     }
@@ -407,13 +461,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             ((_app.webSettings['audioDelayMs'] as num?) ?? 0) != 0 ||
             (widget.continuity?.subtitleDelayMs ?? 0) != 0 ||
             (widget.continuity?.audioDelayMs ?? 0) != 0;
-    final useMedia3 =
-        preference != PlaybackBackendPreference.mpv && !hasOffsets;
+    final useMedia3 = preference != PlaybackBackendPreference.mpv &&
+        !hasOffsets &&
+        _app.webSettings['subUseFileStyle'] != true;
+    MediaKitSessionBackend createMpvBackend() => MediaKitSessionBackend(
+        fileSubtitleStyling: _app.webSettings['subUseFileStyle'] == true);
     final session = PlaybackSession(
       request: request,
-      createBackend:
-          useMedia3 ? Media3SessionBackend.new : MediaKitSessionBackend.new,
-      createFallbackBackend: MediaKitSessionBackend.new,
+      createBackend: useMedia3 ? Media3SessionBackend.new : createMpvBackend,
+      createFallbackBackend: createMpvBackend,
       canFallback: (backend) =>
           preference == PlaybackBackendPreference.auto &&
           backend is Media3SessionBackend &&
@@ -474,15 +530,25 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _maybeAutoAdvance(session);
     final position = session.position.inMilliseconds;
     final duration = session.duration.inMilliseconds;
-    final intro = SegmentWindows.introVisible(
-        segments: _segments, positionMs: position, durationMs: duration);
-    final outro = SegmentWindows.outroVisible(
-        segments: _segments, positionMs: position, durationMs: duration);
+    if (session.ready && duration > 0 && !_externalSegmentsRequested) {
+      _externalSegmentsRequested = true;
+      unawaited(_loadExternalSegments(session, duration));
+    }
+    final active = _skipSegments.active(
+      _segments.effectiveSkipSegments,
+      positionMs: position,
+      durationMs: duration,
+    );
     final appear = SegmentWindows.cardAppearAtMs(
         segments: _segments, durationMs: duration);
     final card = appear >= 0 && position >= appear;
-    final projection =
-        (intro, outro, card, card ? _cardCountdown(duration, position) : '');
+    final projection = (
+      active?.type,
+      active?.startMs,
+      active?.endMs,
+      card,
+      card ? _cardCountdown(duration, position) : '',
+    );
     if (projection != _featureProjection) {
       _featureProjection = projection;
       setState(() {});
@@ -519,22 +585,46 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// (autoAdvanceAtMs returns null) — the card stays manual, exactly as
   /// shipped. Honors the Cancel latch and the autoplay preference.
   void _maybeAutoAdvance(PlaybackSession engine) {
-    if (!engine.ready || !engine.resumeResolved || engine.isClosing) return;
-    if (_autoAdvanceFired ||
-        _upNextDismissed ||
-        _stopScrobbled ||
-        _episodeTransitionBusy) {
+    final position = engine.position.inMilliseconds;
+    final previous = _lastAutoAdvancePositionMs;
+    _lastAutoAdvancePositionMs = position;
+    final next = _episodeAt(_currentEpisodeIndex() + 1);
+    if (!NextEpisodePolicy.shouldAutoAdvance(
+      segments: _segments,
+      previousPositionMs: previous,
+      positionMs: position,
+      durationMs: engine.duration.inMilliseconds,
+      ready: engine.ready,
+      playing: engine.playing,
+      failed: engine.failed,
+      closing: engine.isClosing || _closing,
+      seekInProgress: _autoAdvanceSeekDepth > 0,
+      resumeResolved: engine.resumeResolved,
+      locked: _locked,
+      panelOpen: _panel != null || _sheetOpen,
+      hasNextEpisode: next != null,
+      autoPlayEnabled:
+          (_app.webSettings['autoPlayNextEpisode'] ?? true) == true,
+      dismissed: _upNextDismissed,
+      completed: _stopScrobbled,
+      transitionBusy: _episodeTransitionBusy,
+      alreadyFired: _autoAdvanceFired,
+    )) {
       return;
     }
-    if ((_app.webSettings['autoPlayNextEpisode'] ?? true) != true) return;
-    final at = SegmentWindows.autoAdvanceAtMs(
-      segments: _segments,
-      durationMs: engine.duration.inMilliseconds,
-    );
-    if (at == null || engine.position.inMilliseconds < at) return;
     _autoAdvanceFired = true;
-    final next = _episodeAt(_currentEpisodeIndex() + 1);
-    if (next != null) unawaited(_startEpisodeSources(next));
+    unawaited(_startEpisodeSources(next!));
+  }
+
+  Future<T> _withAutoAdvanceSeekGuard<T>(Future<T> Function() seek) async {
+    _autoAdvanceSeekDepth++;
+    _lastAutoAdvancePositionMs = null;
+    try {
+      return await seek();
+    } finally {
+      _autoAdvanceSeekDepth--;
+      _lastAutoAdvancePositionMs = null;
+    }
   }
 
   // ── Episodes ────────────────────────────────────────────────────────────
@@ -625,7 +715,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   Future<void> _seekBy(int seconds) async {
     final engine = _engine;
     if (engine == null || !engine.ready) return;
-    final result = await engine.seekBy(seconds);
+    final result = await _withAutoAdvanceSeekGuard(
+      () => engine.seekBy(seconds),
+    );
     if (!result.applied) return;
     _flashHint(
       NovaStrings.lookup(
@@ -833,14 +925,14 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       });
     }
     try {
-      final result = await engine.seekTo(
-        Duration(
-          milliseconds: NovaPlaybackPreferences.safeResumePositionMs(
-            _resumePositionMs,
-            engine.duration.inMilliseconds,
-          ),
-        ),
-      );
+      final result = await _withAutoAdvanceSeekGuard(() => engine.seekTo(
+            Duration(
+              milliseconds: NovaPlaybackPreferences.safeResumePositionMs(
+                _resumePositionMs,
+                engine.duration.inMilliseconds,
+              ),
+            ),
+          ));
       if (!result.applied) {
         if (mounted) setState(() => _resuming = true);
         return;
@@ -865,7 +957,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     try {
       final session = _engine;
       if (session != null && session.position > Duration.zero) {
-        final result = await session.seekTo(Duration.zero);
+        final result = await _withAutoAdvanceSeekGuard(
+          () => session.seekTo(Duration.zero),
+        );
         if (!result.applied) {
           if (mounted) setState(() => _resuming = true);
           return;
@@ -1298,6 +1392,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // Workstream C: remember exactly what the sheet applied so the AppState
     // listener's diff treats this as the new baseline (no double-apply, no
     // clobbering the preview).
+    final oldFileStyle = _lastSubValues['subUseFileStyle'] == true;
+    final newFileStyle = values['subUseFileStyle'] == true;
     _lastSubValues = Map<String, Object?>.of(values);
     // Visual settings: straight into the overlay's notifier — the running
     // video restyles instantly (Task 130 requirement: no restart, no
@@ -1306,6 +1402,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // Timing offset: mpv `sub-delay` — shifts WHICH text mpv emits.
     final engineRef = _engine;
     if (engineRef == null) return;
+    if (newFileStyle != oldFileStyle) {
+      unawaited(engineRef.setFileSubtitleStyling(newFileStyle));
+    }
     unawaited(engineRef.setSubtitleDelayMs(
         (values['subtitleOffsetMs'] as num?)?.toInt() ?? 0));
   }
@@ -1570,31 +1669,42 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   // ── Skip intro / outro (workstream B) ────────────────────────────────
 
-  Future<void> _skipSegment({required bool intro}) async {
+  Future<void> _skipSegment(SkipSegment segment) async {
     final engine = _engine;
-    if (engine == null || !engine.ready) return;
-    if (intro) {
-      final end = _segments.introEndMs;
-      if (end == null) return;
-      final result = await engine.seekTo(Duration(milliseconds: end));
-      if (!result.applied) return;
-      _flashHint(NovaStrings.lookup(english, 'message12'));
-    } else {
-      final end = _segments.outroEndMs;
-      if (end == null) return;
+    if (engine == null ||
+        !engine.ready ||
+        !segment.contains(
+            engine.position.inMilliseconds, engine.duration.inMilliseconds) ||
+        !_skipSegments.begin(segment, _segments.effectiveSkipSegments)) {
+      return;
+    }
+    setState(() {});
+    var applied = false;
+    try {
       final duration = engine.duration.inMilliseconds;
       final next = _episodeAt(_currentEpisodeIndex() + 1);
-      if (duration > 0 && end >= duration - 1500 && next != null) {
-        // The outro runs to the end of the video — skipping it moves the
-        // user to the next stage: the next-episode source flow.
-        await _startEpisodeSources(next);
+      if (SegmentWindows.opensNextEpisodeAfterSkip(
+        segment: segment,
+        positionMs: engine.position.inMilliseconds,
+        durationMs: duration,
+        hasNextEpisode: next != null,
+      )) {
+        applied = true;
+        await _startEpisodeSources(next!);
         return;
       }
-      final result = await engine.seekTo(Duration(milliseconds: end));
+      final result = await _withAutoAdvanceSeekGuard(
+        () => engine.seekTo(Duration(milliseconds: segment.endMs)),
+      );
       if (!result.applied) return;
-      _flashHint(NovaStrings.lookup(english, 'message13'));
+      applied = true;
+      _flashHint(NovaStrings.lookup(english, skipSegmentDoneKey(segment.type)));
+    } catch (error) {
+      debugPrint('[NOVA] segment skip failed: ${error.runtimeType}');
+    } finally {
+      _skipSegments.finish(applied: applied);
+      if (mounted) setState(() {});
     }
-    _bumpControls();
   }
 
   Map<String, dynamic> _bestStream(List<Map<String, dynamic>> list) {
@@ -1900,7 +2010,11 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       return;
     }
     if (_mode == _GestureMode.seek && _hudTargetMs > 0) {
-      unawaited(_engine?.seekTo(Duration(milliseconds: _hudTargetMs)));
+      unawaited(_withAutoAdvanceSeekGuard(
+        () async {
+          await _engine?.seekTo(Duration(milliseconds: _hudTargetMs));
+        },
+      ));
       _mode = _GestureMode.none;
       _hudValue = 0;
       _hudDeltaSeconds = 0;
@@ -2015,24 +2129,19 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // Workstream B: skip pills exist ONLY inside data-provided windows; the
     // next-episode card trigger is data-first with the shipped nearEnd
     // fallback (≤30 s left or ≥95% elapsed) inherited from the old code.
-    final introVisible = ready &&
-        !_locked &&
-        SegmentWindows.introVisible(
-          segments: _segments,
-          positionMs: position,
-          durationMs: duration,
-        );
-    final outroVisible = ready &&
-        !_locked &&
-        SegmentWindows.outroVisible(
-          segments: _segments,
-          positionMs: position,
-          durationMs: duration,
-        );
-    final cardAppearAt = SegmentWindows.cardAppearAtMs(
-      segments: _segments,
-      durationMs: duration,
-    );
+    final activeSkip = ready &&
+            !_locked &&
+            !_temporarySpeed.active &&
+            _panel == null &&
+            !_sheetOpen &&
+            !failed
+        ? _skipSegments.active(
+            _segments.effectiveSkipSegments,
+            positionMs: position,
+            durationMs: duration,
+          )
+        : null;
+    final endingVisible = activeSkip?.isEnding ?? false;
     final nextEpisode = widget.item.type == 'series'
         ? _episodeAt(_currentEpisodeIndex() + 1)
         : null;
@@ -2113,8 +2222,10 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
         onScrubUpdate: (seconds) {},
         onScrubEnd: (seconds) async {
           if (!current()) return;
-          await engine.seekTo(
-            Duration(milliseconds: (seconds * 1000).round()),
+          await _withAutoAdvanceSeekGuard(
+            () => engine.seekTo(
+              Duration(milliseconds: (seconds * 1000).round()),
+            ),
           );
           if (mounted) _bumpControls();
         },
@@ -2127,7 +2238,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
         if (!didPop) unawaited(_requestClose());
       },
       child: Scaffold(
-        backgroundColor: NovaColors.ink,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         // The chrome follows the reference layout (LTR media convention);
         // Arabic strings still render correctly via bidi.
         body: GestureDetector(
@@ -2170,8 +2281,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                     buildSurface: () => PlayerVideoSurface(
                       engine: nativeEngine,
                       fit: _fit,
-                      overlay:
-                          SubtitleOverlay(engine: engine, style: _subStyle),
+                      overlay: SubtitleOverlay(
+                          engine: nativeEngine, style: _subStyle),
                     ),
                   ),
                 )),
@@ -2465,80 +2576,42 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                     ),
                   ),
 
-                // Resume card.
+                // Saved-position resume prompt.
                 if (!_locked && _resuming && (_resumePositionMs ?? 0) > 30000)
                   PositionedDirectional(
                     bottom: 180 * scale,
                     start: 16,
-                    child: PlayerCardShell(
-                      width: 340,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          PlayerCardHeader(
-                            icon: LucideIcons.history,
-                            label: NovaStrings.lookup(english, 'message18'),
-                            trailing: InkWell(
-                              onTap: () => unawaited(_startOverFromPrompt()),
-                              child: Icon(LucideIcons.x,
-                                  size: 17,
-                                  color:
-                                      NovaColors.white.withValues(alpha: .38)),
-                            ),
-                          ),
-                          const SizedBox(height: 7),
-                          Text(
-                            NovaStrings.lookup(english, 'message19', {
-                              'p0': formatPlayerTime(Duration(
-                                  milliseconds: _resumePositionMs ?? 0))
-                            }),
-                            style: const TextStyle(
-                              color: NovaColors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 11),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: PlayerPrimaryAction(
-                                  label:
-                                      NovaStrings.lookup(english, 'message20'),
-                                  onPressed: () =>
-                                      unawaited(_resumeFromSaved()),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: PlayerSecondaryAction(
-                                  label:
-                                      NovaStrings.lookup(english, 'message21'),
-                                  onPressed: () =>
-                                      unawaited(_startOverFromPrompt()),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                    child: PlayerBlurActionPill(
+                      label:
+                          NovaStrings.lookup(english, 'playerResumeFromTime', {
+                        'time': formatPlayerTime(
+                          Duration(milliseconds: _resumePositionMs ?? 0),
+                          padMinutes: true,
+                        ),
+                      }),
+                      onAction: () => unawaited(_resumeFromSaved()),
+                      onDismiss: () => unawaited(_startOverFromPrompt()),
                     ),
                   ),
 
                 // Up-Next card. Suppressed while the skip-outro pill is up
                 // (the same corner — the outro pill is the actionable one
                 // there; the card returns once the outro window passes).
-                if (!_locked &&
-                    !_temporarySpeed.active &&
-                    ready &&
-                    !failed &&
-                    nextEpisode != null &&
-                    cardAppearAt >= 0 &&
-                    position >= cardAppearAt &&
-                    !outroVisible &&
-                    !_upNextDismissed &&
-                    !_stopScrobbled)
+                if (nextEpisode != null &&
+                    NextEpisodePolicy.cardVisible(
+                      segments: _segments,
+                      positionMs: position,
+                      durationMs: duration,
+                      ready: ready,
+                      failed: failed,
+                      locked: _locked,
+                      temporarySpeedActive: _temporarySpeed.active,
+                      panelOpen: _panel != null || _sheetOpen,
+                      hasNextEpisode: true,
+                      endingSegmentVisible: endingVisible,
+                      dismissed: _upNextDismissed,
+                      completed: _stopScrobbled,
+                    ))
                   PlayerUpNextPlacement(
                     scale: scale,
                     child: PlayerCardShell(
@@ -2620,19 +2693,23 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                 // while the playhead is inside a data-provided window — with
                 // no timing data it never appears (spec B1.4/B3: no guessed
                 // timings, feature inactive).
-                if (!_temporarySpeed.active && (introVisible || outroVisible))
+                if (activeSkip != null)
                   PositionedDirectional(
                     bottom: 180 * scale,
                     end: 16,
-                    child: _SegmentSkipPill(
-                      key: ValueKey(introVisible ? 'intro' : 'outro'),
-                      label: introVisible
-                          ? (NovaStrings.lookup(english, 'message24'))
-                          : (NovaStrings.lookup(english, 'message25')),
-                      icon: introVisible
-                          ? LucideIcons.fastForward
-                          : LucideIcons.skipForward,
-                      onTap: () => unawaited(_skipSegment(intro: introVisible)),
+                    child: PlayerSkipSegmentPill(
+                      key: ValueKey(activeSkip.startMs),
+                      segment: activeSkip,
+                      english: english,
+                      onTap: () => unawaited(_skipSegment(activeSkip)),
+                      onDismiss: () {
+                        if (_skipSegments.dismiss(
+                          activeSkip,
+                          _segments.effectiveSkipSegments,
+                        )) {
+                          setState(() {});
+                        }
+                      },
                     ),
                   ),
               ],
@@ -2761,50 +2838,6 @@ class _PlaybackResolution {
   final String url;
   final Map<String, String> headers;
   final PreparedTorrent? torrent;
-}
-
-/// Skip-intro / skip-outro pill (workstream B). Material icon + label in the
-/// translucent pill language of the player's other chrome (_TorrentHud);
-/// 44px-tall touch target for landscape phones.
-class _SegmentSkipPill extends StatelessWidget {
-  const _SegmentSkipPill({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: NovaColors.ink.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(999),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 18, color: NovaColors.white),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: NovaColors.white,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
 }
 
 class _TorrentHud extends StatelessWidget {

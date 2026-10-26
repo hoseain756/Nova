@@ -11,6 +11,7 @@ import '../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/noor_toast.dart';
 import 'widgets/settings_tiles.dart';
+import 'widgets/skip_timing_service_card.dart';
 
 class IntegrationsPage extends StatelessWidget {
   const IntegrationsPage({super.key});
@@ -64,6 +65,24 @@ class IntegrationsPage extends StatelessWidget {
                           ? app.tr('message260')
                           : _serviceName(app.api.debridService)),
                 ]),
+                SettingsContentSection(
+                    title: app.tr('skipTimingServices'),
+                    children: [
+                      for (final service in const [
+                        'aniskip',
+                        'introdb',
+                        'theintrodb',
+                      ])
+                        SkipTimingServiceTile(
+                          service: service,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  _ServiceSettingsPage(service: service),
+                            ),
+                          ),
+                        ),
+                    ]),
                 SettingsInfoBanner(
                     icon: LucideIcons.shieldCheck,
                     message: app.tr('message261')),
@@ -79,6 +98,7 @@ String _providerName(String service) => switch (service) {
       'mal' => 'MyAnimeList',
       'tmdb' => 'TMDB',
       'mdblist' => 'MDBList',
+      'aniskip' || 'introdb' || 'theintrodb' => skipTimingServiceName(service),
       _ => 'Debrid'
     };
 IconData _providerIcon(String service) => switch (service) {
@@ -87,6 +107,7 @@ IconData _providerIcon(String service) => switch (service) {
       'anilist' || 'mal' => LucideIcons.bookOpen,
       'tmdb' => LucideIcons.film,
       'mdblist' => LucideIcons.star,
+      'aniskip' || 'introdb' || 'theintrodb' => LucideIcons.skipForward,
       _ => LucideIcons.cloud
     };
 
@@ -129,6 +150,7 @@ class _ServiceSettingsPage extends StatelessWidget {
         .select<AppState, bool>((app) => app.linkedServices[service] != null);
     final app = context.read<AppState>();
     final tracker = ['trakt', 'simkl', 'anilist', 'mal'].contains(service);
+    final skipTiming = ['aniskip', 'introdb', 'theintrodb'].contains(service);
     return Scaffold(
         appBar: AppBar(title: Text(_providerName(service))),
         body: Center(
@@ -141,9 +163,11 @@ class _ServiceSettingsPage extends StatelessWidget {
                     title: _providerName(service),
                     description: tracker
                         ? app.tr('message264')
-                        : service == 'debrid'
-                            ? app.tr('message265')
-                            : app.tr('message266'),
+                        : skipTiming
+                            ? app.tr('skipTimingServicesDescription')
+                            : service == 'debrid'
+                                ? app.tr('message265')
+                                : app.tr('message266'),
                     icon: _providerIcon(service)),
                 if (tracker)
                   _LinkedServiceCard(
@@ -155,6 +179,7 @@ class _ServiceSettingsPage extends StatelessWidget {
                       icon: _providerIcon(service)),
                 if (service == 'tmdb') const _TmdbKeyCard(),
                 if (service == 'debrid') const _DebridCard(),
+                if (skipTiming) SkipTimingServiceCard(service: service),
                 if (service == 'mdblist')
                   SettingsInfoBanner(
                       icon: LucideIcons.star, message: app.tr('message269')),

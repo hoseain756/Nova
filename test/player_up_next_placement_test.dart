@@ -3,6 +3,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/features/player/widgets/player_chrome.dart';
 
 void main() {
+  testWidgets('Up-Next action and X dismissal stay independent',
+      (tester) async {
+    var nextCount = 0;
+    var dismissCount = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: PlayerUpNextActions(
+            primaryLabel: 'الحلقة التالية',
+            secondaryLabel: 'إلغاء',
+            onPrimary: () => nextCount++,
+            onSecondary: () => dismissCount++,
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('الحلقة التالية'));
+    expect(nextCount, 1);
+    expect(dismissCount, 0);
+    await tester.tap(find.byTooltip('إلغاء'));
+    expect(nextCount, 1);
+    expect(dismissCount, 1);
+  });
+
   for (final scenario in <(Size, TextDirection, double, ThemeMode)>[
     (const Size(800, 360), TextDirection.rtl, 1, ThemeMode.dark),
     (const Size(320, 240), TextDirection.rtl, 2, ThemeMode.light),

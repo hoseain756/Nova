@@ -21,15 +21,18 @@ class NovaApp extends StatelessWidget {
   final AppState state;
   final AppUpdateService? updateService;
   static final _darkArabic = NovaTheme.build(Brightness.dark, arabic: true);
+  static final _darkOledArabic =
+      NovaTheme.build(Brightness.dark, arabic: true, oled: true);
   static final _lightArabic = NovaTheme.build(Brightness.light, arabic: true);
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider.value(
         value: state,
-        child: Selector<AppState, (bool, String, bool)>(
+        child: Selector<AppState, (bool, String, bool, bool)>(
           selector: (_, app) => (
             app.english,
             (app.webSettings['themeMode'] ?? 'dark').toString(),
-            app.webSettings['reduceMotion'] == true
+            app.webSettings['reduceMotion'] == true,
+            app.webSettings['oledMode'] == true
           ),
           builder: (context, value, _) => MaterialApp(
             navigatorObservers: [shellChromeRouteObserver],
@@ -37,7 +40,9 @@ class NovaApp extends StatelessWidget {
                 NovaStrings.of(context).text('appName'),
             debugShowCheckedModeBanner: false,
             theme: value.$1 ? NovaTheme.light : _lightArabic,
-            darkTheme: value.$1 ? NovaTheme.dark : _darkArabic,
+            darkTheme: value.$1
+                ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
+                : (value.$4 ? _darkOledArabic : _darkArabic),
             themeMode: switch (value.$2) {
               'light' => ThemeMode.light,
               'system' => ThemeMode.system,

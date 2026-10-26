@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../core/theme/horse_theme.dart';
+import 'player_blur_action_pill.dart';
 
 /// Visual language of the cinematic player chrome (reference design):
 /// white controls over the video, a NOVA-red gradient timeline, a large
@@ -34,11 +35,14 @@ class PlayerPalette {
   );
 }
 
-String formatPlayerTime(Duration value) {
+String formatPlayerTime(Duration value, {bool padMinutes = false}) {
   final hours = value.inHours;
   final minutes = value.inMinutes.remainder(60).toString().padLeft(2, '0');
   final seconds = value.inSeconds.remainder(60).toString().padLeft(2, '0');
-  return hours > 0 ? '$hours:$minutes:$seconds' : '${value.inMinutes}:$seconds';
+  final displayMinutes = padMinutes
+      ? value.inMinutes.toString().padLeft(2, '0')
+      : value.inMinutes.toString();
+  return hours > 0 ? '$hours:$minutes:$seconds' : '$displayMinutes:$seconds';
 }
 
 /// Zero-padded episode tag per the user mandate: `S01E12`.
@@ -1633,34 +1637,11 @@ class PlayerUpNextActions extends StatelessWidget {
   final VoidCallback onSecondary;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          final stacked = constraints.maxWidth < 250 ||
-              MediaQuery.textScalerOf(context).scale(16) > 22;
-          if (stacked) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PlayerPrimaryAction(label: primaryLabel, onPressed: onPrimary),
-                const SizedBox(height: 8),
-                PlayerSecondaryAction(
-                    label: secondaryLabel, onPressed: onSecondary),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(
-                child: PlayerPrimaryAction(
-                    label: primaryLabel, onPressed: onPrimary),
-              ),
-              const SizedBox(width: 8),
-              PlayerSecondaryAction(
-                  label: secondaryLabel, onPressed: onSecondary),
-            ],
-          );
-        },
+  Widget build(BuildContext context) => PlayerBlurActionPill(
+        label: primaryLabel,
+        onAction: onPrimary,
+        onDismiss: onSecondary,
+        dismissTooltip: secondaryLabel,
       );
 }
 
@@ -1677,8 +1658,8 @@ class PlayerPrimaryAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FilledButton(
         style: FilledButton.styleFrom(
-          backgroundColor: HorseTheme.gold,
-          foregroundColor: NovaColors.white,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
           minimumSize: const Size.fromHeight(48),
         ),
         onPressed: onPressed,

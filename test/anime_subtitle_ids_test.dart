@@ -104,6 +104,29 @@ void main() {
     );
   });
 
+  test('AniSkip episode number uses only exact AniZip mapping', () async {
+    final item = _item.withAnimeIds(idMal: 21);
+    final repo = CatalogRepository(_SubtitleApi());
+    expect(await repo.exactAnimeSkipIdentity(item, 'tt0388629:23:1'),
+        (malId: 21, episode: 1156));
+    expect(await repo.exactAnimeSkipIdentity(_item, 'tt0388629:23:1'),
+        (malId: 21, episode: 1156));
+    expect(
+      AnimeSubtitleIds.exactEpisodeNumber(
+        item: item,
+        videoId: 'tt0388629:23:1',
+        mapping: {
+          ..._mapping,
+          'episodes': {
+            ..._mapping['episodes'] as Map,
+            '9999': (_mapping['episodes'] as Map)['1156'],
+          },
+        },
+      ),
+      isNull,
+    );
+  });
+
   test('mismatched identity, date, or ambiguous record rejects fallback', () {
     for (final mapping in [
       {

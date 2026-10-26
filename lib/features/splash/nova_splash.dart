@@ -74,7 +74,7 @@ class _NovaSplashState extends State<NovaSplash>
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final background = dark ? NovaColors.ink : NovaColors.lightBackground;
+    final background = Theme.of(context).scaffoldBackgroundColor;
 
     return Scaffold(
       backgroundColor: background,

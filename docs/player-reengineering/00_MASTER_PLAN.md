@@ -1,10 +1,14 @@
 # NOVA Player Reengineering — Master Plan
 
+## Main branch port — 2026-10-26
+
+The user authorized bringing the missing feature-branch player work into the `main` working tree. Stations 14 and 15 now have code and focused test evidence on `main`; see their station files. This is a source-level port only: no physical-device/LKG verification, commit, or station/gate completion is claimed. The earlier dated notes below describe their state at the time and are historical.
+
 ## Stations 12 and 13 complete — 2026-10-22 (authoritative)
 
 Both selectable Android player routes passed functional LKG on physical `RF8NA2NNVNY` / `SM_A217F`. `flutter pub get` PASS; `flutter analyze --no-pub` PASS/no issues; full suite PASS **590/590**; focused Legacy startup-resume tests PASS **5/5**; focused Up-Next layout tests **3/3** on the final layout revision; scoped format and `git diff --check` PASS. Fresh final Legacy Profile APK SHA-256 `74EB9DBE7C20333453EECC16EC545437FC851845E10F30362171191CCD984558` and opt-in Core Profile APK SHA-256 `8EBD0A15E43DC1B0DF068ECA510D5D9C0E642D9CA16F4DAA051A17802D65CEC9` built and installed in sequence after ADB checks, without data clearing or agent playback. The user reported two successful Legacy automatic-resume opens (**«انها تعمل 100/100»**) and all requested final Core resume/card checks working (**«كل شي يعمل»**). Earlier user reports covered valid external subtitle, source and picture/audio/position continuity, Start over and persisted app-restart resume on the tested episode. The exact corrupt SubDL link is closed as an upstream HTTP 500 provider issue per the user; NOVA reports that failure explicitly.
 
-Station 12 is **9/9 COMPLETE**, Station 13 **7/7 COMPLETE**. Scoped code commit/current functional LKG checkpoint: `41e804681e01ae667ca99dbc6e0368cd180fc5b3` (`player: station 12-13 stabilize subtitles and resume`); the historical production safety baseline remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`. The one-phone/one-episode reports do not establish broad subtitle/codec coverage, linked-account behavior, physical movie resume, iOS behavior or performance. Station 03 official baseline is still NOT MEASURED; Station 10/Gate D status is unchanged. Station 14 has **not** begun and requires explicit user approval.
+Station 12 is **9/9 COMPLETE**, Station 13 **7/7 COMPLETE**. Scoped code commit/current functional LKG checkpoint: `41e804681e01ae667ca99dbc6e0368cd180fc5b3` (`player: station 12-13 stabilize subtitles and resume`); the historical production safety baseline remains `c9257c0ea6b74b2b4fd180d5ca0f3e08da8617b5`. The one-phone/one-episode reports do not establish broad subtitle/codec coverage, linked-account behavior, physical movie resume, iOS behavior or performance. Station 03 official baseline is still NOT MEASURED; Station 10/Gate D status is unchanged. At this dated checkpoint Station 14 had not begun; the 2026-10-26 main-branch port below supersedes that status without claiming device acceptance.
 
 ## Legacy automatic resume failure on final layout APK — 2026-10-22
 
@@ -164,14 +168,14 @@ Station 03 has six checked tasks; official baseline remains NOT MEASURED / INCOM
 | 11 | Player controls and gestures | 8 | 8 | COMPLETE — user tested both routes; performance NOT MEASURED |
 | 12 | Subtitles, audio, speed, sources | 9 | 9 | COMPLETE — functional Android LKG; broader formats unmeasured |
 | 13 | Resume playback | 7 | 7 | COMPLETE — functional Android LKG; linked accounts/iOS unverified |
-| 14 | Generalized skip segment system | 8 | 0 | PLANNED — not entered |
-| 15 | Next episode system | 7 | 0 | PLANNED — not entered |
+| 14 | Generalized skip segment system | 8 | 6 | IMPLEMENTED — STATIC-ONLY; physical-device and LKG gates pending |
+| 15 | Next episode system | 7 | 5 | IMPLEMENTED — STATIC-ONLY; physical-device and LKG gates pending |
 | 16 | NOVA player UI and Liquid Glass | 9 | 0 | PLANNED — not entered |
 | 17 | Android platform verification | 8 | 0 | PLANNED — not entered |
 | 18 | iOS platform verification | 9 | 0 | PLANNED — not entered |
 | 19 | Performance regression and long playback | 9 | 0 | PLANNED — not entered |
 | 20 | Final full audit | 10 | 0 | PLANNED — not entered |
-| **Total** |  | **216** | **147** |  |
+| **Total** |  | **216** | **158** |  |
 
 Station tracking files: `00_STATION.md`–`20_STATION.md`, plus `STATION_06A.md` and `STATION_06B.md`. `SESSION_1_HANDOFF.md`, unchanged Station 08 report and older gate-pending text are historical; the active continuation above controls resumption.
 

@@ -19,7 +19,13 @@ export 'package:media_kit/media_kit.dart'
 /// [PlayerVideoSurface] widget below), so the engine implementation can be
 /// swapped without touching a single control widget.
 abstract class PlaybackEngine extends ChangeNotifier {
-  /// Native video only; the shared Flutter chrome and subtitle overlay stay above it.
+  Future<String?> readChapterList() async => null;
+
+  /// True only after native rendering has accepted the file's subtitle style.
+  /// The Flutter overlay remains visible when an engine cannot do this.
+  final ValueNotifier<bool> fileSubtitleRendering = ValueNotifier(false);
+
+  /// Native video; Flutter chrome and the default subtitle overlay stay above it.
   Widget buildVideoSurface(BoxFit fit) => const SizedBox.shrink();
 
   /// Media is parsed and has a known duration (safe to seek).
@@ -71,11 +77,9 @@ abstract class PlaybackEngine extends ChangeNotifier {
   /// Load an external subtitle from a URL (addon-provided SRT/VTT/ASS…).
   Future<void> setSubtitleUri(String url, {String? title});
 
-  /// NOTE: visual subtitle styling intentionally has NO engine method.
-  /// media_kit runs with `libass: false` → mpv `sub-visibility=no`, so
-  /// libmpv-side style properties (sub-color, sub-font-size, sub-pos, …)
-  /// would target a renderer nobody sees. Styling is applied by the
-  /// Flutter-side SubtitleOverlay from SubtitleStyle (live, user-driven).
+  /// Opt-in file styling uses the native subtitle renderer when available.
+  /// Engines without support keep the Flutter overlay as the visible fallback.
+  Future<void> setFileSubtitleStyling(bool enabled) async {}
 
   /// Live subtitle timing offset: negative = advance (earlier),
   /// positive = delay (later). Maps to mpv `sub-delay` seconds.
@@ -83,6 +87,12 @@ abstract class PlaybackEngine extends ChangeNotifier {
 
   /// Live audio timing offset in ms (positive = delay) → mpv `audio-delay`.
   Future<void> setAudioDelayMs(int delayMs);
+
+  @override
+  void dispose() {
+    fileSubtitleRendering.dispose();
+    super.dispose();
+  }
 }
 
 /// libmpv-backed implementation (media_kit).
@@ -99,7 +109,10 @@ class MediaKitEngine extends PlaybackEngine {
   /// stream whose texture never delivers a frame on finicky GPU/driver combos
   /// (low-end Mali devices render an eternal WHITE surface when MediaCodec
   /// stalls — Task 128).
-  MediaKitEngine({this.hardwareAcceleration = true}) {
+  MediaKitEngine({
+    this.hardwareAcceleration = true,
+    bool fileSubtitleStyling = false,
+  }) : _requestedFileSubtitleStyling = fileSubtitleStyling {
     if (PlayerDiagnostics.enabled) {
       PlayerDiagnostics.instance.record('engineCreated');
     }
@@ -108,7 +121,13 @@ class MediaKitEngine extends PlaybackEngine {
     // engine (player page, magnet opener, library, live TV, next-episode)
     // must survive even if a future boot path forgets it.
     MediaKit.ensureInitialized();
-    _player = Player();
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        libass: true,
+        libassAndroidFont: 'assets/fonts/IBMPlexSansArabic-Regular.ttf',
+        libassAndroidFontName: 'IBM Plex Sans Arabic',
+      ),
+    );
     _controller = VideoController(
       _player,
       configuration: VideoControllerConfiguration(
@@ -140,6 +159,24 @@ class MediaKitEngine extends PlaybackEngine {
   late final VideoController _controller;
   List<StreamSubscription<dynamic>> _subscriptions = const [];
   bool _disposed = false;
+  @override
+  Future<String?> readChapterList() async {
+    if (_disposed || !ready) return null;
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return null;
+    try {
+      final value = await platform
+          .getProperty('chapter-list')
+          .timeout(const Duration(seconds: 2));
+      return value.isEmpty ? null : value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _nativeSubtitleReady = false;
+  bool _requestedFileSubtitleStyling;
+  Future<void> _fileSubtitleLane = Future<void>.value();
 
   /// Whether the video controller uses hardware decoding (see [ctor]).
   final bool hardwareAcceleration;
@@ -218,8 +255,8 @@ class MediaKitEngine extends PlaybackEngine {
   @override
   List<String> get subtitleTextSnapshot => _player.state.subtitle;
 
-  /// Texture-backed video surface (subtitles render Flutter-side — see
-  /// [PlayerVideoSurface.overlay] and widgets/subtitle_overlay.dart).
+  /// Texture-backed video surface. The media_kit Flutter SubtitleView stays
+  /// hidden; either NOVA's overlay or the opt-in libass renderer is visible.
   VideoController get controller => _controller;
 
   @override
@@ -265,6 +302,9 @@ class MediaKitEngine extends PlaybackEngine {
       if (!_disposed) _onError(error.toString());
       return;
     }
+    if (_disposed) return;
+    _nativeSubtitleReady = true;
+    await _queueFileSubtitleStyling(_requestedFileSubtitleStyling);
     if (_disposed) return;
     if (Uri.tryParse(url)?.host == '127.0.0.1') {
       await _configureTorrentBuffer();
@@ -422,6 +462,42 @@ class MediaKitEngine extends PlaybackEngine {
   Future<void> setSubtitleUri(String url, {String? title}) async {
     if (_disposed) return;
     await _player.setSubtitleTrack(SubtitleTrack.uri(url, title: title));
+  }
+
+  @override
+  Future<void> setFileSubtitleStyling(bool enabled) {
+    _requestedFileSubtitleStyling = enabled;
+    if (_disposed || !_nativeSubtitleReady) return Future<void>.value();
+    return _queueFileSubtitleStyling(enabled);
+  }
+
+  Future<void> _queueFileSubtitleStyling(bool enabled) {
+    _fileSubtitleLane = _fileSubtitleLane.then((_) async {
+      if (_disposed) return;
+      final platform = _player.platform;
+      if (platform is! NativePlayer) return;
+      try {
+        if (enabled) {
+          await platform.setProperty('sub-ass', 'yes');
+          await platform.setProperty('sub-ass-override', 'no');
+          await platform.setProperty('sub-visibility', 'yes');
+          await platform.setProperty('secondary-sub-visibility', 'yes');
+        } else {
+          await platform.setProperty('sub-visibility', 'no');
+          await platform.setProperty('secondary-sub-visibility', 'no');
+          await platform.setProperty('sub-ass', 'no');
+        }
+        if (!_disposed) fileSubtitleRendering.value = enabled;
+      } catch (_) {
+        // Keep the Flutter overlay visible if native styling is unavailable.
+        try {
+          await platform.setProperty('sub-visibility', 'no');
+          await platform.setProperty('secondary-sub-visibility', 'no');
+        } catch (_) {/* best-effort */}
+        if (!_disposed) fileSubtitleRendering.value = false;
+      }
+    });
+    return _fileSubtitleLane;
   }
 
   @override
@@ -598,9 +674,8 @@ class PlayerVideoSurface extends StatelessWidget {
   final PlaybackEngine engine;
   final BoxFit fit;
 
-  /// Layered above the video inside the same surface (the settings-aware
-  /// [SubtitleOverlay] — kept here so it inherits the page's pinch-zoom
-  /// transform exactly like media_kit's own subtitle view used to).
+  /// Layered above the video inside the same surface. The Flutter subtitle
+  /// overlay steps aside while native file styling is active.
   final Widget? overlay;
 
   @override

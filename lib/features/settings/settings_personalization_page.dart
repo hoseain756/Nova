@@ -107,6 +107,12 @@ class SettingsPersonalizationPage extends StatelessWidget {
                                       _ => LucideIcons.monitor
                                     })),
                             ])),
+                        SettingsOptimisticSwitchTile(
+                            title: Text(app.tr('oledMode')),
+                            subtitle: Text(app.tr('oledModeDescription')),
+                            value: app.webSettings['oledMode'] == true,
+                            onChanged: (value) =>
+                                app.setSetting('oledMode', value)),
                         SettingsTile(
                             icon: LucideIcons.layoutGrid,
                             title: app.tr('navigationBarStyle'),

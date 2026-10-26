@@ -468,6 +468,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
     return <String, Object?>{
       'subFontSize': savedFontSize.isOdd ? savedFontSize - 1 : savedFontSize,
       'subFontBold': st['subFontBold'] == true,
+      'subUseFileStyle': st['subUseFileStyle'] == true,
       'subFontFamily':
           (st['subFontFamily'] as String?) ?? SubtitleStyle.subtitleFontFamily,
       'subFontColor': (st['subFontColor'] as String?) ?? '#FFFFFF',
@@ -510,6 +511,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
   static const Map<String, Object?> _defaults = <String, Object?>{
     'subFontSize': 28,
     'subFontBold': false,
+    'subUseFileStyle': false,
     'subFontFamily': SubtitleStyle.subtitleFontFamily,
     'subFontColor': '#FFFFFF',
     'subStyle': 'shadow',
@@ -545,6 +547,14 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(NovaStrings.lookup(english, 'subtitleUseFileStyle')),
+            subtitle: Text(
+                NovaStrings.lookup(english, 'subtitleUseFileStyleDescription')),
+            value: _v['subUseFileStyle'] == true,
+            onChanged: (value) => _commit('subUseFileStyle', value),
+          ),
           _colorRow(
             icon: LucideIcons.type,
             label: NovaStrings.lookup(english, 'message52'),

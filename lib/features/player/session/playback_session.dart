@@ -19,7 +19,8 @@ abstract interface class PlaybackBackend {
 }
 
 class MediaKitSessionBackend implements PlaybackBackend {
-  MediaKitSessionBackend() : engine = MediaKitEngine();
+  MediaKitSessionBackend({bool fileSubtitleStyling = false})
+      : engine = MediaKitEngine(fileSubtitleStyling: fileSubtitleStyling);
   @override
   final MediaKitEngine engine;
   @override
@@ -303,6 +304,9 @@ class PlaybackSession extends PlaybackEngine {
   Duration get duration => _raw?.duration ?? Duration.zero;
   @override
   Duration get bufferedEnd => _raw?.bufferedEnd ?? Duration.zero;
+  @override
+  Future<String?> readChapterList() =>
+      nativeEngine?.readChapterList() ?? Future<String?>.value();
   @override
   double get rate => _raw?.rate ?? 1;
   @override
@@ -841,6 +845,20 @@ class PlaybackSession extends PlaybackEngine {
       _command('subtitle', (_) async {
         await _raw?.setSubtitleUri(url, title: title);
       });
+
+  @override
+  Future<void> setFileSubtitleStyling(bool enabled) async {
+    if (enabled && _backend == null && phase == PlaybackPhase.opening) {
+      await _lane;
+    }
+    if (isClosing) return;
+    final switching = await _ensureMpvBackend(enabled);
+    if (switching != null) return;
+    await _command('file_subtitle_style', (_) async {
+      await _raw?.setFileSubtitleStyling(enabled);
+    });
+  }
+
   @override
   Future<PlaybackCommandResult> setSubtitleDelayMs(int delayMs) async {
     final switching = await _ensureTimingBackend(delayMs);

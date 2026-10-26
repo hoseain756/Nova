@@ -54,6 +54,30 @@ void main() {
     expect(find.text('Hello world'), findsOneWidget);
   });
 
+  testWidgets('native file style replaces and restores the Flutter overlay',
+      (tester) async {
+    testerSurface();
+    final controller = StreamController<List<String>>.broadcast();
+    addTearDown(controller.close);
+    final engine = _FakeEngine(controller.stream, const ['Styled line']);
+    final style = ValueNotifier<SubtitleStyle>(SubtitleStyle.fallback);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: SubtitleOverlay(engine: engine, style: style)),
+    ));
+    expect(find.text('Styled line'), findsOneWidget);
+
+    engine.fileSubtitleRendering.value = true;
+    await tester.pump();
+    expect(find.text('Styled line'), findsNothing);
+
+    controller.add(const ['Updated line']);
+    await tester.pump();
+    await tester.pump();
+    engine.fileSubtitleRendering.value = false;
+    await tester.pump();
+    expect(find.text('Updated line'), findsOneWidget);
+  });
+
   testWidgets('live settings change restyles the on-screen text instantly',
       (tester) async {
     testerSurface();

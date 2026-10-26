@@ -21,26 +21,55 @@ abstract final class AnimeSubtitleIds {
     required String videoId,
     required Map<String, dynamic> mapping,
   }) {
+    final ids = mapping['mappings'];
+    if (ids is! Map) return const [];
+    final absolute = exactEpisodeNumber(
+      item: item,
+      videoId: videoId,
+      mapping: mapping,
+    );
+    if (absolute == null) return const [];
+    final candidates = <String>[
+      if (_positive(ids['mal_id']) case final mal?) 'mal:$mal:$absolute',
+      if (_positive(ids['kitsu_id']) case final kitsu?)
+        'kitsu:$kitsu:$absolute',
+      if (_positive(ids['anilist_id']) case final anilist?)
+        'anilist:$anilist:$absolute',
+      if (_positive(ids['anidb_id']) case final anidb?)
+        'anidb:$anidb:$absolute',
+      if (ids['imdb_id']?.toString() case final imdb?)
+        if (RegExp(r'^tt\d+$').hasMatch(imdb)) '$imdb:1:$absolute',
+    ];
+    return candidates.where((id) => id != videoId).toSet().toList();
+  }
+
+  /// Only an unambiguous AniZip row matching this exact provider episode may
+  /// translate season/episode coordinates into an anime absolute episode.
+  static int? exactEpisodeNumber({
+    required MediaItem item,
+    required String videoId,
+    required Map<String, dynamic> mapping,
+  }) {
     final video =
         item.videos.where((entry) => entry['id'] == videoId).firstOrNull;
-    if (video == null) return const [];
+    if (video == null) return null;
     final season = _positive(video['season']);
     final episode = _positive(video['episode']);
-    if (season == null || episode == null) return const [];
+    if (season == null || episode == null) return null;
 
     final ids = mapping['mappings'];
     final episodes = mapping['episodes'];
-    if (ids is! Map || episodes is! Map) return const [];
+    if (ids is! Map || episodes is! Map) return null;
     if (RegExp(r'^tt\d+$').hasMatch(item.id) &&
         ids['imdb_id']?.toString() != item.id) {
-      return const [];
+      return null;
     }
     if (item.idMal != null && _positive(ids['mal_id']) != item.idMal) {
-      return const [];
+      return null;
     }
     if (item.anilistId != null &&
         _positive(ids['anilist_id']) != item.anilistId) {
-      return const [];
+      return null;
     }
 
     final matches = <(int, Map)>[];
@@ -65,20 +94,7 @@ abstract final class AnimeSubtitleIds {
       }
       matches.add((absolute, row));
     }
-    if (matches.length != 1) return const [];
-    final absolute = matches.single.$1;
-    final candidates = <String>[
-      if (_positive(ids['mal_id']) case final mal?) 'mal:$mal:$absolute',
-      if (_positive(ids['kitsu_id']) case final kitsu?)
-        'kitsu:$kitsu:$absolute',
-      if (_positive(ids['anilist_id']) case final anilist?)
-        'anilist:$anilist:$absolute',
-      if (_positive(ids['anidb_id']) case final anidb?)
-        'anidb:$anidb:$absolute',
-      if (ids['imdb_id']?.toString() case final imdb?)
-        if (RegExp(r'^tt\d+$').hasMatch(imdb)) '$imdb:1:$absolute',
-    ];
-    return candidates.where((id) => id != videoId).toSet().toList();
+    return matches.length == 1 ? matches.single.$1 : null;
   }
 
   static int? _positive(Object? value) {
