@@ -10,6 +10,10 @@ import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/torrent/torrent_service.dart';
 
+/// UI-only marker for an add-on torrent result with no playback path here.
+/// Never mutate the provider's stream map or send this marker to an add-on.
+const unavailableTorrentSourceKey = '_novaUnavailableTorrent';
+
 bool isTorrentStreamMap(Map<String, dynamic> stream) {
   final url = stream['url'];
   final hash = (stream['infoHash'] ?? '').toString().trim().toLowerCase();
@@ -76,8 +80,8 @@ List<Map<String, dynamic>> rankStreams(
 }
 
 /// Fetches every enabled add-on's streams for [videoId], applies the user's
-/// playable-only filter, gates torrent rows on an actual playback path
-/// (Debrid connected OR the on-device engine) and ranks the remainder.
+/// playable-only filter, marks torrent rows without a playback path
+/// (Debrid connected OR the on-device engine), and ranks all results.
 /// Tolerates add-on failures for existing callers; player panels opt into an
 /// error when all add-ons fail so a failed fetch is not shown as empty data.
 Future<List<Map<String, dynamic>>> loadRankedSources({
@@ -111,11 +115,20 @@ Future<List<Map<String, dynamic>>> loadRankedSources({
     }
   }
   if (!torrentSourcesAllowed) {
-    streams = streams
-        .where((stream) =>
-            stream['url'] is String &&
-            (stream['url'] as String).startsWith('http'))
-        .toList();
+    streams = markUnavailableTorrentSources(streams);
   }
   return rankStreams(streams, app.webSettings);
+}
+
+List<Map<String, dynamic>> markUnavailableTorrentSources(
+    List<Map<String, dynamic>> streams) {
+  return [
+    for (final stream in streams)
+      if (isTorrentStreamMap(stream) &&
+          !(stream['url'] is String &&
+              (stream['url'] as String).startsWith('http')))
+        {...stream, unavailableTorrentSourceKey: true}
+      else
+        stream,
+  ];
 }

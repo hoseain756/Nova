@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/features/media/sources_page.dart';
+import 'package:nova_mobile/features/media/stream_loading.dart';
 
 void main() {
   final item = MediaItem(
@@ -33,7 +34,8 @@ void main() {
   ];
 
   Widget harness(ValueChanged<Map<String, dynamic>?> onPicked,
-          {bool downloadMode = false}) =>
+          {bool downloadMode = false,
+          List<Map<String, dynamic>>? sourceRows}) =>
       MaterialApp(
         theme: ThemeData.dark(),
         home: Builder(
@@ -50,7 +52,7 @@ void main() {
                       'name': 'Pilot',
                       'id': 'tt1:1:2',
                     },
-                    streams: streams,
+                    streams: sourceRows ?? streams,
                     english: true,
                     downloadMode: downloadMode,
                   ),
@@ -139,6 +141,27 @@ void main() {
         scrollable: sourceList);
     await tester.tap(find.text('broken source'));
     await tester.pumpAndSettle();
+    expect(picked, isNull);
+  });
+
+  testWidgets('iOS torrent result stays visible with its unavailable reason',
+      (tester) async {
+    Map<String, dynamic>? picked;
+    final rows = markUnavailableTorrentSources([
+      {
+        'title': 'Torrentio 1080p',
+        'infoHash': '0123456789abcdef0123456789abcdef01234567',
+        'addonName': 'Torrentio',
+      }
+    ]);
+    await tester
+        .pumpWidget(harness((result) => picked = result, sourceRows: rows));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Torrentio 1080p'), findsOneWidget);
+    expect(find.textContaining('connected Debrid service'), findsOneWidget);
+    await tester.tap(find.text('Torrentio 1080p'));
+    await tester.pump();
     expect(picked, isNull);
   });
 }

@@ -1188,27 +1188,21 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
 
   Widget _brandHeader(AppState app) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const NovaBrand(width: 184),
-          const SizedBox(height: 18),
-          Text(
-            app.tr('message406', {'p0': noorVersionLabel}),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
+    return Column(
+      key: const Key('aboutBrandHeader'),
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const Center(child: NovaBrand(width: 184)),
+        const SizedBox(height: 18),
+        Text(
+          app.tr('message406', {'p0': noorVersionLabel}),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -26,6 +26,8 @@ import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../media/stream_loading.dart';
+
 import '../engine/playback_engine.dart';
 import '../../../shared/widgets/shimmer_box.dart';
 import 'precise_delay_value.dart';
@@ -1000,9 +1002,11 @@ class _StreamsPanelBodyState extends State<StreamsPanelBody> {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final stream = streams[index];
-                    final playable = stream['url'] is String &&
-                            (stream['url'] as String).startsWith('http') ||
-                        stream['infoHash'] is String;
+                    final playable = stream[unavailableTorrentSourceKey] !=
+                            true &&
+                        ((stream['url'] is String &&
+                                (stream['url'] as String).startsWith('http')) ||
+                            isTorrentStreamMap(stream));
                     final current = widget.currentStream;
                     final selected = identical(stream, current) ||
                         current != null &&
@@ -1035,9 +1039,18 @@ class _StreamsPanelBodyState extends State<StreamsPanelBody> {
                           overflow: TextOverflow.ellipsis),
                       subtitle: Padding(
                           padding: const EdgeInsetsDirectional.only(top: 8),
-                          child: Text(stream['addonName']?.toString() ?? '',
-                              style:
-                                  TextStyle(color: scheme.onSurfaceVariant))),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(stream['addonName']?.toString() ?? '',
+                                    style: TextStyle(
+                                        color: scheme.onSurfaceVariant)),
+                                if (stream[unavailableTorrentSourceKey] == true)
+                                  Text(
+                                      NovaStrings.lookup(
+                                          widget.english, 'torrentUnavailable'),
+                                      style: TextStyle(color: scheme.error)),
+                              ])),
                       onTap: playable ? () => widget.onPick(stream) : null,
                     );
                   })),

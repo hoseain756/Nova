@@ -59,6 +59,22 @@ class _SettingsApp extends AppState {
   }
 }
 
+class _StaticUpdateService extends AppUpdateService {
+  @override
+  Future<AppUpdateStatus> checkForUpdates() async => const AppUpdateStatus(
+        manifest: AppUpdateManifest(
+          latestVersion: '1.0.4',
+          latestBuild: 67,
+          minBuild: 1,
+          messageAr: '',
+          androidUrl: '',
+          iosUrl: '',
+        ),
+        currentVersion: '1.0.4',
+        currentBuild: 67,
+      );
+}
+
 Widget _harness(_SettingsApp app, Widget page,
         {double scale = 1, bool light = false}) =>
     ChangeNotifierProvider<AppState>.value(
@@ -252,6 +268,33 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final english in [true, false]) {
+    for (final light in [true, false]) {
+      testWidgets(
+          'About centers its uncarded brand in '
+          '${english ? 'English' : 'Arabic'} '
+          '${light ? 'light' : 'dark'} mode', (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final app = _SettingsApp(NoorApi());
+        app.english = english;
+        await tester.pumpWidget(_harness(
+            app, SettingsAboutPage(updateService: _StaticUpdateService()),
+            light: light));
+        await tester.pumpAndSettle();
+        final header = find.byKey(const Key('aboutBrandHeader'));
+        final brand =
+            find.descendant(of: header, matching: find.byType(NovaBrand));
+        expect(brand, findsOneWidget);
+        expect((tester.getCenter(brand).dx - 195).abs(), lessThan(1));
+        expect(find.textContaining('1.0.4+67'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   testWidgets('catalog settings keep Kids tab and persist Home visibility',
       (tester) async {

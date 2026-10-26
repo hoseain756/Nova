@@ -162,8 +162,7 @@ class _SourcesPageState extends State<SourcesPage> {
   }
 
   bool _isTorrent(Map<String, dynamic> stream) =>
-      !_isDirect(stream) &&
-      (stream['infoHash'] is String || isTorrentStreamMap(stream));
+      !_isDirect(stream) && isTorrentStreamMap(stream);
 
   /// Indices into [_streams] that survive the text query + chips,
   /// ordered by the active sort (rank order = original index order kept).
@@ -598,7 +597,9 @@ class _SourcesPageState extends State<SourcesPage> {
                               facts: _facts[i],
                               english: english,
                               condensed: condensed,
-                              onTap: _isDirect(stream) || _isTorrent(stream)
+                              onTap: stream[unavailableTorrentSourceKey] !=
+                                          true &&
+                                      (_isDirect(stream) || _isTorrent(stream))
                                   ? () => Navigator.of(context).pop(stream)
                                   : null);
                         });
@@ -950,6 +951,14 @@ class _SourceRow extends StatelessWidget {
                                                 .textTheme
                                                 .bodySmall)
                                       ]),
+                                if (stream[unavailableTorrentSourceKey] == true)
+                                  Text(
+                                      NovaStrings.lookup(
+                                          english, 'torrentUnavailable'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(color: scheme.error)),
                               ])),
                           if (onTap != null)
                             Icon(LucideIcons.play,

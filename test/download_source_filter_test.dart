@@ -27,4 +27,20 @@ void main() {
         isFalse);
     expect(isDownloadableStreamMap({'url': 'https://'}), isFalse);
   });
+
+  test('unsupported torrent results remain visible and are marked for UI', () {
+    final torrent = <String, dynamic>{
+      'infoHash': hash,
+      'addonName': 'Torrent add-on'
+    };
+    final direct = <String, dynamic>{
+      'url': 'https://example.test/movie.mp4',
+      'addonName': 'Direct add-on'
+    };
+    final rows = markUnavailableTorrentSources([torrent, direct]);
+    expect(rows, hasLength(2));
+    expect(rows.first[unavailableTorrentSourceKey], isTrue);
+    expect(rows.last[unavailableTorrentSourceKey], isNull);
+    expect(torrent.containsKey(unavailableTorrentSourceKey), isFalse);
+  });
 }
