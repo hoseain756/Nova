@@ -156,15 +156,23 @@ class _FeaturedCardState extends State<FeaturedHero>
     if (_reducedMotion ||
         !_appActive ||
         _touching ||
-        !widget.autoplayActive ||
+        !_destinationVisible ||
         widget.items.length < 2) {
       return;
     }
     _autoplayTimer = Timer.periodic(_heroSlideDuration, (_) {
-      if (!mounted || _touching) return;
+      if (!mounted || _touching || !_destinationVisible) return;
       _setActiveSlide((_activeIndex + 1) % widget.items.length);
     });
   }
+
+  // A selected Home tab remains mounted beneath detail/player routes. Timers
+  // are not muted by TickerMode, so explicitly stop their work while covered.
+  bool get _destinationVisible =>
+      mounted &&
+      widget.autoplayActive &&
+      TickerMode.valuesOf(context).enabled &&
+      (ModalRoute.of(context)?.isCurrent ?? true);
 
   void _pauseForTouch() {
     _touchResumeTimer?.cancel();
@@ -197,7 +205,7 @@ class _FeaturedCardState extends State<FeaturedHero>
   }
 
   void _precacheNext() {
-    if (!mounted || widget.items.isEmpty) return;
+    if (!_destinationVisible || !_appActive || widget.items.isEmpty) return;
     final next = widget.items[(_activeIndex + 1) % widget.items.length];
     final wide = MediaQuery.sizeOf(context).width >= 700;
     final art = _artwork[next.id];

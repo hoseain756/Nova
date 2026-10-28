@@ -71,9 +71,11 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
           .map((e) =>
               '${e.id}:${e.enabled}:${e.catalogs.map((c) => '${c.type}:${c.id}:${c.name}').join(',')}')
           .join('|'),
-      app.history
-          .map((entry) => '${entry.item.id}:${entry.watchedAt}')
-          .join(','),
+      // Playback checkpoints change timestamps every five seconds. Catalogs
+      // depend on the recommendation seed and hidden completed titles, not on
+      // the current playback position or the time of its last save.
+      if (app.webSettings['tmdbEnabled'] != false) _recommendationSeedKey(app),
+      (_watchedCatalogIds(app).toList()..sort()).join(','),
       app.webSettings['catalogRowOrder'],
       app.webSettings['catalogRowHidden'],
       app.webSettings['hideKidsCatalogsHome'],
@@ -169,10 +171,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     if (app.webSettings['tmdbEnabled'] == false) {
       _recommendations = Future.value(const <MediaItem>[]);
     } else {
-      final recentHistory = [...app.history]
-        ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
-      final seed = app.continueWatching.firstOrNull?.item ??
-          recentHistory.firstOrNull?.item;
+      final seed = _recommendationSeed(app);
       _recommendations = seed != null
           ? app.catalogs.tmdbRecommendations(
               seed,
@@ -194,16 +193,34 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
           .catalog(row.catalog.type, row.catalog.id, addon: row.addon)
           .then((items) => _visibleItems(app, items));
 
+  MediaItem? _recommendationSeed(AppState app) {
+    final continuing = app.continueWatching.firstOrNull?.item;
+    if (continuing != null) return continuing;
+    WatchHistoryEntry? latest;
+    for (final entry in app.history) {
+      if (latest == null || entry.watchedAt > latest.watchedAt) latest = entry;
+    }
+    return latest?.item;
+  }
+
+  String? _recommendationSeedKey(AppState app) {
+    final seed = _recommendationSeed(app);
+    return seed == null ? null : '${seed.type}:${seed.id}';
+  }
+
+  Set<String> _watchedCatalogIds(AppState app) =>
+      app.webSettings['hideWatchedInCatalogs'] == true
+          ? app.history
+              .where((entry) =>
+                  entry.durationMs > 0 &&
+                  entry.positionMs >= entry.durationMs - 120000)
+              .map((entry) => entry.item.id)
+              .toSet()
+          : <String>{};
+
   List<MediaItem> _visibleItems(AppState app, List<MediaItem> items) {
     final hidden = app.webSettings['hideContent'] as Map? ?? const {};
-    final watched = app.webSettings['hideWatchedInCatalogs'] == true
-        ? app.history
-            .where((entry) =>
-                entry.durationMs > 0 &&
-                entry.positionMs >= entry.durationMs - 120000)
-            .map((entry) => entry.item.id)
-            .toSet()
-        : <String>{};
+    final watched = _watchedCatalogIds(app);
     const adultRatings = {'r', 'nc-17', 'tv-ma', '18', '18+', 'x', 'ao'};
     return items.where((item) {
       if (watched.contains(item.id)) return false;

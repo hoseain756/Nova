@@ -24,7 +24,7 @@ void main() {
     },
     {
       'title': '2160p HEVC',
-      'infoHash': 'abc123',
+      'infoHash': '0123456789abcdef0123456789abcdef01234567',
       'addonName': 'Torrentio',
     },
     {
@@ -76,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('2160p HEVC'));
     await tester.pumpAndSettle();
-    expect(picked?['infoHash'], 'abc123');
+    expect(picked?['infoHash'], '0123456789abcdef0123456789abcdef01234567');
   });
 
   testWidgets('renders all sources and returns the picked one', (tester) async {
@@ -122,7 +122,25 @@ void main() {
     // Torrent row is playable too — tapping it returns the infoHash stream.
     await tester.tap(find.text('2160p HEVC'));
     await tester.pumpAndSettle();
-    expect(picked?['infoHash'], 'abc123');
+    expect(picked?['infoHash'], '0123456789abcdef0123456789abcdef01234567');
+  });
+
+  testWidgets('malformed torrent hashes remain visible but cannot be picked',
+      (tester) async {
+    Map<String, dynamic>? picked;
+    await tester.pumpWidget(harness(
+      (result) => picked = result,
+      sourceRows: const [
+        {'title': 'Invalid torrent', 'infoHash': 'abc123'},
+      ],
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Invalid torrent'), findsOneWidget);
+    await tester.tap(find.text('Invalid torrent'));
+    await tester.pumpAndSettle();
+    expect(picked, isNull);
+    expect(find.byType(SourcesPage), findsOneWidget);
   });
 
   testWidgets('unsupported rows are disabled', (tester) async {

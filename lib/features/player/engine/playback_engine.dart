@@ -161,6 +161,9 @@ class MediaKitEngine extends PlaybackEngine {
   late final VideoController _controller;
   List<StreamSubscription<dynamic>> _subscriptions = const [];
   bool _disposed = false;
+  MpvPlaybackDiagnostics? _diagnosticProbe;
+  int _diagnosticOpenGeneration = 0;
+  bool? _diagnosticBuffering;
   @override
   Future<String?> readChapterList() async {
     if (_disposed || !ready) return null;
@@ -288,6 +291,9 @@ class MediaKitEngine extends PlaybackEngine {
       Map<String, String>? httpHeaders,
       bool playWhenReady = true}) async {
     if (_disposed) return;
+    final diagnosticGeneration = ++_diagnosticOpenGeneration;
+    _diagnosticProbe?.stop();
+    _diagnosticBuffering = null;
     if (PlayerDiagnostics.enabled) {
       PlayerDiagnostics.instance.record('open');
     }
@@ -347,8 +353,10 @@ class MediaKitEngine extends PlaybackEngine {
       }
     }
     if (!_disposed && playWhenReady) await _player.play();
-    if (Uri.tryParse(url)?.host == '127.0.0.1') {
-      unawaited(_logTorrentDecoderPath());
+    if (PlayerDiagnostics.enabled &&
+        !_disposed &&
+        diagnosticGeneration == _diagnosticOpenGeneration) {
+      _startDiagnostics();
     }
   }
 
@@ -368,20 +376,18 @@ class MediaKitEngine extends PlaybackEngine {
     }
   }
 
-  Future<void> _logTorrentDecoderPath() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-    if (_disposed) return;
-    final platform = _player.platform;
-    if (platform is! NativePlayer) return;
-    try {
-      final codec = await platform.getProperty('video-codec');
-      final decoder = await platform.getProperty('hwdec-current');
-      debugPrint(
-        '[NoorPlayback] video codec=$codec decoder=${decoder.isEmpty ? 'software' : decoder}',
-      );
-    } catch (_) {
-      // Diagnostic only; playback must not depend on optional mpv properties.
-    }
+  void _startDiagnostics() {
+    _diagnosticProbe ??= MpvPlaybackDiagnostics(
+      readProperty: (property) async {
+        final platform = _player.platform;
+        if (_disposed || platform is! NativePlayer) {
+          throw StateError('Native telemetry unavailable');
+        }
+        return platform.getProperty(property);
+      },
+      emit: debugPrint,
+    );
+    _diagnosticProbe!.start();
   }
 
   /// Let the local torrent stream read ahead enough data to absorb short peer
@@ -582,7 +588,10 @@ class MediaKitEngine extends PlaybackEngine {
   }
 
   void _onBuffering(bool value) {
-    PlayerDiagnostics.instance.record('buffering');
+    PlayerDiagnostics.instance.record('bufferingCallback');
+    PlayerDiagnostics.instance.recordBufferingState(
+        media3: false, previous: _diagnosticBuffering, current: value);
+    _diagnosticBuffering = value;
     if (_buffering == value) return;
     _buffering = value;
     _notifySafely();
@@ -651,6 +660,8 @@ class MediaKitEngine extends PlaybackEngine {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _diagnosticOpenGeneration++;
+    _diagnosticProbe?.stop();
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
@@ -668,6 +679,8 @@ class MediaKitEngine extends PlaybackEngine {
   Future<void> _closeNative() async {
     if (_disposed) return;
     _disposed = true;
+    _diagnosticOpenGeneration++;
+    _diagnosticProbe?.stop();
     final subscriptions = _subscriptions;
     _subscriptions = const [];
     try {

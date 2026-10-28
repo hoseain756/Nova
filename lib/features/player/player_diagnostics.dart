@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
-/// Temporary Station 03 diagnostics. Runtime hooks are active only in Debug
-/// and Profile builds; Release compiles the guarded call sites away.
+/// Playback diagnostics for Debug/Profile, or an explicitly instrumented
+/// Release build. Ordinary Release builds keep these hooks disabled.
 class PlayerDiagnostics {
   PlayerDiagnostics._();
 
-  static const bool enabled = kDebugMode || kProfileMode;
+  static const bool enabled = kDebugMode ||
+      kProfileMode ||
+      bool.fromEnvironment('NOVA_PLAYER_DIAGNOSTICS');
   static final PlayerDiagnostics instance = PlayerDiagnostics._();
 
   static const Duration _summaryInterval = Duration(seconds: 10);
@@ -32,7 +35,9 @@ class PlayerDiagnostics {
     _started = true;
     _lastSummary = DateTime.now();
     SchedulerBinding.instance.addTimingsCallback(_onFrameTimings);
-    debugPrint('NOVA_DIAG enabled mode=${kProfileMode ? 'profile' : 'debug'} '
+    final mode =
+        kReleaseMode ? 'release' : (kProfileMode ? 'profile' : 'debug');
+    debugPrint('NOVA_DIAG enabled mode=$mode '
         'frameBudgetMs=${_frameBudgetMs.toStringAsFixed(2)}');
   }
 
@@ -47,39 +52,22 @@ class PlayerDiagnostics {
     debugPrint('NOVA_DIAG firstFrameMs=${elapsed.inMicroseconds / 1000}');
   }
 
-  /// Reads mpv decoder properties only when a diagnostics surface explicitly
-  /// requests a snapshot. This is never scheduled or called by the player.
-  Future<void> captureDecoderSnapshot({
-    required Future<String> Function(String property) readProperty,
-  }) async {
-    if (!enabled) return;
-    try {
-      final values = await Future.wait(<Future<String>>[
-        readProperty('video-codec'),
-        readProperty('hwdec-current'),
-        readProperty('decoder-frame-drop-count'),
-        readProperty('frame-drop-count'),
-      ]);
-      recordDecoderSnapshot(
-        codec: values[0],
-        hardwareDecoder: values[1].isEmpty ? 'software/unknown' : values[1],
-        decodedDrops: values[2],
-        outputDrops: values[3],
-      );
-    } catch (_) {
-      // Optional mpv statistics must never affect playback.
-    }
-  }
-
-  void recordDecoderSnapshot({
-    required String codec,
-    required String hardwareDecoder,
-    required String decodedDrops,
-    required String outputDrops,
+  /// Initial state is separate from transitions. Buffer-position callbacks
+  /// never count as a stall; only an actual native buffering-state change does.
+  void recordBufferingState({
+    required bool media3,
+    required bool? previous,
+    required bool current,
   }) {
     if (!enabled) return;
-    debugPrint('NOVA_DIAG decoder codec=$codec hwdec=$hardwareDecoder '
-        'decoderDrops=$decodedDrops outputDrops=$outputDrops');
+    if (previous == current) return;
+    final engine = media3 ? 'media3' : 'mpv';
+    if (previous == null) {
+      debugPrint('NOVA_DIAG engine=$engine bufferingInitial=$current');
+      return;
+    }
+    record('${engine}Buffering${current ? 'Started' : 'Ended'}');
+    debugPrint('NOVA_DIAG engine=$engine buffering=$current');
   }
 
   void _onFrameTimings(List<FrameTiming> timings) {
@@ -125,4 +113,103 @@ class PlayerDiagnostics {
     final index = ((sorted.length - 1) * percentile).round();
     return sorted[index];
   }
+}
+
+/// A bounded, read-only mpv probe. One native sample may be outstanding at a
+/// time, including after a timeout: a hung property request never accumulates
+/// more requests. Source replacement and retirement invalidate pending output.
+class MpvPlaybackDiagnostics {
+  MpvPlaybackDiagnostics({
+    required this.readProperty,
+    required this.emit,
+    this.interval = const Duration(seconds: 5),
+    this.readTimeout = const Duration(seconds: 2),
+  });
+
+  final Future<String> Function(String property) readProperty;
+  final void Function(String message) emit;
+  final Duration interval;
+  final Duration readTimeout;
+  Timer? _timer;
+  int _generation = 0;
+  bool _sampling = false;
+
+  static const _properties = <String>[
+    'video-codec',
+    'hwdec-current',
+    'video-pts',
+    'avsync',
+    'paused-for-cache',
+    'demuxer-cache-duration',
+    'frame-drop-count',
+    'decoder-frame-drop-count',
+  ];
+
+  void start() {
+    stop();
+    final generation = _generation;
+    _timer = Timer.periodic(interval, (_) => unawaited(_capture(generation)));
+  }
+
+  void stop() {
+    _generation++;
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  bool _current(int generation) => _timer != null && generation == _generation;
+
+  Future<void> _capture(int generation) async {
+    if (_sampling || !_current(generation)) return;
+    _sampling = true;
+    final pending = Future.wait(_properties.map((property) async {
+      try {
+        return await readProperty(property);
+      } catch (_) {
+        return '';
+      }
+    }));
+    // Future.timeout does not cancel the underlying native read. Keep the
+    // exclusion held until those reads actually finish, even after stop/start.
+    unawaited(pending.then((_) {
+      _sampling = false;
+    }));
+    try {
+      final values = await pending.timeout(readTimeout);
+      if (!_current(generation)) return;
+      emit('NOVA_DIAG engine=mpv '
+          'codec=${_codec(values[0])} hwdec=${_token(values[1])} '
+          'videoPts=${diagnosticNumber(values[2])} '
+          'avsync=${diagnosticNumber(values[3])} '
+          'pausedForCache=${_flag(values[4])} '
+          'cacheSeconds=${diagnosticNumber(values[5])} '
+          'outputDrops=${diagnosticNumber(values[6])} '
+          'decoderDrops=${diagnosticNumber(values[7])}');
+    } on TimeoutException {
+      if (_current(generation)) emit('NOVA_DIAG engine=mpv sample=timeout');
+    }
+  }
+
+  static String _codec(String value) => _token(value.split(' ').first);
+  static String _token(String value) {
+    final match = RegExp(r'[a-zA-Z0-9_.+-]{1,64}').matchAsPrefix(value);
+    return match != null && match.end == value.length ? value : 'unknown';
+  }
+
+  static String _flag(String value) => switch (value) {
+        'yes' || 'true' || '1' => 'true',
+        'no' || 'false' || '0' => 'false',
+        _ => 'unknown',
+      };
+}
+
+/// Only finite numeric telemetry is emitted. Native errors and unexpected
+/// strings (including source URLs or headers) are never interpolated into logs.
+String diagnosticNumber(Object? value) {
+  final number = value is num
+      ? value
+      : value is String && value.length <= 64
+          ? num.tryParse(value)
+          : null;
+  return number != null && number.isFinite ? number.toString() : 'unknown';
 }

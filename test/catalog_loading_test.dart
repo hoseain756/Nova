@@ -12,6 +12,8 @@ import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/features/catalog/catalog_browser_page.dart';
 import 'package:nova_mobile/features/home/home_page.dart';
+import 'package:nova_mobile/features/home/widgets/async_media_section.dart';
+import 'package:nova_mobile/features/home/widgets/continue_watching_rail.dart';
 
 const _quickFilm = MediaItem(id: 'quick', type: 'movie', name: 'Quick Film');
 const _lateFilm = MediaItem(id: 'late', type: 'movie', name: 'Late Film');
@@ -48,7 +50,153 @@ class _DeferredCatalogs extends CatalogRepository {
       addonResult.future;
 }
 
+class _CountingCatalogs extends CatalogRepository {
+  _CountingCatalogs(super.api);
+
+  int topTenRequests = 0;
+  int catalogRequests = 0;
+  int animeRequests = 0;
+  final List<String> recommendationSeeds = [];
+
+  @override
+  Future<List<MediaItem>> catalog(
+    String type,
+    String id, {
+    Map<String, dynamic> extras = const {},
+    Addon? addon,
+  }) async {
+    catalogRequests++;
+    return const [_quickFilm, _lateFilm];
+  }
+
+  @override
+  Future<List<MediaItem>> homeTopTen() async {
+    topTenRequests++;
+    return const [_quickFilm, _lateFilm];
+  }
+
+  @override
+  Future<List<MediaItem>> anime() async {
+    animeRequests++;
+    return const [];
+  }
+
+  @override
+  Future<List<MediaItem>> tmdbRecommendations(
+    MediaItem seed, {
+    String language = 'en-US',
+    String region = 'US',
+  }) async {
+    recommendationSeeds.add('${seed.type}:${seed.id}');
+    return const [];
+  }
+}
+
+Future<void> _pumpHome(WidgetTester tester, AppState app) async {
+  await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+    value: app,
+    child: const MaterialApp(home: Scaffold(body: HomePage(active: false))),
+  ));
+  await tester.pump();
+  await tester.pump();
+}
+
 void main() {
+  testWidgets('playback saves update Continue Watching without reloading Home',
+      (tester) async {
+    final api = NoorApi();
+    final catalog = _CountingCatalogs(api);
+    final app = AppState(api, catalog)
+      ..english = true
+      ..webSettings['homeMode'] = 'classic'
+      ..webSettings['cloudSyncEnabled'] = false
+      ..history = const [
+        WatchHistoryEntry(
+          item: _quickFilm,
+          watchedAt: 1,
+          positionMs: 30000,
+          durationMs: 600000,
+        ),
+      ];
+    addTearDown(app.dispose);
+    addTearDown(api.dispose);
+    await _pumpHome(tester, app);
+    final requests = (
+      catalog.topTenRequests,
+      catalog.catalogRequests,
+      catalog.animeRequests,
+      catalog.recommendationSeeds.length,
+    );
+
+    for (final position in [35000, 40000, 45000]) {
+      await app.recordPlayback(_quickFilm,
+          positionMs: position, durationMs: 600000);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump();
+      expect(
+        (
+          catalog.topTenRequests,
+          catalog.catalogRequests,
+          catalog.animeRequests,
+          catalog.recommendationSeeds.length,
+        ),
+        requests,
+      );
+      final rail = tester
+          .widget<ContinueWatchingRail>(find.byType(ContinueWatchingRail));
+      expect(rail.entries.single.positionMs, position);
+    }
+    expect(catalog.recommendationSeeds, ['movie:quick']);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Home reloads for completion filtering and a new seed',
+      (tester) async {
+    final api = NoorApi();
+    final catalog = _CountingCatalogs(api);
+    final app = AppState(api, catalog)
+      ..english = true
+      ..webSettings['homeMode'] = 'classic'
+      ..webSettings['cloudSyncEnabled'] = false
+      ..webSettings['hideWatchedInCatalogs'] = true
+      ..history = const [
+        WatchHistoryEntry(
+          item: _quickFilm,
+          watchedAt: 1,
+          positionMs: 475000,
+          durationMs: 600000,
+        ),
+      ];
+    addTearDown(app.dispose);
+    addTearDown(api.dispose);
+    await _pumpHome(tester, app);
+    final initial = catalog.topTenRequests;
+
+    await app.recordPlayback(_quickFilm,
+        positionMs: 480000, durationMs: 600000);
+    await tester.pump();
+    await tester.pump();
+    expect(catalog.topTenRequests, initial + 1);
+    final topTen = tester
+        .widgetList<AsyncMediaSection>(find.byType(AsyncMediaSection))
+        .firstWhere((section) => section.numbered);
+    expect((await topTen.future).map((item) => item.id), ['late']);
+
+    await app.recordPlayback(_quickFilm,
+        positionMs: 485000, durationMs: 600000);
+    await tester.pump();
+    expect(catalog.topTenRequests, initial + 1);
+
+    await app.recordPlayback(_lateFilm, positionMs: 30000, durationMs: 600000);
+    await tester.pump();
+    await tester.pump();
+    expect(catalog.topTenRequests, initial + 2);
+    expect(catalog.recommendationSeeds.last, 'movie:late');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   test('catalog queue caps concurrent work and releases a failed slot',
       () async {
     final queue = CatalogLoadQueue(maxConcurrent: 2);

@@ -33,6 +33,7 @@ class Media3Engine extends PlaybackEngine {
   int? _errorCode;
   final _diagnosticClock = Stopwatch()..start();
   int _lastDiagnosticMs = 0;
+  bool? _diagnosticBuffering;
 
   /// Parsing/decoder incompatibility only. Network, authorization and DRM errors
   /// are deliberately excluded, as replacing the decoder cannot repair them.
@@ -123,6 +124,12 @@ class Media3Engine extends PlaybackEngine {
 
   void _receiveState(Map<dynamic, dynamic> value) {
     if (_closing) return;
+    if (PlayerDiagnostics.enabled && value['buffering'] is bool) {
+      final buffering = value['buffering'] as bool;
+      PlayerDiagnostics.instance.recordBufferingState(
+          media3: true, previous: _diagnosticBuffering, current: buffering);
+      _diagnosticBuffering = buffering;
+    }
     if (PlayerDiagnostics.enabled &&
         value['firstFrameMs'] is num &&
         _state['firstFrameMs'] == null) {
@@ -138,10 +145,16 @@ class Media3Engine extends PlaybackEngine {
     }
     _receiveCues(value['cues']);
     if (PlayerDiagnostics.enabled &&
-        _diagnosticClock.elapsedMilliseconds - _lastDiagnosticMs >= 10000) {
+        _diagnosticClock.elapsedMilliseconds - _lastDiagnosticMs >= 5000) {
       _lastDiagnosticMs = _diagnosticClock.elapsedMilliseconds;
-      debugPrint('NOVA_DIAG media3 firstFrameMs=${value['firstFrameMs']} '
-          'decoderDrops=${value['droppedFrames']} bufferTargetBytes=${value['bufferTargetBytes']}');
+      debugPrint('NOVA_DIAG engine=media3 '
+          'positionMs=${diagnosticNumber(value['positionMs'])} '
+          'bufferedMs=${diagnosticNumber(value['bufferedMs'])} '
+          'playing=${value['playing'] is bool ? value['playing'] : 'unknown'} '
+          'buffering=${value['buffering'] is bool ? value['buffering'] : 'unknown'} '
+          'firstFrameMs=${diagnosticNumber(value['firstFrameMs'])} '
+          'droppedFrames=${diagnosticNumber(value['droppedFrames'])} '
+          'bufferTargetBytes=${diagnosticNumber(value['bufferTargetBytes'])}');
     }
     notifyListeners();
   }
@@ -191,6 +204,9 @@ class Media3Engine extends PlaybackEngine {
   @override
   Future<void> open(String url,
       {Duration? startAt, Map<String, String>? httpHeaders}) async {
+    _diagnosticClock.reset();
+    _lastDiagnosticMs = 0;
+    _diagnosticBuffering = null;
     await (_creation ??= _create());
     if (_closing) return;
     await _command('open',

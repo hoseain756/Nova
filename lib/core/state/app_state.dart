@@ -1519,34 +1519,47 @@ class AppState extends ChangeNotifier {
       NoorSyncService.bucketLibrary,
     },
   ]) async {
-    await _persist();
+    await _persist(buckets);
     for (final bucket in buckets) {
       _schedulePush(bucket);
     }
     notifyListeners();
   }
 
-  Future<void> _persist() async {
-    await _preferences?.setString(
-      'horse.mobile.addons',
-      _encode(addons.map((e) => e.toJson()).toList()),
-    );
-    await _preferences?.setString(
-      'horse.mobile.lists',
-      _encode(customLists.map((list) => list.toJson()).toList()),
-    );
-    await _preferences?.setString(
-      'horse.mobile.watchlist',
-      _encode(watchlist.map((e) => e.toJson()).toList()),
-    );
-    await _preferences?.setString(
-      'horse.mobile.history',
-      _encode(history.map((e) => e.toJson()).toList()),
-    );
-    await _preferences?.setString(
-      'horse.mobile.cw',
-      _encode(_continueWatching),
-    );
+  Future<void> _persist([Set<String>? buckets]) async {
+    // Playback checkpoints change history and Continue Watching only. Avoid
+    // serializing and rewriting unrelated collections on every checkpoint.
+    // Startup and full-state merges still persist all collections.
+    if (buckets == null || buckets.contains(NoorSyncService.bucketAddons)) {
+      await _preferences?.setString(
+        'horse.mobile.addons',
+        _encode(addons.map((e) => e.toJson()).toList()),
+      );
+    }
+    if (buckets == null || buckets.contains(NoorSyncService.bucketLists)) {
+      await _preferences?.setString(
+        'horse.mobile.lists',
+        _encode(customLists.map((list) => list.toJson()).toList()),
+      );
+    }
+    if (buckets == null || buckets.contains(NoorSyncService.bucketWatchlist)) {
+      await _preferences?.setString(
+        'horse.mobile.watchlist',
+        _encode(watchlist.map((e) => e.toJson()).toList()),
+      );
+    }
+    if (buckets == null || buckets.contains(NoorSyncService.bucketHistory)) {
+      await _preferences?.setString(
+        'horse.mobile.history',
+        _encode(history.map((e) => e.toJson()).toList()),
+      );
+    }
+    if (buckets == null || buckets.contains(NoorSyncService.bucketLibrary)) {
+      await _preferences?.setString(
+        'horse.mobile.cw',
+        _encode(_continueWatching),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
