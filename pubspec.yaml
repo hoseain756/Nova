@@ -56,6 +56,8 @@ dependencies:
   media_kit_video: ^2.0.1
   media_kit_libs_android_video: ^1.3.8
   media_kit_libs_ios_video: ^1.1.4
+  nova_ios_torrent:
+    path: packages/nova_ios_torrent
 
   # Direct Postgres (Supabase pooler) for accountless device sync.
   postgres: ^3.5.6

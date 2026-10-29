@@ -1,0 +1,18 @@
+name: nova_ios_torrent
+description: NOVA's embedded iOS torrent engine bridge.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.29.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: NovaIosTorrentPlugin

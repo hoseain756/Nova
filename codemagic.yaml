@@ -16,16 +16,18 @@ workflows:
           "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter" --version
       - name: Precache iOS engine artifacts
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter precache --ios"
+      - name: Prepare pinned on-device iOS torrent engine
+        script: "bash tool/prepare_ios_torrent.sh"
       - name: Resolve Flutter dependencies
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter pub get"
       - name: Analyze Flutter source
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter analyze --no-pub"
       - name: Run all Flutter unit and widget tests
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter test --no-pub"
-      - name: Verify iOS 15 deployment settings
+      - name: Verify iOS 18 deployment settings
         script: |
-          test "$(grep -c 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;' ios/Runner.xcodeproj/project.pbxproj)" -eq 6
-          ! grep -q 'IPHONEOS_DEPLOYMENT_TARGET = 13.0;' ios/Runner.xcodeproj/project.pbxproj
+          test "$(grep -c 'IPHONEOS_DEPLOYMENT_TARGET = 18.0;' ios/Runner.xcodeproj/project.pbxproj)" -eq 6
+          ! grep -q 'IPHONEOS_DEPLOYMENT_TARGET = 15.0;' ios/Runner.xcodeproj/project.pbxproj
       - name: Prepare existing iOS dependencies
         script: |
           if [ -f ios/Podfile ]; then

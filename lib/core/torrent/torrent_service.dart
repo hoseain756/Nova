@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'ios_torrent_service.dart';
 import 'stream_server.dart';
 import 'torrent_models.dart';
 
@@ -105,9 +106,10 @@ class TorrentService {
 
   /// Whether the native torrent engine is available on this platform.
   ///
-  /// On non-Android platforms the MethodChannel is not registered, so the
-  /// invocation raises [MissingPluginException] — reported as `false`.
+  /// iOS uses the embedded TorrServerKit plugin; Android uses jlibtorrent.
+  /// Unsupported platforms report `false`.
   Future<bool> get isSupported async {
+    if (Platform.isIOS) return IosTorrentService.instance.isSupported;
     try {
       return await _channel.invokeMethod<bool>('isSupported') ?? false;
     } on PlatformException {
@@ -124,6 +126,10 @@ class TorrentService {
   Future<void> warmup() async {
     try {
       if (!await isSupported) return;
+      if (Platform.isIOS) {
+        await IosTorrentService.instance.start();
+        return;
+      }
       await _channel.invokeMethod<void>('warmup');
     } catch (_) {
       // Warm-up is best-effort — resolve() bootstraps the session anyway.
@@ -137,6 +143,9 @@ class TorrentService {
   /// net caps the await slightly above the native budget and raises
   /// [TorrentException].
   Future<TorrentMetadata> resolve(String magnet) {
+    if (Platform.isIOS) {
+      return _serialized(() => IosTorrentService.instance.resolve(magnet));
+    }
     return _serialized(() => _resolve(magnet));
   }
 
@@ -182,11 +191,24 @@ class TorrentService {
 
   /// Removes [infoHash] from the engine, optionally deleting its files.
   Future<void> remove(String infoHash, {bool deleteFiles = false}) {
+    if (Platform.isIOS) {
+      return _serialized(() async {
+        await IosTorrentService.instance
+            .remove(infoHash, deleteFiles: deleteFiles);
+        if (_activeHash == infoHash) _activeHash = null;
+      });
+    }
     return _serialized(() => _remove(infoHash, deleteFiles: deleteFiles));
   }
 
   /// Shuts the whole native engine down (used on app teardown).
   Future<void> shutdown() {
+    if (Platform.isIOS) {
+      return _serialized(() async {
+        await IosTorrentService.instance.shutdown();
+        _activeHash = null;
+      });
+    }
     return _serialized(() async {
       await _server?.close();
       _server = null;
@@ -396,6 +418,39 @@ class TorrentService {
       throw const TorrentException(
         'invalid_magnet',
         'This stream has no usable torrent identifier',
+      );
+    }
+
+    if (Platform.isIOS) {
+      final iosHash = canonicalIosTorrentHash(
+        validHash ? hash : (magnet ?? ''),
+      );
+      if (iosHash == null) {
+        throw const TorrentException(
+          'invalid_magnet',
+          'This stream has no usable v1 torrent identifier',
+        );
+      }
+      final prepared = await IosTorrentService.instance.prepare(
+        infoHash: iosHash,
+        magnet: magnetFor(
+          iosHash,
+          dn: displayName ?? filename,
+          extraTrackers: trackers,
+          magnetUri: magnet,
+        ),
+        filename: filename,
+        fileIndex: fileIndex,
+      );
+      _activeHash = prepared.infoHash;
+      return PreparedTorrent(
+        infoHash: prepared.infoHash,
+        url: prepared.url,
+        statusStream: prepared.statusStream,
+        onStop: () => _serialized(() async {
+          await prepared.stop();
+          if (_activeHash == prepared.infoHash) _activeHash = null;
+        }),
       );
     }
 

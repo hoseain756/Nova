@@ -549,6 +549,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  nova_ios_torrent:
+    dependency: "direct main"
+    description:
+      path: "packages/nova_ios_torrent"
+      relative: true
+    source: path
+    version: "0.1.0"
   objective_c:
     dependency: transitive
     description:
