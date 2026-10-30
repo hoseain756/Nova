@@ -1212,13 +1212,13 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
       return const SizedBox.shrink();
     }
     final english = app.english;
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _ratings,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(0, 2, 0, 0),
-            child: Wrap(
+    return Padding(
+      padding: const EdgeInsets.all(2),
+      child: FutureBuilder<Map<String, dynamic>>(
+        future: _ratings,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Wrap(
               spacing: 7,
               runSpacing: 7,
               children: [
@@ -1231,35 +1231,36 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
                         borderRadius: BorderRadius.circular(999)),
                   ),
               ],
+            );
+          }
+          final ratings =
+              _ratingRows(snapshot.data ?? const <String, dynamic>{});
+          if (ratings.isEmpty) return const SizedBox.shrink();
+          final preferred =
+              (app.webSettings['ratingsProviders'] as List? ?? const [])
+                  .map((value) => value.toString())
+                  .toList();
+          ratings.sort((a, b) {
+            final aOrder = preferred.indexOf(a['provider']?.toString() ?? '');
+            final bOrder = preferred.indexOf(b['provider']?.toString() ?? '');
+            return (aOrder < 0 ? 999 : aOrder)
+                .compareTo(bOrder < 0 ? 999 : bOrder);
+          });
+          return Align(
+            alignment: widget.startAligned
+                ? AlignmentDirectional.centerStart
+                : AlignmentDirectional.topCenter,
+            child: Wrap(
+              spacing: NovaSpace.sm,
+              runSpacing: NovaSpace.sm,
+              children: [
+                for (final rating in ratings)
+                  _RatingChip(rating: rating, english: english),
+              ],
             ),
           );
-        }
-        final ratings = _ratingRows(snapshot.data ?? const <String, dynamic>{});
-        if (ratings.isEmpty) return const SizedBox.shrink();
-        final preferred =
-            (app.webSettings['ratingsProviders'] as List? ?? const [])
-                .map((value) => value.toString())
-                .toList();
-        ratings.sort((a, b) {
-          final aOrder = preferred.indexOf(a['provider']?.toString() ?? '');
-          final bOrder = preferred.indexOf(b['provider']?.toString() ?? '');
-          return (aOrder < 0 ? 999 : aOrder)
-              .compareTo(bOrder < 0 ? 999 : bOrder);
-        });
-        return Align(
-          alignment: widget.startAligned
-              ? AlignmentDirectional.centerStart
-              : AlignmentDirectional.topCenter,
-          child: Wrap(
-            spacing: NovaSpace.sm,
-            runSpacing: NovaSpace.sm,
-            children: [
-              for (final rating in ratings)
-                _RatingChip(rating: rating, english: english),
-            ],
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 }
@@ -1312,7 +1313,6 @@ class _RatingChip extends StatelessWidget {
           // rating chips sat over the scrolling artwork and each re-blurred
           // its backdrop every frame; the .55 fill keeps the same contrast.
           padding: const EdgeInsets.all(2),
-          constraints: const BoxConstraints(minHeight: 36),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHigh,
             border:
