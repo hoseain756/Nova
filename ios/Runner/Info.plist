@@ -18,18 +18,22 @@
         <string>NOVA</string>
         <key>CFBundleURLTypes</key>
         <array>
-                <!-- AniList / MyAnimeList OAuth return (RFC 8252): the
-                     app-identifier private-use scheme carries the
-                     authorization code back into the app after browser
-                     approval. Register exactly `app.noor.mobile://callback`
-                     as the Redirect URI in the AniList developer settings
-                     and the MyAnimeList API panel. -->
+                <!-- MyAnimeList and Supabase Auth callbacks. -->
                 <dict>
                         <key>CFBundleURLName</key>
                         <string>app.noor.mobile.oauth</string>
                         <key>CFBundleURLSchemes</key>
                         <array>
                                 <string>app.noor.mobile</string>
+                        </array>
+                </dict>
+                <!-- AniList application 53823 uses app.nova.mobile://callback. -->
+                <dict>
+                        <key>CFBundleURLName</key>
+                        <string>app.nova.mobile.anilist</string>
+                        <key>CFBundleURLSchemes</key>
+                        <array>
+                                <string>app.nova.mobile</string>
                         </array>
                 </dict>
                 <!-- Trakt OAuth direct return (noor://callback). -->

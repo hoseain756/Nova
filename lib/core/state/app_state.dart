@@ -102,6 +102,7 @@ class AppState extends ChangeNotifier {
   ResumeSnapshotStore? _resumeSnapshotStore;
   String? _activeAccountId;
   String? _activeProfileId;
+  bool _profileScopeReady = false;
   Completer<void>? _pushIdle;
   bool _hasPreAccountData = false;
   int _scopeGeneration = 0;
@@ -357,7 +358,12 @@ class AppState extends ChangeNotifier {
     required String accountId,
     required String profileId,
   }) async {
-    if (_activeAccountId == accountId && _activeProfileId == profileId) return;
+    if (_activeAccountId == accountId &&
+        _activeProfileId == profileId &&
+        _profileScopeReady) {
+      return;
+    }
+    _profileScopeReady = false;
     _pushTimer?.cancel();
     await _pushIdle?.future;
     _dirtyBuckets.clear();
@@ -431,9 +437,13 @@ class AppState extends ChangeNotifier {
       await _persist();
     }
     notifyListeners();
+    _profileScopeReady = true;
+    _resumePendingOAuthCallback();
   }
 
   Future<void> clearActiveProfile() async {
+    _profileScopeReady = false;
+    _pendingOAuthCallback = null;
     _pushTimer?.cancel();
     await _pushIdle?.future;
     _dirtyBuckets.clear();
@@ -2281,14 +2291,17 @@ class AppState extends ChangeNotifier {
 
   Map<String, dynamic>? _oauthCallback;
   Map<String, dynamic>? _oauthLinkEvent;
+  OAuthCallback? _pendingOAuthCallback;
 
   /// Timestamp of the last tracker link event already surfaced as a toast
   /// (guards against double-toasting one event).
   int seenOAuthLinkEventAt = 0;
 
   /// Last OAuth return received over the app-identifier scheme
-  /// (`app.noor.mobile://callback?…`): `{at, code, state, error?}`.
-  /// In-memory only: authorization codes live minutes.
+  /// (`app.noor.mobile://callback` or `app.nova.mobile://callback`). This
+  /// diagnostic never exposes a code
+  /// or access token; the actual return is held privately until the account
+  /// scope is ready.
   Map<String, dynamic>? get oauthCallback => _oauthCallback;
 
   /// Last finished tracker link round
@@ -2303,13 +2316,27 @@ class AppState extends ChangeNotifier {
   void announceOAuthCallback(OAuthCallback callback) {
     _oauthCallback = <String, dynamic>{
       'at': DateTime.now().millisecondsSinceEpoch,
-      'code': callback.code,
-      'state': callback.state,
-      if (callback.isImplicit) 'accessToken': callback.accessToken,
-      if (callback.expiresIn != null) 'expiresIn': callback.expiresIn,
-      if (callback.isDenied) 'error': callback.error,
+      'implicit': callback.isImplicit,
+      'denied': callback.isDenied,
     };
     notifyListeners();
+    if (!_profileScopeReady ||
+        _activeAccountId == null ||
+        _activeProfileId == null) {
+      _pendingOAuthCallback = callback;
+      return;
+    }
+    _handleOAuthCallback(callback);
+  }
+
+  void _resumePendingOAuthCallback() {
+    final callback = _pendingOAuthCallback;
+    if (callback == null || !_profileScopeReady) return;
+    _pendingOAuthCallback = null;
+    _handleOAuthCallback(callback);
+  }
+
+  void _handleOAuthCallback(OAuthCallback callback) {
     if (callback.isDenied) {
       _oauthLinkEvent = <String, dynamic>{
         'at': DateTime.now().millisecondsSinceEpoch,
@@ -2329,26 +2356,37 @@ class AppState extends ChangeNotifier {
     Map<String, dynamic> result;
     try {
       service = await api.pendingOAuthService(state: callback.state);
-      if (callback.isImplicit) {
+      if (scopeGeneration != _scopeGeneration || !_profileScopeReady) return;
+      if (callback.isImplicit && service == 'anilist') {
         // AniList implicit grant: the OS return carries the final JWT in
         // its fragment — nothing to exchange, just store + verify it.
         result = await api.completeAniListToken(
           callback.accessToken,
           expiresInSeconds: callback.expiresIn,
         );
+      } else if (callback.isImplicit) {
+        result = <String, dynamic>{
+          'status': 'error',
+          'reason': 'no_pending_flow',
+        };
       } else {
         switch (service) {
           case 'anilist':
-            result = await api.completeAniListToken(callback.code);
+            // Mobile AniList uses the implicit grant. A code is never a token.
+            result = <String, dynamic>{
+              'status': 'error',
+              'reason': 'unsupported_flow',
+            };
           case 'mal':
             result = await api.completeMalLink(
               callback.code,
               state: callback.state,
             );
           default:
-            // No pending flow (stale/duplicate callback) — stay silent unless
-            // the service never linked.
-            return;
+            result = <String, dynamic>{
+              'status': 'error',
+              'reason': 'no_pending_flow',
+            };
         }
       }
     } catch (_) {

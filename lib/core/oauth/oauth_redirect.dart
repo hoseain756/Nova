@@ -1,18 +1,16 @@
 /// Generic OAuth return leg for services that redirect back into Noor over
 /// the app-identifier private-use scheme (RFC 8252 §7.1):
 ///
-///     app.noor.mobile://callback?code=…&state=…          (code grants)
-///     app.noor.mobile://callback#access_token=…&expires_in=…  (implicit)
+///     app.noor.mobile://callback?code=…&state=…         (MAL code grant)
+///     app.nova.mobile://callback#access_token=…         (AniList implicit)
 ///
 /// Both AniList and MyAnimeList officially accept private-use URI schemes as
 /// redirect URIs:
 ///
 ///  - AniList (docs.anilist.co/guide/auth): the application redirect URL
-///    "can be any valid URI, including custom URI schemes"; registered at
-///    anilist.co/settings/developer. MyAnimeList-style code grants come back
-///    as `?code=…`, while AniList's IMPLICIT grant (the documented secret-
-///    less flow for mobile apps) delivers the JWT access token in the URL
-///    FRAGMENT (`#access_token=…`), never as a query parameter.
+///    "can be any valid URI, including custom URI schemes"; its dashboard
+///    currently registers `app.nova.mobile://callback`. AniList's IMPLICIT
+///    grant delivers the JWT in the URL FRAGMENT (`#access_token=…`).
 ///  - MyAnimeList (official staff API guide): "The IETF best current practice
 ///    recommends using a private-use URI scheme … you may register the custom
 ///    myapp://auth handler to obtain the Authorisation Code from MAL's
@@ -24,26 +22,30 @@
 class OAuthRedirect {
   const OAuthRedirect._();
 
-  /// Android applicationId / iOS bundle identifier, used verbatim as the
-  /// private-use scheme.
+  /// Existing MyAnimeList and account-auth private-use scheme.
   static const String scheme = 'app.noor.mobile';
+
+  /// AniList application 53823's dashboard-registered redirect scheme.
+  static const String anilistScheme = 'app.nova.mobile';
 
   /// Conventional callback authority (matches the `noor://callback` shape).
   static const String callbackHost = 'callback';
 
-  /// The exact Redirect URI to register on AniList and MyAnimeList.
+  /// Existing MyAnimeList Redirect URI.
   static const String redirectUri = '$scheme://$callbackHost';
 
-  /// Alias kept for call-site readability — the same URI on both platforms.
-  static const String anilistRedirectUri = redirectUri;
+  /// AniList uses the redirect already registered in its developer dashboard.
+  static const String anilistRedirectUri = '$anilistScheme://$callbackHost';
   static const String malRedirectUri = redirectUri;
 
   /// True when [link] belongs to the app-identifier callback
-  /// (`app.noor.mobile://callback?…`), case-insensitive on scheme + host.
+  /// (`app.noor.mobile://callback` or `app.nova.mobile://callback`),
+  /// case-insensitive on scheme + host.
   static bool isCallback(String link) {
     final uri = Uri.tryParse(link.trim());
     if (uri == null) return false;
-    return uri.scheme.toLowerCase() == scheme &&
+    return (uri.scheme.toLowerCase() == scheme ||
+            uri.scheme.toLowerCase() == anilistScheme) &&
         uri.host.toLowerCase() == callbackHost;
   }
 

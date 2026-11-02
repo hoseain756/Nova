@@ -3,8 +3,8 @@ import 'dart:math' as math;
 /// Shared OAuth + list-mapping primitives for the anime trackers (AniList and
 /// MyAnimeList).
 ///
-/// Both providers redirect back into the app over the app-identifier scheme
-/// (`app.noor.mobile://callback?code=…`, see OAuthRedirect in core/oauth);
+/// Both providers redirect back into the app over their registered callback
+/// schemes (see OAuthRedirect in core/oauth);
 /// this module owns everything that is pure and therefore unit-testable:
 /// authorize-URL builders, the MyAnimeList PLAIN PKCE pair, anime
 /// list-status mapping and the per-service score-format conversion.
@@ -191,7 +191,7 @@ String aniListAuthorizeUrl({required String clientId}) {
 /// (or the OS return leg) hands over:
 ///
 ///  - a full redirect URL with the token in its fragment
-///    (`app.noor.mobile://callback#access_token=…&expires_in=…`),
+///    (`app.nova.mobile://callback#access_token=…&expires_in=…`),
 ///  - the same payload pasted as plain `access_token=…` text, or
 ///  - the bare token itself.
 ///

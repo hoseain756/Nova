@@ -239,7 +239,7 @@ void main() {
       test('parses the implicit fragment of a full redirect URL', () {
         expect(
           extractAniListAccessToken(
-            'app.noor.mobile://callback#access_token=$jwt&expires_in=31536000&token_type=Bearer',
+            'app.nova.mobile://callback#access_token=$jwt&expires_in=31536000&token_type=Bearer',
           ),
           jwt,
         );

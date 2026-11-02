@@ -107,7 +107,7 @@ class NoorApi {
 
   // --------------------------------------------------------------------------
   // Anime trackers (AniList / MyAnimeList) — browser OAuth over the
-  // app.noor.mobile://callback scheme (see OAuthRedirect), then GraphQL/REST
+  // provider-specific callback schemes (see OAuthRedirect), then GraphQL/REST
   // list sync. Each integration is fully independent: separate tokens,
   // pendings and push paths; both may be linked simultaneously.
   // --------------------------------------------------------------------------
@@ -133,9 +133,9 @@ class NoorApi {
       'https://myanimelist.net/v1/oauth2/token';
   static const String malApiBase = 'https://api.myanimelist.net/v2';
 
-  /// App-identifier redirect URI both trackers return to (registered as
-  /// `app.noor.mobile://callback` in each provider's dashboard).
-  static const String animeRedirectUri = OAuthRedirect.redirectUri;
+  /// MyAnimeList's registered redirect; AniList uses its separate dashboard
+  /// URI and does not send redirect_uri in the implicit authorize request.
+  static const String animeRedirectUri = OAuthRedirect.malRedirectUri;
 
   /// A pending tracker handshake dies after this window (codes are short).
   static const Duration _trackFlowTtl = Duration(minutes: 15);
@@ -1426,7 +1426,7 @@ class NoorApi {
 
   // --------------------------------------------------------------------------
   // Anime trackers — AniList / MyAnimeList. Browser OAuth over the
-  // app.noor.mobile://callback scheme (OAuthRedirect), then GraphQL (AniList)
+  // provider-specific callback schemes (OAuthRedirect), then GraphQL (AniList)
   // / REST (MAL) list sync. Independent per service; both can be linked.
   // AniList: IMPLICIT grant (client_id + response_type=token), token lives
   // ~1 year, no refresh, no revocation endpoint. MAL: public client, PKCE

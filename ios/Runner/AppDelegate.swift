@@ -36,6 +36,9 @@ import UIKit
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NOVAChromeBridge") else {
       return
     }
+    // Register before Dart subscribes, even when the scene has not yet
+    // installed its FlutterViewController. Cold-start OAuth links wait here.
+    NoorLinkForwarder.shared.attach(messenger: registrar.messenger())
     chromeChannel = FlutterMethodChannel(
       name: "nova/ios_chrome/v1",
       binaryMessenger: registrar.messenger()

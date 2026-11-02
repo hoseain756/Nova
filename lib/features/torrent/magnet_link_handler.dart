@@ -21,8 +21,9 @@ import 'magnet_opener.dart';
 ///  - `noor://callback?code=…&state=…` → legacy Trakt PKCE return.
 ///  - `https://<registered redirect host>/?code=…&state=…` → primary Trakt
 ///    PKCE return (Android App Links) — see NoorApi.completeTraktLink.
-///  - `app.noor.mobile://callback?code=…` → generic OAuth return for
-///    AniList / MyAnimeList (OAuthRedirect) — stored in AppState so the
+///  - `app.noor.mobile://callback?code=…` → MyAnimeList code return.
+///  - `app.nova.mobile://callback#access_token=…` → AniList token return.
+///    Both are parsed by OAuthRedirect and stored in AppState so the
 ///    matching linking flow can consume it.
 ///
 /// All Trakt returns finish through the same handshake anywhere in the app;
@@ -72,7 +73,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
       unawaited(_completeTrakt(data));
       return;
     }
-    if (lower.startsWith('${OAuthRedirect.scheme}:')) {
+    if (OAuthRedirect.isCallback(data)) {
       // Supabase Auth handles confirmation and recovery on this registered
       // scheme. Never pass its code to linked-service OAuth handlers.
       if (Uri.tryParse(data)?.queryParameters.containsKey('nova_auth') ==
@@ -98,7 +99,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
   }
 
   /// Receives an AniList / MyAnimeList OAuth return
-  /// (`app.noor.mobile://callback?code=…&state=…`): AppState dispatches it
+  /// (either registered callback scheme): AppState dispatches it
   /// to the pending tracker handshake; the completion surfaces through
   /// [AppState.oauthLinkEvent] (watched in build) as a toast.
   Future<void> _receiveOAuthCallback(String link) async {

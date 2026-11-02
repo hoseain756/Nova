@@ -51,9 +51,11 @@ private const val TRAKT_LINK_HOST =
 
 /**
  * App-identifier private-use scheme (RFC 8252) used as the OAuth return for
- * AniList / MyAnimeList: `app.noor.mobile://callback?code=…&state=…`.
+ * MyAnimeList: `app.noor.mobile://callback?code=…&state=…`.
+ * AniList: `app.nova.mobile://callback#access_token=…`.
  */
 private const val OAUTH_SCHEME = "app.noor.mobile"
+private const val ANILIST_SCHEME = "app.nova.mobile"
 
 /** Per-attempt budget for the staged metadata fetch (see resolveMetadata). */
 private const val RESOLVE_ATTEMPT_SECONDS = 22
@@ -249,7 +251,8 @@ class MainActivity :
     private fun captureLink(intent: Intent?) {
         val link = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
         // magnet: → torrent flow; noor://callback → legacy Trakt OAuth return;
-        // app.noor.mobile://callback?code=… → AniList / MyAnimeList OAuth return;
+        // app.noor.mobile://callback?code=… → MyAnimeList OAuth return;
+        // app.nova.mobile://callback#access_token=… → AniList OAuth return;
         // https://<registered redirect host>/?code=… → primary Trakt return
         // (Android App Links / browser redirect).
         val isTraktHttpsReturn = link.startsWith("https://", ignoreCase = true) &&
@@ -259,6 +262,7 @@ class MainActivity :
         if (!link.startsWith("magnet:", ignoreCase = true) &&
             !link.startsWith("noor:", ignoreCase = true) &&
             !link.startsWith("$OAUTH_SCHEME:", ignoreCase = true) &&
+            !link.startsWith("$ANILIST_SCHEME:", ignoreCase = true) &&
             !isTraktHttpsReturn
         ) {
             return

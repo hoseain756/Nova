@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/app_state.dart';
+import '../../core/oauth/oauth_redirect.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/noor_toast.dart';
 import 'widgets/settings_tiles.dart';
@@ -552,7 +553,7 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
     });
     try {
       if (widget.service == 'anilist' || widget.service == 'mal') {
-        // Browser OAuth over app.noor.mobile://callback (RFC 8252): approve
+        // Browser OAuth over the registered provider callback (RFC 8252): approve
         // on the provider and the OS bounces straight back into NOVA; the
         // paste field below is the fallback when the bounce never fires.
         final result = widget.service == 'anilist'
@@ -890,7 +891,12 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
             ),
           ] else if (waiting && _flow?['kind'] == 'browser') ...[
             Text(
-              NovaStrings.lookup(english, 'message316', {'p0': widget.title}),
+              NovaStrings.lookup(english, 'message316', {
+                'p0': widget.title,
+                'p1': widget.service == 'anilist'
+                    ? OAuthRedirect.anilistRedirectUri
+                    : OAuthRedirect.malRedirectUri,
+              }),
               style: Theme.of(context).textTheme.bodySmall,
             ),
             SizedBox(height: 10),

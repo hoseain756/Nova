@@ -511,7 +511,7 @@
   "message313": "Episodes",
   "message314": "Mean score",
   "message315": "Sync library",
-  "message316": "Approve the link in the {p0} browser tab — the browser returns straight into NOVA the moment you approve (Redirect URI app.noor.mobile://callback).",
+  "message316": "Approve the link in the {p0} browser tab — the browser returns straight into NOVA the moment you approve (Redirect URI {p1}).",
   "message317": "Waiting for approval…",
   "message318": "Browser stuck on a token page? Paste the full URL or the access token here:",
   "message319": "Browser stuck or showing an auth code? Paste it here:",

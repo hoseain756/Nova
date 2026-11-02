@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/core/oauth/oauth_redirect.dart';
 
@@ -6,9 +8,18 @@ void main() {
     test('redirect URI is the app identifier scheme + callback authority', () {
       expect(OAuthRedirect.scheme, 'app.noor.mobile');
       expect(OAuthRedirect.redirectUri, 'app.noor.mobile://callback');
-      // The exact URI to register on AniList and MyAnimeList.
-      expect(OAuthRedirect.anilistRedirectUri, 'app.noor.mobile://callback');
+      // AniList's existing developer-dashboard URI differs from MyAnimeList.
+      expect(OAuthRedirect.anilistRedirectUri, 'app.nova.mobile://callback');
       expect(OAuthRedirect.malRedirectUri, 'app.noor.mobile://callback');
+    });
+
+    test('both native platforms register the AniList callback scheme', () {
+      final scheme = OAuthRedirect.anilistScheme;
+      expect(
+          File('android/app/src/main/AndroidManifest.xml').readAsStringSync(),
+          contains('android:scheme="$scheme"'));
+      expect(File('ios/Runner/Info.plist').readAsStringSync(),
+          contains('<string>$scheme</string>'));
     });
   });
 
@@ -31,11 +42,17 @@ void main() {
         OAuthRedirect.isCallback('App.Noor.Mobile://Callback?code=x'),
         isTrue,
       );
+      expect(
+        OAuthRedirect.isCallback('App.Nova.Mobile://Callback#access_token=x'),
+        isTrue,
+      );
     });
 
     test('rejects foreign schemes and hosts', () {
       expect(OAuthRedirect.isCallback('noor://callback?code=x'), isFalse);
       expect(OAuthRedirect.isCallback('https://example.com/?code=x'), isFalse);
+      expect(OAuthRedirect.isCallback('app.nova.mobile://other#access_token=x'),
+          isFalse);
       expect(
         OAuthRedirect.isCallback('app.noor.mobile://other?code=x'),
         isFalse,
@@ -57,7 +74,8 @@ void main() {
       expect(callback.isDenied, isFalse);
     });
 
-    test('parses code-only (AniList callback shape)', () {
+    test('parses a legacy code-only callback without treating it as a token',
+        () {
       final callback = OAuthRedirect.parse(
         'app.noor.mobile://callback?code=auth_code_123',
       );
@@ -110,7 +128,7 @@ void main() {
 
       test('parses access_token + expires_in from the URL fragment', () {
         final callback = OAuthRedirect.parse(
-          'app.noor.mobile://callback#access_token=$jwt&expires_in=31536000&token_type=Bearer',
+          'app.nova.mobile://callback#access_token=$jwt&expires_in=31536000&token_type=Bearer',
         );
         expect(callback, isNotNull);
         expect(callback!.isImplicit, isTrue);
@@ -121,7 +139,7 @@ void main() {
 
       test('parses a user-denied error sent in the fragment', () {
         final callback = OAuthRedirect.parse(
-          'app.noor.mobile://callback#error=access_denied&error_description=nope',
+          'app.nova.mobile://callback#error=access_denied&error_description=nope',
         );
         expect(callback, isNotNull);
         expect(callback!.isDenied, isTrue);
