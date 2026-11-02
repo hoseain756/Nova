@@ -73,6 +73,12 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
       return;
     }
     if (lower.startsWith('${OAuthRedirect.scheme}:')) {
+      // Supabase Auth handles confirmation and recovery on this registered
+      // scheme. Never pass its code to linked-service OAuth handlers.
+      if (Uri.tryParse(data)?.queryParameters.containsKey('nova_auth') ==
+          true) {
+        return;
+      }
       unawaited(_receiveOAuthCallback(data));
       return;
     }

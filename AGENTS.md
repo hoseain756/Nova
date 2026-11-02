@@ -2,6 +2,10 @@
 
 ## Project Map
 
+- Account authentication uses Supabase Auth with a publishable client key and secure on-device session storage. `lib/core/auth/` owns Auth/profile state; `lib/app/account_gate.dart` gates the shell on a signed-in account and selected profile. `lib/features/account/` owns bilingual welcome, credential, verification, profile, and guest-upgrade screens. The first profile is mandatory; up to five profiles are enforced in `supabase/migrations/` server RPCs.
+- Account settings and add-ons sync through `account_buckets`; watch history, Continue Watching, watchlist, and custom lists sync through `profile_buckets` with RLS and revision checks. `AppState.activateProfile` changes the local and cloud scope, and `importLegacyData` is an explicit one-time import from old device data. Provider credentials remain device-local and account-keyed; legacy credentials are copied only during import. Profile PINs are server-verified app access gates, not independent data principals.
+- `supabase/README.md` documents remote deployment, Edge Function secrets, avatar Storage upload, and the legacy sync cutover. Do not use or restore direct Postgres credentials in Flutter. The old `noor_devices` and `noor_sync` tables remain a separate cutover concern; use `supabase/cutover/close_legacy_sync.sql` only after the new account path is verified and older-client compatibility is intentionally ended.
+
 - `lib/main.dart` starts the app; `lib/app/noor_app.dart` composes launch, theme, and localization.
 - `lib/core/` contains API, data/cache, downloads, models, OAuth, state, sync, theme, torrent, tracking, and Trakt.
 - `oledMode` is an opt-in `AppState.webSettings` preference in Appearance. `NovaTheme.darkOled` gives dark screens a pure-black canvas and base surfaces on Android and iOS; light mode stays on the normal light theme, including when System follows a light OS. The player and splash use the active theme canvas.

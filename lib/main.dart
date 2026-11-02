@@ -10,13 +10,16 @@ import 'package:media_kit/media_kit.dart';
 
 import 'app/noor_app.dart';
 import 'core/api/noor_api.dart';
+import 'core/auth/account_controller.dart';
+import 'core/auth/secure_auth_storage.dart';
 import 'core/data/catalog_repository.dart';
 import 'core/state/app_state.dart';
 import 'core/theme/nova_theme.dart';
 import 'core/theme/system_bars.dart';
 import 'core/torrent/torrent_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // media_kit (libmpv) init — Task 127: without this the first Player()
   // construction throws ('MediaKit.ensureInitialized must be called…') inside
@@ -41,16 +44,46 @@ void main() {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
       noorSystemBarOverlayStyle(Brightness.dark));
+  const supabaseUrl = String.fromEnvironment('NOVA_SUPABASE_URL',
+      defaultValue: 'https://hcyysnagdumpviromdzl.supabase.co');
+  const publishableKey = String.fromEnvironment('NOVA_SUPABASE_PUBLISHABLE_KEY',
+      defaultValue: 'sb_publishable__wLpouQl59aYu9pD4O1utg_Vtzb8OhX');
+  AccountController? account;
+  if (publishableKey.isNotEmpty) {
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        publishableKey: publishableKey,
+        authOptions: const FlutterAuthClientOptions(
+          localStorage: NovaSecureAuthStorage(),
+          pkceAsyncStorage: NovaSecurePkceStorage(),
+          authFlowType: AuthFlowType.pkce,
+          detectSessionInUriPredicate: _isNovaAuthRedirect,
+        ),
+        debug: false,
+      );
+      account = AccountController(Supabase.instance.client);
+      await account.initialize();
+    } catch (_) {
+      // The launch gate presents a localized configuration error.
+    }
+  }
   final api = NoorApi();
   final appState = AppState(api, CatalogRepository(api));
   PaintingBinding.instance.imageCache.maximumSizeBytes = 128 << 20;
   PaintingBinding.instance.imageCache.maximumSize = 200;
-  runApp(NovaApp(state: appState));
+  runApp(NovaApp(state: appState, account: account, requireAccount: true));
   // Task 128: pre-boot the torrent engine + DHT while the user browses, so
   // the first torrent stream never pays the 10–30s cold-start inside its own
   // metadata timeout. No-op (and fully swallowed) off Android.
   unawaited(TorrentService.instance.warmup());
 }
+
+bool _isNovaAuthRedirect(Uri uri) =>
+    uri.scheme == 'app.noor.mobile' &&
+    uri.host == 'callback' &&
+    (uri.queryParameters['nova_auth'] == 'confirm' ||
+        uri.queryParameters['nova_auth'] == 'recovery');
 
 class _NovaErrorPanel extends StatelessWidget {
   const _NovaErrorPanel();

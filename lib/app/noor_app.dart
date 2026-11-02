@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/data/cache_reset_service.dart';
+import '../core/auth/account_controller.dart';
 import '../core/state/app_state.dart';
 import '../core/storage/subtitle_font_store.dart';
 import '../core/theme/nova_theme.dart';
@@ -15,11 +16,19 @@ import '../features/splash/nova_splash.dart';
 import '../features/torrent/magnet_link_handler.dart';
 import '../l10n/nova_strings.dart';
 import '../shared/widgets/shimmer_box.dart';
+import 'account_gate.dart';
 
 class NovaApp extends StatelessWidget {
-  const NovaApp({super.key, required this.state, this.updateService});
+  const NovaApp(
+      {super.key,
+      required this.state,
+      this.updateService,
+      this.account,
+      this.requireAccount = false});
   final AppState state;
   final AppUpdateService? updateService;
+  final AccountController? account;
+  final bool requireAccount;
   static final _darkArabic = NovaTheme.build(Brightness.dark, arabic: true);
   static final _darkOledArabic =
       NovaTheme.build(Brightness.dark, arabic: true, oled: true);
@@ -27,45 +36,52 @@ class NovaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider.value(
         value: state,
-        child: Selector<AppState, (bool, String, bool, bool)>(
-          selector: (_, app) => (
-            app.english,
-            (app.webSettings['themeMode'] ?? 'dark').toString(),
-            app.webSettings['reduceMotion'] == true,
-            app.webSettings['oledMode'] == true
-          ),
-          builder: (context, value, _) => MaterialApp(
-            navigatorObservers: [shellChromeRouteObserver],
-            onGenerateTitle: (context) =>
-                NovaStrings.of(context).text('appName'),
-            debugShowCheckedModeBanner: false,
-            theme: value.$1 ? NovaTheme.light : _lightArabic,
-            darkTheme: value.$1
-                ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
-                : (value.$4 ? _darkOledArabic : _darkArabic),
-            themeMode: switch (value.$2) {
-              'light' => ThemeMode.light,
-              'system' => ThemeMode.system,
-              _ => ThemeMode.dark
-            },
-            themeAnimationDuration: value.$3 ? Duration.zero : NovaMotion.state,
-            locale: Locale(value.$1 ? 'en' : 'ar'),
-            supportedLocales: const [Locale('ar'), Locale('en')],
-            localizationsDelegates: const [
-              NovaStrings.delegate,
-              ...GlobalMaterialLocalizations.delegates
-            ],
-            builder: (context, child) {
-              final media = MediaQuery.of(context);
-              return MediaQuery(
-                  data: media.copyWith(
-                      disableAnimations: media.disableAnimations || value.$3),
-                  child: child!);
-            },
-            home: IncomingLinkListener(
-                child: _LaunchGate(updateService: updateService)),
-          ),
-        ),
+        child: Provider<AccountController?>.value(
+            value: account,
+            child: Selector<AppState, (bool, String, bool, bool)>(
+              selector: (_, app) => (
+                app.english,
+                (app.webSettings['themeMode'] ?? 'dark').toString(),
+                app.webSettings['reduceMotion'] == true,
+                app.webSettings['oledMode'] == true
+              ),
+              builder: (context, value, _) => MaterialApp(
+                navigatorObservers: [shellChromeRouteObserver],
+                onGenerateTitle: (context) =>
+                    NovaStrings.of(context).text('appName'),
+                debugShowCheckedModeBanner: false,
+                theme: value.$1 ? NovaTheme.light : _lightArabic,
+                darkTheme: value.$1
+                    ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
+                    : (value.$4 ? _darkOledArabic : _darkArabic),
+                themeMode: switch (value.$2) {
+                  'light' => ThemeMode.light,
+                  'system' => ThemeMode.system,
+                  _ => ThemeMode.dark
+                },
+                themeAnimationDuration:
+                    value.$3 ? Duration.zero : NovaMotion.state,
+                locale: Locale(value.$1 ? 'en' : 'ar'),
+                supportedLocales: const [Locale('ar'), Locale('en')],
+                localizationsDelegates: const [
+                  NovaStrings.delegate,
+                  ...GlobalMaterialLocalizations.delegates
+                ],
+                builder: (context, child) {
+                  final media = MediaQuery.of(context);
+                  return MediaQuery(
+                      data: media.copyWith(
+                          disableAnimations:
+                              media.disableAnimations || value.$3),
+                      child: child!);
+                },
+                home: IncomingLinkListener(
+                    child: _LaunchGate(
+                        updateService: updateService,
+                        account: account,
+                        requireAccount: requireAccount)),
+              ),
+            )),
       );
 }
 
@@ -75,8 +91,11 @@ class NoorApp extends NovaApp {
 }
 
 class _LaunchGate extends StatefulWidget {
-  const _LaunchGate({this.updateService});
+  const _LaunchGate(
+      {this.updateService, this.account, this.requireAccount = false});
   final AppUpdateService? updateService;
+  final AccountController? account;
+  final bool requireAccount;
   @override
   State<_LaunchGate> createState() => _LaunchGateState();
 }
@@ -137,9 +156,20 @@ class _LaunchGateState extends State<_LaunchGate> {
           initialStatus: _forcedUpdate,
         );
       }
-      return _onboarding
-          ? OnboardingPage(onComplete: _complete)
-          : const MainShell();
+      if (_onboarding) return OnboardingPage(onComplete: _complete);
+      if (widget.requireAccount && widget.account == null) {
+        return Scaffold(
+            body: SafeArea(
+                child: Center(
+                    child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(s.text('accountConfigurationMissing'),
+              textAlign: TextAlign.center),
+        ))));
+      }
+      return widget.account == null
+          ? const MainShell()
+          : AccountGate(account: widget.account!);
     }
     return NovaSplash(
       onFinished: () {

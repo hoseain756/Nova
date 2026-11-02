@@ -16,6 +16,7 @@ import '../models/media_item.dart';
 import '../models/playback_resume_policy.dart';
 import '../oauth/oauth_redirect.dart';
 import '../sync/noor_sync.dart';
+import '../sync/bucket_merge.dart';
 import '../storage/resume_snapshot_store.dart';
 import '../track/track_link.dart';
 
@@ -99,6 +100,11 @@ class AppState extends ChangeNotifier {
   final NoorSyncService sync = NoorSyncService.instance;
   SharedPreferences? _preferences;
   ResumeSnapshotStore? _resumeSnapshotStore;
+  String? _activeAccountId;
+  String? _activeProfileId;
+  Completer<void>? _pushIdle;
+  bool _hasPreAccountData = false;
+  int _scopeGeneration = 0;
   Map<String, ResumeSnapshot> resumeSnapshots = {};
   bool initialized = false;
   bool english = PlatformDispatcher.instance.locale.languageCode != 'ar';
@@ -116,9 +122,40 @@ class AppState extends ChangeNotifier {
 
   String t(String en, String ar) => english ? en : ar;
 
-  /// Accountless identity: UUID v4 generated once, persisted in secure
-  /// storage, and used as the sync key (there is no user account).
+  /// Legacy installation marker. This never authorizes cloud access.
   String? deviceId;
+
+  String? get activeAccountId => _activeAccountId;
+  String? get activeProfileId => _activeProfileId;
+
+  String _accountKey(String bucket) => 'nova.account.$_activeAccountId.$bucket';
+  String _profileKey(String bucket) =>
+      'nova.profile.$_activeAccountId.$_activeProfileId.$bucket';
+  String _localKey(String bucket) =>
+      _activeAccountId == null || _activeProfileId == null
+          ? switch (bucket) {
+              NoorSyncService.bucketAddons => 'horse.mobile.addons',
+              NoorSyncService.bucketLists => 'horse.mobile.lists',
+              NoorSyncService.bucketWatchlist => 'horse.mobile.watchlist',
+              NoorSyncService.bucketHistory => 'horse.mobile.history',
+              NoorSyncService.bucketLibrary => 'horse.mobile.cw',
+              _ => settingsStorageKey,
+            }
+          : (bucket == NoorSyncService.bucketSettings ||
+                  bucket == NoorSyncService.bucketAddons)
+              ? _accountKey(bucket)
+              : _profileKey(bucket);
+
+  String _revisionKey(String bucket) => 'nova.sync.rev.$_activeAccountId.'
+      '${bucket == NoorSyncService.bucketSettings || bucket == NoorSyncService.bucketAddons ? 'account' : _activeProfileId}.$bucket';
+  String _dirtyKey(String bucket) => '${_revisionKey(bucket)}.dirty';
+  String _baseKey(String bucket) => '${_revisionKey(bucket)}.base';
+  String get _linkedServicesKey => _activeAccountId == null
+      ? 'horse.mobile.linked-services'
+      : 'nova.account.$_activeAccountId.linked-services';
+  String get _debridUserKey => _activeAccountId == null
+      ? 'horse.mobile.debrid.user'
+      : 'nova.account.$_activeAccountId.debrid.user';
 
   Map<String, dynamic> webSettings = Map<String, dynamic>.from(defaultSettings);
   Map<String, Map<String, dynamic>> linkedServices = {};
@@ -204,6 +241,14 @@ class AppState extends ChangeNotifier {
   Future<void> initialize() async {
     await api.initialize();
     _preferences = await SharedPreferences.getInstance();
+    _hasPreAccountData = [
+      settingsStorageKey,
+      'horse.mobile.addons',
+      'horse.mobile.lists',
+      'horse.mobile.watchlist',
+      'horse.mobile.history',
+      'horse.mobile.cw',
+    ].any((key) => _preferences!.containsKey(key));
     _resumeSnapshotStore = ResumeSnapshotStore(_preferences!);
     kidsSession = _preferences!.getBool('nova.kids.active') ?? false;
     final savedEnglish = _preferences!.getBool('horse.mobile.english');
@@ -248,9 +293,9 @@ class AppState extends ChangeNotifier {
     }
     webSettings['uiLanguage'] = (english ? 'en' : 'ar');
     linkedServices = _decodeMap(
-      _preferences!.getString('horse.mobile.linked-services'),
+      _preferences!.getString(_linkedServicesKey),
     );
-    final savedDebridUser = _preferences!.getString('horse.mobile.debrid.user');
+    final savedDebridUser = _preferences!.getString(_debridUserKey);
     if (savedDebridUser != null && api.debridService != null) {
       try {
         debridUser =
@@ -260,7 +305,6 @@ class AppState extends ChangeNotifier {
       }
     }
     deviceId = await sync.deviceId();
-    unawaited(sync.heartbeat());
     addons = _decodeList(
       _preferences!.getString('horse.mobile.addons'),
       Addon.fromJson,
@@ -294,11 +338,9 @@ class AppState extends ChangeNotifier {
     // Linked services are resolved straight from the API (no account needed).
     await _refreshLinkedServices();
 
-    // Accountless cloud sync: pull every bucket whose cloud revision is newer
-    // than the last revision this device has seen, then persist the merge.
-    if (webSettings['cloudSyncEnabled'] != false) {
-      await _pullBuckets();
-    }
+    // Legacy data is held locally until the user explicitly imports it into
+    // an authenticated account and selected profile. Never pull or seed the
+    // former device-keyed cloud rows during launch.
     await _persist();
     notifyListeners();
 
@@ -307,6 +349,230 @@ class AppState extends ChangeNotifier {
     if (await api.hasPendingTraktLink()) {
       beginTraktRelayWatch();
     }
+  }
+
+  /// Select an authenticated viewing scope. All local keys and cloud rows are
+  /// bound to this identity before any home/player data is exposed.
+  Future<void> activateProfile({
+    required String accountId,
+    required String profileId,
+  }) async {
+    if (_activeAccountId == accountId && _activeProfileId == profileId) return;
+    _pushTimer?.cancel();
+    await _pushIdle?.future;
+    _dirtyBuckets.clear();
+    _activeAccountId = accountId;
+    _activeProfileId = profileId;
+    ++_scopeGeneration;
+    sync.bindScope(accountId: accountId, profileId: profileId);
+    await api.activateAccount(accountId);
+
+    ++_linkedContentGeneration;
+    _linkedContentLoading = false;
+    _linkedContentForceQueued = false;
+    _linkedContentAt = null;
+    linkedCatalogItems.clear();
+    linkedContinueWatching = const [];
+    _stopTraktRelayWatch();
+
+    final prefs = _preferences ?? await SharedPreferences.getInstance();
+    _preferences = prefs;
+    linkedServices = _decodeMap(prefs.getString(_linkedServicesKey));
+    debridUser = null;
+    final savedDebridUser = prefs.getString(_debridUserKey);
+    if (savedDebridUser != null && api.debridService != null) {
+      try {
+        debridUser =
+            Map<String, dynamic>.from(jsonDecode(savedDebridUser) as Map);
+      } catch (_) {}
+    }
+    await _refreshLinkedServices();
+    final savedSettings =
+        prefs.getString(_localKey(NoorSyncService.bucketSettings));
+    webSettings = Map<String, dynamic>.from(defaultSettings);
+    if (savedSettings != null) {
+      try {
+        webSettings.addAll(
+            Map<String, dynamic>.from(jsonDecode(savedSettings) as Map));
+      } catch (_) {
+        // A damaged local cache can be repaired by the authenticated pull.
+      }
+    }
+    webSettings['tmdbKey'] = '';
+    webSettings['tmdbUserKey'] = '';
+    webSettings['cloudSyncEnabled'] = true;
+    webSettings['iptvPlaylists'] = await api.loadIptvPlaylists();
+    english = webSettings['uiLanguage'] == 'en';
+    addons = _decodeList(
+        prefs.getString(_localKey(NoorSyncService.bucketAddons)),
+        Addon.fromJson);
+    customLists = _decodeList(
+        prefs.getString(_localKey(NoorSyncService.bucketLists)),
+        CustomMediaList.fromJson);
+    watchlist = _decodeList(
+        prefs.getString(_localKey(NoorSyncService.bucketWatchlist)),
+        MediaItem.fromJson);
+    history = _decodeList(
+        prefs.getString(_localKey(NoorSyncService.bucketHistory)),
+        WatchHistoryEntry.fromJson);
+    _continueWatching
+      ..clear()
+      ..addAll(_decodeMap(
+          prefs.getString(_localKey(NoorSyncService.bucketLibrary))));
+    _resumeSnapshotStore =
+        ResumeSnapshotStore(prefs, scope: '$accountId/$profileId');
+    resumeSnapshots = await _resumeSnapshotStore!.load(
+      retentionDays: _resumeSnapshotRetentionDays,
+    );
+    await _persistSettings();
+    notifyListeners();
+    if (webSettings['cloudSyncEnabled'] != false) {
+      await _pullBuckets();
+      await _persist();
+    }
+    notifyListeners();
+  }
+
+  Future<void> clearActiveProfile() async {
+    _pushTimer?.cancel();
+    await _pushIdle?.future;
+    _dirtyBuckets.clear();
+    sync.clearScope();
+    _activeAccountId = null;
+    _activeProfileId = null;
+    ++_scopeGeneration;
+    await api.deactivateAccount();
+    addons = [];
+    customLists = [];
+    watchlist = [];
+    history = [];
+    _continueWatching.clear();
+    linkedServices = {};
+    debridUser = null;
+    ++_linkedContentGeneration;
+    _linkedContentLoading = false;
+    _linkedContentForceQueued = false;
+    _linkedContentAt = null;
+    linkedCatalogItems.clear();
+    linkedContinueWatching = const [];
+    _stopTraktRelayWatch();
+    resumeSnapshots = {};
+    webSettings = Map<String, dynamic>.from(defaultSettings);
+    notifyListeners();
+  }
+
+  /// The old accountless payload is never auto-attached to an Auth identity.
+  bool get legacyImportAvailable {
+    final prefs = _preferences;
+    if (prefs == null || _activeAccountId == null || !_hasPreAccountData) {
+      return false;
+    }
+    if (prefs.getBool('nova.legacy.imported.$_activeAccountId') == true) {
+      return false;
+    }
+    return prefs.getString(settingsStorageKey) != null ||
+        prefs.getString('horse.mobile.addons') != null ||
+        prefs.getString('horse.mobile.lists') != null ||
+        prefs.getString('horse.mobile.watchlist') != null ||
+        prefs.getString('horse.mobile.history') != null ||
+        prefs.getString('horse.mobile.cw') != null;
+  }
+
+  /// Explicit one-time import into the currently selected profile. Repeats are
+  /// idempotent and the legacy source remains untouched if any cloud write
+  /// fails, so the user can retry without losing data.
+  Future<bool> importLegacyData() async {
+    final prefs = _preferences;
+    if (prefs == null || !sync.hasScope || !legacyImportAvailable) return false;
+    _pushTimer?.cancel();
+    await _pushIdle?.future;
+    final targetAccount = _activeAccountId;
+    final targetProfile = _activeProfileId;
+    if (targetAccount == null || targetProfile == null) return false;
+
+    final legacySettings = prefs.getString(settingsStorageKey);
+    if (legacySettings != null) {
+      try {
+        final decoded =
+            Map<String, dynamic>.from(jsonDecode(legacySettings) as Map);
+        webSettings = {
+          ...webSettings,
+          ...decoded,
+          'tmdbKey': '',
+          'tmdbUserKey': '',
+          'iptvPlaylists': <dynamic>[],
+          'cloudSyncEnabled': webSettings['cloudSyncEnabled'],
+        };
+        english = webSettings['uiLanguage'] == 'en';
+      } catch (_) {}
+    }
+
+    List<T> withLegacy<T>(
+      List<T> current,
+      String key,
+      T Function(Map<String, dynamic>) decode,
+      String Function(T) identity,
+    ) {
+      final known = current.map(identity).toSet();
+      final result = [...current];
+      for (final item in _decodeList(prefs.getString(key), decode)) {
+        if (known.add(identity(item))) result.add(item);
+      }
+      return result;
+    }
+
+    addons = withLegacy(
+        addons, 'horse.mobile.addons', Addon.fromJson, (item) => item.id);
+    customLists = withLegacy(customLists, 'horse.mobile.lists',
+        CustomMediaList.fromJson, (item) => item.id);
+    watchlist = withLegacy(watchlist, 'horse.mobile.watchlist',
+        MediaItem.fromJson, (item) => item.id);
+    history = withLegacy(
+        history,
+        'horse.mobile.history',
+        WatchHistoryEntry.fromJson,
+        (item) =>
+            '${item.item.id}:${item.videoId ?? ''}:${item.season ?? ''}:${item.episode ?? ''}');
+    final legacyCw = _decodeMap(prefs.getString('horse.mobile.cw'));
+    for (final entry in legacyCw.entries) {
+      _continueWatching.putIfAbsent(entry.key, () => entry.value);
+    }
+    await _persistSettings();
+    await _persist();
+    notifyListeners();
+
+    for (final bucket in NoorSyncService.buckets) {
+      final payload = _bucketPayload(bucket);
+      if (payload == null || !await sync.pushBucket(bucket, payload)) {
+        return false;
+      }
+      await _storeLocalRev(bucket);
+      _dirtyBuckets.remove(bucket);
+      await prefs.remove(_dirtyKey(bucket));
+    }
+    if (_activeAccountId != targetAccount ||
+        _activeProfileId != targetProfile) {
+      return false;
+    }
+    await _resumeSnapshotStore?.importLegacy(
+      retentionDays: _resumeSnapshotRetentionDays,
+    );
+    await api.importLegacyCredentials();
+    final legacyLinks = prefs.getString('horse.mobile.linked-services');
+    if (legacyLinks != null && prefs.getString(_linkedServicesKey) == null) {
+      await prefs.setString(_linkedServicesKey, legacyLinks);
+    }
+    final legacyDebridUser = prefs.getString('horse.mobile.debrid.user');
+    if (legacyDebridUser != null && prefs.getString(_debridUserKey) == null) {
+      await prefs.setString(_debridUserKey, legacyDebridUser);
+    }
+    await _refreshLinkedServices();
+    resumeSnapshots = await _resumeSnapshotStore!.load(
+      retentionDays: _resumeSnapshotRetentionDays,
+    );
+    await prefs.setBool('nova.legacy.imported.$targetAccount', true);
+    notifyListeners();
+    return true;
   }
 
   Future<void> setLanguage(bool useEnglish) async {
@@ -322,6 +588,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> setSetting(String key, dynamic value) async {
+    if (key == 'cloudSyncEnabled' && sync.hasScope) value = true;
     List<Map<String, dynamic>>? playlists;
     if (key == 'iptvPlaylists') {
       // Task 122-b perf fix: update state FIRST — the secure-storage round
@@ -395,7 +662,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistSettings() async {
     await _preferences?.setString(
-      settingsStorageKey,
+      _localKey(NoorSyncService.bucketSettings),
       _encode(_settingsWithoutSecrets()),
     );
   }
@@ -479,7 +746,7 @@ class AppState extends ChangeNotifier {
       service: Map<String, dynamic>.from(account),
     };
     await _preferences?.setString(
-      'horse.mobile.linked-services',
+      _linkedServicesKey,
       _encode(linkedServices),
     );
     notifyListeners();
@@ -496,7 +763,7 @@ class AppState extends ChangeNotifier {
     }
     linkedServices = {...linkedServices}..remove(service);
     await _preferences?.setString(
-      'horse.mobile.linked-services',
+      _linkedServicesKey,
       _encode(linkedServices),
     );
     notifyListeners();
@@ -866,11 +1133,13 @@ class AppState extends ChangeNotifier {
 
   Future<(int, int)> syncLinkedService(String service) async {
     if (linkedServices[service] == null) return (0, 0);
+    final scopeGeneration = _scopeGeneration;
     int imported = 0;
     int historyImported = 0;
     try {
       final watchlistItems = await api.syncLinkedService(service, 'watchlist');
       final historyItems = await api.syncLinkedService(service, 'history');
+      if (scopeGeneration != _scopeGeneration) return (0, 0);
       final importedWatchlist = watchlistItems
           .whereType<Map>()
           .map((entry) => Map<String, dynamic>.from(entry))
@@ -933,7 +1202,7 @@ class AppState extends ChangeNotifier {
       current['lastSyncedAt'] = DateTime.now().millisecondsSinceEpoch;
       linkedServices = {...linkedServices, service: current};
       await _preferences?.setString(
-        'horse.mobile.linked-services',
+        _linkedServicesKey,
         _encode(linkedServices),
       );
       notifyListeners();
@@ -954,7 +1223,7 @@ class AppState extends ChangeNotifier {
     await api.saveDebridKey(service: service, apiKey: apiKey.trim());
     debridUser = user;
     await _preferences?.setString(
-      'horse.mobile.debrid.user',
+      _debridUserKey,
       _encode(debridUser),
     );
     notifyListeners();
@@ -963,7 +1232,7 @@ class AppState extends ChangeNotifier {
   Future<void> disconnectDebrid() async {
     await api.clearDebridKey();
     debridUser = null;
-    await _preferences?.remove('horse.mobile.debrid.user');
+    await _preferences?.remove(_debridUserKey);
     notifyListeners();
   }
 
@@ -1481,7 +1750,9 @@ class AppState extends ChangeNotifier {
   /// Manual "sync now": pull every bucket, then push the full local state.
   /// Returns whether the round trip fully succeeded.
   Future<bool> syncNow() async {
-    if (webSettings['cloudSyncEnabled'] == false) return false;
+    if (!sync.hasScope || webSettings['cloudSyncEnabled'] == false) {
+      return false;
+    }
     await _pullBuckets();
     await _persist();
     var ok = true;
@@ -1494,6 +1765,7 @@ class AppState extends ChangeNotifier {
       }
       _dirtyBuckets.remove(bucket);
       await _storeLocalRev(bucket);
+      await _preferences?.remove(_dirtyKey(bucket));
     }
     unawaited(sync.heartbeat());
     notifyListeners();
@@ -1532,54 +1804,57 @@ class AppState extends ChangeNotifier {
     // Startup and full-state merges still persist all collections.
     if (buckets == null || buckets.contains(NoorSyncService.bucketAddons)) {
       await _preferences?.setString(
-        'horse.mobile.addons',
+        _localKey(NoorSyncService.bucketAddons),
         _encode(addons.map((e) => e.toJson()).toList()),
       );
     }
     if (buckets == null || buckets.contains(NoorSyncService.bucketLists)) {
       await _preferences?.setString(
-        'horse.mobile.lists',
+        _localKey(NoorSyncService.bucketLists),
         _encode(customLists.map((list) => list.toJson()).toList()),
       );
     }
     if (buckets == null || buckets.contains(NoorSyncService.bucketWatchlist)) {
       await _preferences?.setString(
-        'horse.mobile.watchlist',
+        _localKey(NoorSyncService.bucketWatchlist),
         _encode(watchlist.map((e) => e.toJson()).toList()),
       );
     }
     if (buckets == null || buckets.contains(NoorSyncService.bucketHistory)) {
       await _preferences?.setString(
-        'horse.mobile.history',
+        _localKey(NoorSyncService.bucketHistory),
         _encode(history.map((e) => e.toJson()).toList()),
       );
     }
     if (buckets == null || buckets.contains(NoorSyncService.bucketLibrary)) {
       await _preferences?.setString(
-        'horse.mobile.cw',
+        _localKey(NoorSyncService.bucketLibrary),
         _encode(_continueWatching),
       );
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Accountless cloud sync (NoorSyncService over direct Postgres).
+  // Authenticated account/profile cloud sync.
   // ---------------------------------------------------------------------------
 
   /// Debounced push: queues [bucket] and (re)starts the 4s timer so bursts of
   /// changes collapse into a single write per bucket.
   void _schedulePush(String bucket) {
+    if (!sync.hasScope) return;
     if (webSettings['cloudSyncEnabled'] == false) {
       _dirtyBuckets.clear();
       return;
     }
     _dirtyBuckets.add(bucket);
+    unawaited(_preferences?.setBool(_dirtyKey(bucket), true));
     _pushTimer?.cancel();
     _pushTimer = Timer(const Duration(seconds: 4), _flushPush);
   }
 
   Future<void> _flushPush() async {
     if (_dirtyBuckets.isEmpty) return;
+    if (!sync.hasScope) return;
     if (webSettings['cloudSyncEnabled'] == false) {
       _dirtyBuckets.clear();
       return;
@@ -1590,6 +1865,7 @@ class AppState extends ChangeNotifier {
       return;
     }
     _pushInFlight = true;
+    _pushIdle = Completer<void>();
     try {
       for (final bucket in _dirtyBuckets.toList()) {
         final payload = _bucketPayload(bucket);
@@ -1597,13 +1873,19 @@ class AppState extends ChangeNotifier {
           _dirtyBuckets.remove(bucket);
           continue;
         }
-        if (!await sync.pushBucket(bucket, payload)) break;
+        if (!await sync.pushBucket(bucket, payload)) {
+          if (sync.takeConflict(bucket)) await _pullBuckets();
+          break;
+        }
         _dirtyBuckets.remove(bucket);
         await _storeLocalRev(bucket);
+        await _preferences?.remove(_dirtyKey(bucket));
         if (_dirtyBuckets.isEmpty) break;
       }
     } finally {
       _pushInFlight = false;
+      _pushIdle?.complete();
+      _pushIdle = null;
     }
     if (_dirtyBuckets.isNotEmpty) {
       // Failed buckets stay dirty; retry after a short backoff so an offline
@@ -1617,14 +1899,19 @@ class AppState extends ChangeNotifier {
   /// boot only applies buckets that were written after this device's last
   /// known revision.
   Future<void> _storeLocalRev(String bucket) async {
-    final current = _preferences?.getInt('noor.sync.rev.$bucket') ?? 0;
+    final current = _preferences?.getInt(_revisionKey(bucket)) ?? 0;
     final rev = sync.lastKnownRev(bucket) ?? current + 1;
-    await _preferences?.setInt('noor.sync.rev.$bucket', rev);
+    await _preferences?.setInt(_revisionKey(bucket), rev);
+    final payload = _bucketPayload(bucket);
+    if (payload != null) {
+      await _preferences?.setString(_baseKey(bucket), _encode(payload));
+    }
   }
 
   /// Boot-time pull: whole-bucket replace whenever the cloud revision is
   /// newer than the last revision recorded locally.
   Future<void> _pullBuckets() async {
+    if (!sync.hasScope) return;
     for (final bucket in NoorSyncService.buckets) {
       final remote = await sync.pullBucket(bucket);
       if (remote == null) {
@@ -1633,10 +1920,38 @@ class AppState extends ChangeNotifier {
         continue;
       }
       final remoteRev = (remote['rev'] as num?)?.toInt() ?? 0;
-      final localRev = _preferences?.getInt('noor.sync.rev.$bucket') ?? 0;
+      final localRev = _preferences?.getInt(_revisionKey(bucket)) ?? 0;
       if (remoteRev > localRev) {
-        await _applyBucket(bucket, remote['data']);
-        await _preferences?.setInt('noor.sync.rev.$bucket', remoteRev);
+        final remoteData = remote['data'];
+        if (remoteData is! Map) continue;
+        final remotePayload = Map<String, dynamic>.from(remoteData);
+        if (_preferences?.getBool(_dirtyKey(bucket)) == true) {
+          final baseRaw = _preferences?.getString(_baseKey(bucket));
+          Map<String, dynamic> basePayload = {};
+          if (baseRaw != null) {
+            try {
+              basePayload =
+                  Map<String, dynamic>.from(jsonDecode(baseRaw) as Map);
+            } catch (_) {}
+          }
+          final localPayload = _bucketPayload(bucket) ?? {};
+          await _applyBucket(
+            bucket,
+            mergeBucketPayload(
+              bucket: bucket,
+              base: basePayload,
+              local: localPayload,
+              remote: remotePayload,
+            ),
+          );
+          _schedulePush(bucket);
+        } else {
+          await _applyBucket(bucket, remotePayload);
+        }
+        await _preferences?.setInt(_revisionKey(bucket), remoteRev);
+        await _preferences?.setString(_baseKey(bucket), _encode(remotePayload));
+      } else if (_preferences?.getBool(_dirtyKey(bucket)) == true) {
+        _schedulePush(bucket);
       }
     }
     notifyListeners();
@@ -1644,6 +1959,8 @@ class AppState extends ChangeNotifier {
 
   bool _hasLocalBucketData(String bucket) {
     switch (bucket) {
+      case NoorSyncService.bucketSettings:
+        return _preferences?.containsKey(_localKey(bucket)) == true;
       case NoorSyncService.bucketAddons:
         return addons.isNotEmpty;
       case NoorSyncService.bucketLists:
@@ -1742,8 +2059,10 @@ class AppState extends ChangeNotifier {
   /// Linked services are checked directly against the API — no pairing codes,
   /// no account. The cached map keeps `linkId`s for offline scrobble calls.
   Future<void> _refreshLinkedServices() async {
+    final scopeGeneration = _scopeGeneration;
+    final scopedKey = _linkedServicesKey;
     var next = _decodeMap(
-      _preferences?.getString('horse.mobile.linked-services'),
+      _preferences?.getString(scopedKey),
     );
     for (final service in const ['trakt', 'simkl']) {
       try {
@@ -1765,9 +2084,10 @@ class AppState extends ChangeNotifier {
         // Keep the cached entry when the status check is unavailable.
       }
     }
+    if (scopeGeneration != _scopeGeneration) return;
     linkedServices = next;
     await _preferences?.setString(
-      'horse.mobile.linked-services',
+      scopedKey,
       _encode(linkedServices),
     );
     notifyListeners();
@@ -2004,6 +2324,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _dispatchOAuthCallback(OAuthCallback callback) async {
+    final scopeGeneration = _scopeGeneration;
     String? service;
     Map<String, dynamic> result;
     try {
@@ -2036,6 +2357,7 @@ class AppState extends ChangeNotifier {
         'reason': 'exchange_failed'
       };
     }
+    if (scopeGeneration != _scopeGeneration) return;
     final ok = result['status']?.toString() == 'success';
     if (ok && service != null) {
       await saveLinkedService(service, <String, dynamic>{
@@ -2060,9 +2382,11 @@ class AppState extends ChangeNotifier {
   /// stats) into [linkedServices] so the integrations card shows live data.
   Future<void> refreshTrackerProfile(String service) async {
     if (linkedServices[service]?['linked'] != true) return;
+    final scopeGeneration = _scopeGeneration;
     try {
       if (service == 'anilist') {
         final viewer = await api.aniListViewer();
+        if (scopeGeneration != _scopeGeneration) return;
         if (viewer == null) return;
         final stats = _asMapMap(viewer['statistics'])?['anime'];
         final current =
@@ -2079,12 +2403,13 @@ class AppState extends ChangeNotifier {
         }
         linkedServices = {...linkedServices, 'anilist': current};
         await _preferences?.setString(
-          'horse.mobile.linked-services',
+          _linkedServicesKey,
           _encode(linkedServices),
         );
         notifyListeners();
       } else if (service == 'mal') {
         final profile = await api.malProfile();
+        if (scopeGeneration != _scopeGeneration) return;
         if (profile == null) return;
         final current = Map<String, dynamic>.from(linkedServices['mal'] ?? {});
         current['username'] =
@@ -2100,7 +2425,7 @@ class AppState extends ChangeNotifier {
         }
         linkedServices = {...linkedServices, 'mal': current};
         await _preferences?.setString(
-          'horse.mobile.linked-services',
+          _linkedServicesKey,
           _encode(linkedServices),
         );
         notifyListeners();

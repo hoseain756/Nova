@@ -59,8 +59,6 @@ dependencies:
   nova_ios_torrent:
     path: packages/nova_ios_torrent
 
-  # Direct Postgres (Supabase pooler) for accountless device sync.
-  postgres: ^3.5.6
   share_plus: ^13.3.1
   lucide_icons_flutter: ^4.0.0
   flutter_svg: ^2.3.0
@@ -69,6 +67,7 @@ dependencies:
   package_info_plus: 10.2.2
   open_filex: 5.0.0
   file_picker: ^13.2.0
+  supabase_flutter: 2.18.3
 
 dependency_overrides:
   # Sandbox/user builds have no NDK: pin the last pre-jnigen path_provider_android
@@ -99,6 +98,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/avatars/
     - assets/brand/svg/
     - assets/brand/ios/with_background/AppIcon-120.png
     - assets/brand/ios/no_background/red_glyph/AppIcon-120.png

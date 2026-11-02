@@ -1,4 +1,4 @@
-import 'package:dio/dio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -87,16 +87,6 @@ Future<void> _openService(WidgetTester tester, String service) async {
   await tester.tap(find.text(service));
   await tester.pumpAndSettle();
   expect(find.text('Connect $service'), findsOneWidget);
-}
-
-Dio _rejectingDio(DioException Function(RequestOptions) error) {
-  final dio = Dio();
-  dio.interceptors.add(
-    InterceptorsWrapper(
-      onRequest: (options, handler) => handler.reject(error(options)),
-    ),
-  );
-  return dio;
 }
 
 void main() {
@@ -202,13 +192,9 @@ void main() {
   });
 
   test('device polling keeps connection timeouts pending', () async {
-    final dio = _rejectingDio(
-      (options) => DioException(
-        requestOptions: options,
-        type: DioExceptionType.connectionTimeout,
-      ),
-    );
-    final api = NoorApi(dio: dio);
+    final api = NoorApi(simklExchange: (_) async {
+      throw const FunctionsFetchException();
+    });
     addTearDown(api.dispose);
 
     final result = await api.pollLinkedService(
@@ -223,18 +209,11 @@ void main() {
   });
 
   test('device polling keeps temporary provider failures pending', () async {
-    final dio = _rejectingDio(
-      (options) => DioException.badResponse(
-        statusCode: 503,
-        requestOptions: options,
-        response: Response<dynamic>(
-          requestOptions: options,
-          statusCode: 503,
-          data: const <String, dynamic>{'error': 'unavailable'},
-        ),
-      ),
-    );
-    final api = NoorApi(dio: dio);
+    final api = NoorApi(
+        simklExchange: (_) async => <String, dynamic>{
+              'status': 'pending',
+              'reason': 'transient_network'
+            });
     addTearDown(api.dispose);
 
     final result = await api.pollLinkedService(
@@ -246,18 +225,8 @@ void main() {
   });
 
   test('device polling preserves terminal authorization failures', () async {
-    final dio = _rejectingDio(
-      (options) => DioException.badResponse(
-        statusCode: 401,
-        requestOptions: options,
-        response: Response<dynamic>(
-          requestOptions: options,
-          statusCode: 401,
-          data: const <String, dynamic>{'error': 'invalid_grant'},
-        ),
-      ),
-    );
-    final api = NoorApi(dio: dio);
+    final api = NoorApi(
+        simklExchange: (_) async => <String, dynamic>{'status': 'error'});
     addTearDown(api.dispose);
 
     final result = await api.pollLinkedService(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../oauth/oauth_redirect.dart';
 import '../trakt/trakt_pkce.dart';
@@ -49,9 +50,13 @@ import '../version.dart';
 ///  - secure `noor.debrid.<service>`     → debrid API key
 ///  - secure 'noor.iptv.playlists'       → IPTV playlist JSON
 class NoorApi {
-  NoorApi({SharedPreferences? preferences, Dio? dio})
+  NoorApi(
+      {SharedPreferences? preferences,
+      Dio? dio,
+      Future<Map<String, dynamic>?> Function(String)? simklExchange})
       : _preferences = preferences,
-        _dio = dio;
+        _dio = dio,
+        _simklExchange = simklExchange;
 
   // --------------------------------------------------------------------------
   // Embedded operator keys (user-overridable where noted)
@@ -70,9 +75,6 @@ class NoorApi {
 
   static const String defaultSimklClientId =
       '77b9125e4f1148d09b4fec74474171a02daefe24272cc1aa8b2efcb4da367bee';
-
-  static const String defaultSimklClientSecret =
-      'simkl_cs_bFZ4x7Sgrkc2hhslQDD38LVnkM7D1bI0Ym';
 
   // Trakt OAuth — current documented endpoints (developer.trakt.tv, 2026):
   // authorize + token + revoke live on the auth host; data endpoints stay
@@ -195,9 +197,12 @@ class NoorApi {
   // State
   // --------------------------------------------------------------------------
 
-  final FlutterSecureStorage _secure = const FlutterSecureStorage();
+  String? _accountId;
+  late final _AccountSecureStorage _secure =
+      _AccountSecureStorage(() => _accountId);
   SharedPreferences? _preferences;
   Dio? _dio;
+  final Future<Map<String, dynamic>?> Function(String)? _simklExchange;
 
   /// TMDB credential override: v4 JWT ('eyJ…') or 32-hex v3 key.
   String? _tmdbUserToken;
@@ -275,7 +280,10 @@ class NoorApi {
         ? null
         : DateTime.fromMillisecondsSinceEpoch(malExpiry);
 
-    _debridService = _preferences!.getString(_debridServiceKey);
+    _debridService = _accountId == null
+        ? null
+        : _preferences!
+            .getString('nova.account.$_accountId.$_debridServiceKey');
     if (_debridService != null) {
       _debridApiKey = await _secure.read(
         key: '$_debridSecretPrefix$_debridService',
@@ -284,6 +292,75 @@ class NoorApi {
         _debridService = null;
       }
     }
+  }
+
+  /// Switches linked-service and provider credentials to the signed-in account.
+  /// The old unscoped keys are never read during ordinary account activation.
+  Future<void> activateAccount(String accountId) async {
+    if (_accountId == accountId) return;
+    _accountId = accountId;
+    _tmdbUserToken = null;
+    _serviceTokens.clear();
+    _traktExpiresAt = null;
+    _anilistExpiresAt = null;
+    _malExpiresAt = null;
+    _debridService = null;
+    _debridApiKey = null;
+    _ratingsCache.clear();
+    _ratingsInflight.clear();
+    await initialize();
+  }
+
+  Future<void> deactivateAccount() async {
+    _accountId = null;
+    _tmdbUserToken = null;
+    _serviceTokens.clear();
+    _traktExpiresAt = null;
+    _anilistExpiresAt = null;
+    _malExpiresAt = null;
+    _debridService = null;
+    _debridApiKey = null;
+    _ratingsCache.clear();
+    _ratingsInflight.clear();
+  }
+
+  /// Copies old device credentials only after the user accepts legacy import.
+  Future<void> importLegacyCredentials() async {
+    final accountId = _accountId;
+    if (accountId == null) return;
+    const raw = FlutterSecureStorage();
+    final keys = <String>[
+      _tmdbUserTokenKey,
+      _legacyTmdbUserTokenKey,
+      _traktRefreshKey,
+      _traktExpiryKey,
+      _anilistExpiresKey,
+      _malRefreshKey,
+      _malExpiresKey,
+      _iptvPlaylistsKey,
+      _legacyIptvPlaylistsKey,
+      for (final service in ['trakt', 'simkl', 'anilist', 'mal'])
+        _serviceTokenKey(service),
+    ];
+    for (final key in keys) {
+      final oldValue = await raw.read(key: key);
+      if (oldValue == null || oldValue.isEmpty) continue;
+      if (await _secure.read(key: key) == null) {
+        await _secure.write(key: key, value: oldValue);
+      }
+    }
+    final prefs = _preferences ??= await SharedPreferences.getInstance();
+    final debridService = prefs.getString(_debridServiceKey);
+    if (debridService != null) {
+      final secretKey = '$_debridSecretPrefix$debridService';
+      final secret = await raw.read(key: secretKey);
+      if (secret != null && secret.isNotEmpty) {
+        await _secure.write(key: secretKey, value: secret);
+        await prefs.setString(
+            'nova.account.$accountId.$_debridServiceKey', debridService);
+      }
+    }
+    await initialize();
   }
 
   void dispose() {
@@ -823,7 +900,8 @@ class NoorApi {
       await _secure.delete(key: '$_debridSecretPrefix$previous');
     }
     await _secure.write(key: '$_debridSecretPrefix$service', value: apiKey);
-    await prefs.setString(_debridServiceKey, service);
+    await prefs.setString(
+        'nova.account.$_accountId.$_debridServiceKey', service);
     _debridService = service;
     _debridApiKey = apiKey;
   }
@@ -833,7 +911,7 @@ class NoorApi {
     if (service != null) {
       await _secure.delete(key: '$_debridSecretPrefix$service');
     }
-    await _preferences?.remove(_debridServiceKey);
+    await _preferences?.remove('nova.account.$_accountId.$_debridServiceKey');
     _debridService = null;
     _debridApiKey = null;
   }
@@ -1269,33 +1347,42 @@ class NoorApi {
       switch (service) {
         case 'simkl':
           {
-            // OAuth 2.0 apps poll /oauth2/token with the RFC 8628 device
-            // grant; the legacy /oauth/token answers unauthorized_client.
-            final response = await _client.post<dynamic>(
-              '$simklBaseUrl/oauth2/token',
-              data: <String, String>{
-                'client_id': defaultSimklClientId,
-                'client_secret': defaultSimklClientSecret,
-                'device_code': start['device_code']?.toString() ?? '',
-                'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
-              },
-              options: Options(
-                headers: <String, String>{
-                  'Content-Type': 'application/json',
-                  'simkl-api-key': defaultSimklClientId,
-                },
-              ),
-            );
-            final token = _asMap(response.data)?['access_token']?.toString();
+            // The confidential Simkl client secret lives only in the Edge
+            // Function environment. The app sends its Supabase user session.
+            final code = start['device_code']?.toString() ?? '';
+            final body = _simklExchange != null
+                ? await _simklExchange(code)
+                : _asMap((await Supabase.instance.client.functions.invoke(
+                    'simkl-device-exchange',
+                    body: {'device_code': code},
+                  ))
+                    .data);
+            final token = body?['access_token']?.toString();
             if (token != null && token.isNotEmpty) {
               await _storeServiceToken('simkl', token);
               return <String, dynamic>{'status': 'success'};
             }
-            return <String, dynamic>{'status': 'error'};
+            return <String, dynamic>{
+              'status': body?['status'] == 'pending' ? 'pending' : 'error',
+              if (body?['reason'] == 'transient_network')
+                'reason': 'transient_network',
+            };
           }
         default:
           return null;
       }
+    } on FunctionException catch (error) {
+      if (error.status == 0 ||
+          error.status == 408 ||
+          error.status == 425 ||
+          error.status == 429 ||
+          error.status >= 500) {
+        return <String, dynamic>{
+          'status': 'pending',
+          'reason': 'transient_network',
+        };
+      }
+      return <String, dynamic>{'status': 'error'};
     } on DioException catch (error) {
       final status = error.response?.statusCode;
       final body = _asMap(error.response?.data);
@@ -3423,6 +3510,37 @@ query ($userId: Int) {
         .toLowerCase()
         .replaceAll(RegExp(r"[^a-z0-9]+"), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
+  }
+}
+
+/// Account-keyed adapter for NOVA's existing local integration credentials.
+/// No unscoped legacy key is readable until importLegacyCredentials is chosen.
+class _AccountSecureStorage {
+  _AccountSecureStorage(this._accountId);
+
+  final String? Function() _accountId;
+  static const _storage = FlutterSecureStorage();
+
+  String? _key(String key) {
+    final id = _accountId();
+    return id == null ? null : 'nova.account.$id.$key';
+  }
+
+  Future<String?> read({required String key}) async {
+    final scoped = _key(key);
+    return scoped == null ? null : _storage.read(key: scoped);
+  }
+
+  Future<void> write({required String key, required String value}) async {
+    final scoped = _key(key);
+    if (scoped == null) return;
+    await _storage.write(key: scoped, value: value);
+  }
+
+  Future<void> delete({required String key}) async {
+    final scoped = _key(key);
+    if (scoped == null) return;
+    await _storage.delete(key: scoped);
   }
 }
 

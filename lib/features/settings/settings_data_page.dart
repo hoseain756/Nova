@@ -11,7 +11,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/cache_reset_service.dart';
 import '../../core/state/app_state.dart';
+import '../../core/auth/account_controller.dart';
 import '../../core/sync/noor_sync.dart';
+import '../../app/account_settings_section.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/torrent/torrent_service.dart';
 import '../../core/version.dart';
@@ -27,6 +29,12 @@ class SettingsDataPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    AccountController? account;
+    try {
+      account = context.read<AccountController?>();
+    } on ProviderNotFoundException {
+      // Legacy widget harnesses do not install an account provider.
+    }
     // Task 122-c F4: the page reads only the UI language + the two counts
     // shown in the row subtitles; callbacks use context.read below.
     final (english, savedCount, historyCount) =
@@ -65,6 +73,9 @@ class SettingsDataPage extends StatelessWidget {
                       : section == 'account'
                           ? LucideIcons.cloud
                           : LucideIcons.shieldCheck),
+              if (section == 'account' || section == 'all')
+                if (account != null)
+                  AccountSettingsSection(account: account, app: app),
               if (section == 'account' || section == 'all')
                 _SupabaseSyncCard(app: app),
               if (section == 'storage' || section == 'all') ...[
@@ -234,17 +245,7 @@ class _SupabaseSyncCardState extends State<_SupabaseSyncCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Task 122-c F4: scoped select — the sync card reads only the UI
-    // language, the cloud-sync flag and the short device id.
-    final (english, enabled, shortId) =
-        context.select<AppState, (bool, bool, String)>((app) {
-      final id = app.deviceId ?? '';
-      return (
-        app.english,
-        app.webSettings['cloudSyncEnabled'] != false,
-        id.length >= 8 ? id.substring(0, 8) : (id.isEmpty ? '—' : id),
-      );
-    });
+    final english = context.select<AppState, bool>((app) => app.english);
     return Container(
       margin: const EdgeInsetsDirectional.only(bottom: 8),
       padding: const EdgeInsets.all(18),
@@ -267,46 +268,33 @@ class _SupabaseSyncCardState extends State<_SupabaseSyncCard> {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-              SettingsOptimisticSwitch(
-                value: enabled,
-                onChanged: (value) => context
-                    .read<AppState>()
-                    .setSetting('cloudSyncEnabled', value),
-              ),
             ],
           ),
           SizedBox(height: 4),
           Text(
-            NovaStrings.lookup(english, 'message377', {'p0': shortId}),
+            NovaStrings.lookup(english, 'accountScopedSyncDescription'),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           SizedBox(height: 12),
-          if (enabled)
-            ...NoorSyncService.buckets.map(
-              (bucket) => Padding(
-                padding: const EdgeInsetsDirectional.only(bottom: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _bucketLabel(bucket, english),
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    Text(
-                      _format(_lastSync[bucket], english),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
+          ...NoorSyncService.buckets.map(
+            (bucket) => Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _bucketLabel(bucket, english),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Text(
+                    _format(_lastSync[bucket], english),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
-          if (!enabled)
-            Text(
-              NovaStrings.lookup(english, 'message378'),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+          ),
           SizedBox(height: 10),
           Align(
             alignment: AlignmentDirectional.centerEnd,

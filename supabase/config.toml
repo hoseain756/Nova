@@ -1,0 +1,5 @@
+[functions.auth-login]
+verify_jwt = false
+
+[functions.simkl-device-exchange]
+verify_jwt = true

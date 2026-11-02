@@ -28,6 +28,7 @@ class ResumeSnapshot {
 class ResumeSnapshotStore {
   ResumeSnapshotStore(
     this._preferences, {
+    this.scope,
     Future<Directory> Function()? supportDirectory,
   }) : _supportDirectory = supportDirectory ?? getApplicationSupportDirectory;
 
@@ -36,13 +37,19 @@ class ResumeSnapshotStore {
   static const maxWidth = 960;
 
   final SharedPreferences _preferences;
+
+  /// Null selects the pre-account archive. Account/profile scopes never read it.
+  final String? scope;
   final Future<Directory> Function() _supportDirectory;
+  String get _storageKey => scope == null
+      ? storageKey
+      : '$storageKey.${sha256.convert(utf8.encode(scope!))}';
 
   Future<Map<String, ResumeSnapshot>> load({
     required int retentionDays,
     DateTime? now,
   }) async =>
-      _prune(_decode(_preferences.getString(storageKey)),
+      _prune(_decode(_preferences.getString(_storageKey)),
           retentionDays: retentionDays, now: now);
 
   Future<ResumeSnapshot?> save({
@@ -61,12 +68,13 @@ class ResumeSnapshotStore {
       '${parent.path}${separator}nova${separator}resume-snapshots',
     );
     await dir.create(recursive: true);
-    final name = sha256.convert(utf8.encode(itemId)).toString();
+    final name =
+        sha256.convert(utf8.encode('${scope ?? 'legacy'}:$itemId')).toString();
     final path = '${dir.path}$separator$name.jpg';
     await File(path).writeAsBytes(jpeg, flush: true);
 
     final capturedAt = (now ?? DateTime.now()).millisecondsSinceEpoch;
-    final records = _decode(_preferences.getString(storageKey));
+    final records = _decode(_preferences.getString(_storageKey));
     records[itemId] = ResumeSnapshot(path: path, capturedAtMs: capturedAt);
     final pruned = await _prune(
       records,
@@ -79,7 +87,7 @@ class ResumeSnapshotStore {
   }
 
   Future<Map<String, ResumeSnapshot>> remove(String itemId) async {
-    final records = _decode(_preferences.getString(storageKey));
+    final records = _decode(_preferences.getString(_storageKey));
     final removed = records.remove(itemId);
     if (removed != null) await _deleteFile(removed.path);
     await _persist(records);
@@ -87,12 +95,45 @@ class ResumeSnapshotStore {
   }
 
   Future<Map<String, ResumeSnapshot>> clear() async {
-    final records = _decode(_preferences.getString(storageKey));
+    final records = _decode(_preferences.getString(_storageKey));
     for (final value in records.values) {
       await _deleteFile(value.path);
     }
-    await _preferences.remove(storageKey);
+    await _preferences.remove(_storageKey);
     return {};
+  }
+
+  /// Copies old device-only frames into this selected profile. The old archive
+  /// remains untouched until the user removes it separately.
+  Future<void> importLegacy({required int retentionDays}) async {
+    if (scope == null) return;
+    final legacy = _decode(_preferences.getString(storageKey));
+    if (legacy.isEmpty) return;
+    final current = _decode(_preferences.getString(_storageKey));
+    final parent = await _supportDirectory();
+    final separator = Platform.pathSeparator;
+    final dir = Directory(
+      '${parent.path}${separator}nova${separator}resume-snapshots',
+    );
+    await dir.create(recursive: true);
+    for (final entry in legacy.entries) {
+      if (current.containsKey(entry.key)) continue;
+      final source = File(entry.value.path);
+      if (!await source.exists()) continue;
+      final name =
+          sha256.convert(utf8.encode('$scope:${entry.key}')).toString();
+      final destination = File('${dir.path}$separator$name.jpg');
+      try {
+        await source.copy(destination.path);
+        current[entry.key] = ResumeSnapshot(
+          path: destination.path,
+          capturedAtMs: entry.value.capturedAtMs,
+        );
+      } catch (_) {
+        // A missing or damaged frame must not block the rest of the import.
+      }
+    }
+    await _prune(current, retentionDays: retentionDays);
   }
 
   Future<Map<String, ResumeSnapshot>> _prune(
@@ -147,7 +188,7 @@ class ResumeSnapshotStore {
 
   Future<void> _persist(Map<String, ResumeSnapshot> records) =>
       _preferences.setString(
-        storageKey,
+        _storageKey,
         jsonEncode(records.map((key, value) => MapEntry(key, value.toJson()))),
       );
 
