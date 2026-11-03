@@ -22,6 +22,16 @@ class _Destination {
   final Widget page;
 }
 
+class _SettingsGroup {
+  const _SettingsGroup(
+      this.id, this.icon, this.title, this.description, this.destinations);
+  final String id;
+  final IconData icon;
+  final String title;
+  final String description;
+  final List<_Destination> destinations;
+}
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, this.onOpenLibrary});
   final VoidCallback? onOpenLibrary;
@@ -31,7 +41,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   String _query = '';
-  String? _selected;
+  String? _selected = 'appearance';
   final _search = TextEditingController();
   @override
   void dispose() {
@@ -147,17 +157,127 @@ class _SettingsPageState extends State<SettingsPage> {
             const SettingsAboutPage()),
       ];
 
+  List<_SettingsGroup> _groups(AppState app, List<_Destination> destinations) {
+    final byId = {
+      for (final destination in destinations) destination.id: destination
+    };
+    return [
+      _SettingsGroup(
+          'account',
+          LucideIcons.userRound,
+          app.tr('settingsGroupAccountFamily'),
+          app.tr('settingsGroupAccountFamilyDescription'), [
+        byId['account']!,
+        byId['kids']!,
+        byId['privacy']!,
+      ]),
+      _SettingsGroup(
+          'watching',
+          LucideIcons.play,
+          app.tr('settingsGroupWatching'),
+          app.tr('settingsGroupWatchingDescription'), [
+        byId['playback']!,
+        byId['subtitles']!,
+        byId['downloads']!,
+        byId['stats']!,
+      ]),
+      _SettingsGroup(
+          'content',
+          LucideIcons.layoutGrid,
+          app.tr('settingsGroupContentServices'),
+          app.tr('settingsGroupContentServicesDescription'), [
+        byId['display']!,
+        byId['catalogs']!,
+        byId['addons']!,
+        byId['services']!,
+      ]),
+      _SettingsGroup(
+          'app',
+          LucideIcons.palette,
+          app.tr('settingsGroupAppPersonalization'),
+          app.tr('settingsGroupAppPersonalizationDescription'), [
+        byId['appearance']!,
+        byId['language']!,
+        byId['notifications']!,
+        byId['about']!,
+      ]),
+    ];
+  }
+
+  void _openDestination(
+      BuildContext context, _Destination destination, bool wide) {
+    if (wide) {
+      setState(() => _selected = destination.id);
+    } else {
+      Navigator.of(context)
+          .push(MaterialPageRoute<void>(builder: (_) => destination.page));
+    }
+  }
+
+  Widget _groupTile(
+      BuildContext context, _SettingsGroup group, bool wide, String? selected) {
+    final entries = <Widget>[
+      for (final destination in group.destinations) ...[
+        const Divider(height: 1, indent: 20, endIndent: 20),
+        ColoredBox(
+          color: wide && destination.id == selected
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : Colors.transparent,
+          child: SettingsTile(
+            icon: destination.icon,
+            title: destination.title,
+            subtitle: wide ? null : destination.description,
+            onTap: () => _openDestination(context, destination, wide),
+          ),
+        ),
+      ],
+    ];
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: 12),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          key: ValueKey('settings-group-${group.id}'),
+          initiallyExpanded: wide && group.id == 'app',
+          leading: Icon(group.icon,
+              color: Theme.of(context).colorScheme.secondary, size: 22),
+          title: Text(group.title,
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          subtitle: Text(group.description,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          tilePadding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
+          childrenPadding: const EdgeInsetsDirectional.only(bottom: 8),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          children: entries,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
     final app = context.read<AppState>();
     final destinations = _destinations(app);
+    final groups = _groups(app, destinations);
     final query = _query.trim().toLowerCase();
-    final results = destinations
-        .where((d) => '${d.title} ${d.description} ${d.keywords}'
-            .toLowerCase()
-            .contains(query))
-        .toList();
+    final results = query.isEmpty
+        ? const <(_Destination, _SettingsGroup)>[]
+        : [
+            for (final group in groups)
+              for (final destination in group.destinations)
+                if ('${group.title} ${destination.title} ${destination.description} ${destination.keywords}'
+                    .toLowerCase()
+                    .contains(query))
+                  (destination, group),
+          ];
     return LayoutBuilder(builder: (context, constraints) {
       final wide = constraints.maxWidth >= 1000;
       final selected = destinations.where((d) => d.id == _selected).firstOrNull;
@@ -191,38 +311,39 @@ class _SettingsPageState extends State<SettingsPage> {
             if (widget.onOpenLibrary != null && query.isEmpty)
               Padding(
                   padding: const EdgeInsetsDirectional.only(bottom: 12),
-                  child: SettingsTile(
-                      icon: LucideIcons.bookmark,
-                      title: app.tr('message474'),
-                      onTap: widget.onOpenLibrary)),
-            if (results.isEmpty)
+                  child: Material(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(24),
+                      clipBehavior: Clip.antiAlias,
+                      child: SettingsTile(
+                          icon: LucideIcons.bookmark,
+                          title: app.tr('message474'),
+                          onTap: widget.onOpenLibrary))),
+            if (query.isEmpty)
+              for (final group in groups)
+                _groupTile(context, group, wide, _selected),
+            if (query.isNotEmpty && results.isEmpty)
               Padding(
                   padding: const EdgeInsets.all(24),
                   child: SettingsInfoBanner(
                       icon: LucideIcons.searchX,
                       message: app.tr('message475'))),
-            for (final destination in results)
+            for (final (destination, group) in results)
               Padding(
                   padding: const EdgeInsetsDirectional.only(bottom: 4),
                   child: DecoratedBox(
                       decoration: BoxDecoration(
                           color: wide && destination.id == _selected
                               ? Theme.of(context).colorScheme.secondaryContainer
-                              : Colors.transparent,
+                              : Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(16)),
                       child: SettingsTile(
                           icon: destination.icon,
                           title: destination.title,
-                          subtitle: wide ? null : destination.description,
-                          onTap: () {
-                            if (wide) {
-                              setState(() => _selected = destination.id);
-                            } else {
-                              Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                      builder: (_) => destination.page));
-                            }
-                          }))),
+                          subtitle:
+                              '${group.title} · ${destination.description}',
+                          onTap: () =>
+                              _openDestination(context, destination, wide)))),
           ]);
       return Scaffold(
           appBar: AppBar(title: Text(app.tr('settings'))),

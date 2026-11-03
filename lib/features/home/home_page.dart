@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/data/catalog_repository.dart';
 import '../../core/models/media_item.dart';
+import '../../core/letterboxd/letterboxd_settings.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/data/content_classifier.dart';
@@ -59,6 +60,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
   // Task 122-b (F5): previous linked-services signature — the linked
   // refresh below fires ONLY when this changes (first call counts).
   String? _linkedSignature;
+  String? _letterboxdSignature;
   // AniList/MAL taps resolve to a playable Stremio identity before opening.
   final Set<String> _resolving = {};
 
@@ -104,6 +106,11 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     if (linkedSignature != _linkedSignature) {
       _linkedSignature = linkedSignature;
       unawaited(app.refreshLinkedContent());
+    }
+    final letterboxdSignature = app.webSettings['letterboxd'].toString();
+    if (letterboxdSignature != _letterboxdSignature) {
+      _letterboxdSignature = letterboxdSignature;
+      unawaited(app.refreshLetterboxdCatalogs());
     }
   }
 
@@ -621,7 +628,31 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
         if ((!hideAnime || !service.$3) &&
             (app.visibleLinkedCatalogItems[service.$1]?.isNotEmpty ?? false))
           (service.$2, app.visibleLinkedCatalogItems[service.$1]!),
+      for (final id in app.letterboxdVisibleCatalogOrder)
+        if (app.letterboxdCatalogItems[id]?.isNotEmpty ?? false)
+          (
+            '${_letterboxdRailTitle(app, id, english)} · Letterboxd',
+            app.letterboxdCatalogItems[id]!
+          ),
     ];
+  }
+
+  String _letterboxdRailTitle(AppState app, String id, bool english) {
+    final key = switch (id) {
+      LetterboxdSettings.watchlistCatalog => 'letterboxdCatalogWatchlist',
+      LetterboxdSettings.diaryCatalog => 'letterboxdCatalogDiary',
+      LetterboxdSettings.likedCatalog => 'letterboxdCatalogLiked',
+      LetterboxdSettings.friendsCatalog => 'letterboxdCatalogFriends',
+      LetterboxdSettings.recommendedCatalog => 'letterboxdCatalogRecommended',
+      LetterboxdSettings.popularCatalog => 'letterboxdCatalogPopular',
+      LetterboxdSettings.top250Catalog => 'letterboxdCatalogTop250',
+      _ => null,
+    };
+    if (key != null) return NovaStrings.lookup(english, key);
+    for (final ref in app.letterboxdSettings.listRefs) {
+      if (id == 'letterboxd-list-${ref.id}') return ref.name;
+    }
+    return id;
   }
 
   void _openSection(Widget page) =>

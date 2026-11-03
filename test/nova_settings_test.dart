@@ -529,6 +529,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('settings groups reveal branches and keep their destinations',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final app = _SettingsApp(NoorApi());
+    await tester.pumpWidget(_harness(app, const SettingsPage()));
+
+    expect(find.text('Account & family'), findsOneWidget);
+    expect(find.text('Watching'), findsOneWidget);
+    expect(find.text('Content & services'), findsOneWidget);
+    expect(find.text('App & personalization'), findsOneWidget);
+
+    await tester.tap(find.text('Account & family'));
+    await tester.pumpAndSettle();
+    expect(find.text('Privacy & security'), findsOneWidget);
+    await tester.tap(find.text('Privacy & security'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDataPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await app.setLanguage(false);
+    await tester.pumpAndSettle();
+    expect(find.text('الحساب والعائلة'), findsOneWidget);
+    expect(Directionality.of(tester.element(find.byType(SettingsPage))),
+        TextDirection.rtl);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('library shortcut stays available on the settings overview',
+      (tester) async {
+    final app = _SettingsApp(NoorApi());
+    var opened = false;
+    await tester.pumpWidget(
+        _harness(app, SettingsPage(onOpenLibrary: () => opened = true)));
+    expect(find.text('Open my library'), findsOneWidget);
+    await tester.tap(find.text('Open my library'));
+    expect(opened, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'search finds a setting category and language changes direction live',
       (tester) async {

@@ -14,22 +14,28 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/noor_toast.dart';
 import 'widgets/settings_tiles.dart';
 import 'widgets/skip_timing_service_card.dart';
+import 'letterboxd_settings_page.dart';
 
 class IntegrationsPage extends StatelessWidget {
   const IntegrationsPage({super.key});
   @override
   Widget build(BuildContext context) {
     context.select<AppState,
-            (bool, Map<String, Map<String, dynamic>>, bool, bool, String?)>(
+            (bool, Map<String, Map<String, dynamic>>, bool, bool, String?, Object?)>(
         (app) => (
               app.english,
               app.linkedServices,
               app.api.hasUserTmdbKey,
               app.api.hasUserMdbListKey,
-              app.api.debridService
+              app.api.debridService,
+              app.webSettings['letterboxd'],
             ));
     final app = context.read<AppState>();
     final linked = app.linkedServices;
+    final letterboxd = app.letterboxdSettings;
+    final letterboxdConnected = letterboxd.enabled &&
+        letterboxd.username.isNotEmpty &&
+        (letterboxd.isPublic || app.letterboxdSession != null);
     return Scaffold(
         appBar: AppBar(title: Text(app.tr('message252'))),
         body: Center(
@@ -54,6 +60,18 @@ class IntegrationsPage extends StatelessWidget {
                         service: service,
                         connected: linked[service] != null,
                         subtitle: linked[service]?['username']?.toString()),
+                  SettingsTile(
+                    icon: LucideIcons.film,
+                    title: 'Letterboxd',
+                    subtitle: letterboxdConnected
+                        ? '@${letterboxd.username}'
+                        : app.tr('letterboxdServiceDescription'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const LetterboxdSettingsPage(),
+                      ),
+                    ),
+                  ),
                 ]),
                 const _TrackingSourceSettings(),
                 SettingsContentSection(title: app.tr('message256'), children: [

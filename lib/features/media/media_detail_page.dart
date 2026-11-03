@@ -26,6 +26,7 @@ import '../player/playback_entry_page.dart';
 import '../player/session/playback_session.dart';
 import '../shell/noor_dock_tabs.dart' show glassDockContentClearance;
 import 'detail_hero.dart';
+import 'letterboxd_detail_section.dart';
 import 'episode_data.dart';
 import 'episode_views.dart';
 import 'sources_page.dart';
@@ -520,6 +521,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             const SizedBox(height: 16),
             _ProviderRatings(item: item, startAligned: true),
             if (!widget.kidsMode) _SimklPersonalRating(item: item),
+            if (!widget.kidsMode &&
+                app.letterboxdSettings.enabled &&
+                item.type == 'movie' &&
+                RegExp(r'^tt\d+$').hasMatch(item.id)) ...[
+              const SizedBox(height: 20),
+              LetterboxdDetailSection(item: item),
+            ],
             if (item.description?.isNotEmpty == true) ...[
               const SizedBox(height: 32),
               Text(NovaStrings.lookup(english, 'message178'),

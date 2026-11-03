@@ -9,6 +9,7 @@ import '../../l10n/nova_strings.dart';
 
 import '../api/noor_api.dart';
 import '../data/catalog_repository.dart';
+import '../letterboxd/letterboxd_settings.dart';
 import '../models/addon.dart';
 import '../models/custom_list.dart';
 import '../models/integration_cw.dart';
@@ -73,6 +74,8 @@ class AppState extends ChangeNotifier {
     'blurTraktComments': true,
     'showAnilistComments': false,
     'anilistBlurComments': true,
+    'letterboxd': LetterboxdSettings.defaults.toJson(),
+    'letterboxdBlurReviews': true,
     'simklShowCommunityRatings': true,
     'simklEnableUserRatings': true,
     'mdbUseImdb': true, 'mdbUseTmdb': true,
@@ -415,6 +418,11 @@ class AppState extends ChangeNotifier {
     _linkedContentAt = null;
     linkedCatalogItems.clear();
     linkedContinueWatching = const [];
+    ++_letterboxdContentGeneration;
+    _letterboxdContentLoading = false;
+    _letterboxdContentForceQueued = false;
+    _letterboxdContentAt = null;
+    letterboxdCatalogItems.clear();
     _stopTraktRelayWatch();
 
     final prefs = _preferences ?? await SharedPreferences.getInstance();
@@ -501,6 +509,11 @@ class AppState extends ChangeNotifier {
     _linkedContentAt = null;
     linkedCatalogItems.clear();
     linkedContinueWatching = const [];
+    ++_letterboxdContentGeneration;
+    _letterboxdContentLoading = false;
+    _letterboxdContentForceQueued = false;
+    _letterboxdContentAt = null;
+    letterboxdCatalogItems.clear();
     _stopTraktRelayWatch();
     resumeSnapshots = {};
     webSettings = Map<String, dynamic>.from(defaultSettings);
@@ -670,6 +683,158 @@ class AppState extends ChangeNotifier {
     if (key == 'watchProgressSource' || key == 'traktCwDaysCap') {
       unawaited(refreshLinkedContent(force: true));
     }
+  }
+
+  LetterboxdSettings get letterboxdSettings =>
+      LetterboxdSettings.fromJson(webSettings['letterboxd']);
+
+  LetterboxdSession? get letterboxdSession => api.letterboxdSession;
+
+  LetterboxdSettings? _pendingLetterboxdPreferences;
+  int? _pendingLetterboxdPreferenceScope;
+  bool _syncingLetterboxdPreferences = false;
+
+  void _queueLetterboxdPreferences(LetterboxdSettings settings) {
+    _pendingLetterboxdPreferences = settings;
+    _pendingLetterboxdPreferenceScope = _scopeGeneration;
+    if (_syncingLetterboxdPreferences) return;
+    _syncingLetterboxdPreferences = true;
+    unawaited(() async {
+      try {
+        while (true) {
+          final next = _pendingLetterboxdPreferences;
+          if (next == null) break;
+          final pendingScope = _pendingLetterboxdPreferenceScope;
+          _pendingLetterboxdPreferences = null;
+          _pendingLetterboxdPreferenceScope = null;
+          if (pendingScope != _scopeGeneration) continue;
+          final scope = _scopeGeneration;
+          final session = letterboxdSession;
+          if (next.enabled &&
+              next.mode == LetterboxdSettings.fullMode &&
+              session != null) {
+            try {
+              await api.stremboxd.updatePreferences(next, session);
+            } catch (_) {
+              // The saved local choice remains available while the bridge is down.
+            }
+          }
+          if (scope != _scopeGeneration) continue;
+        }
+      } finally {
+        _syncingLetterboxdPreferences = false;
+        unawaited(refreshLetterboxdCatalogs(force: true));
+      }
+    }());
+  }
+
+  Future<void> updateLetterboxdSettings(LetterboxdSettings settings) async {
+    await setSetting('letterboxd', settings.toJson());
+    final session = letterboxdSession;
+    if (settings.enabled &&
+        settings.mode == LetterboxdSettings.fullMode &&
+        session != null) {
+      _queueLetterboxdPreferences(settings);
+    } else {
+      unawaited(refreshLetterboxdCatalogs(force: true));
+    }
+  }
+
+  Future<int> connectLetterboxdPublic(String username) async {
+    final scope = _scopeGeneration;
+    final settings = letterboxdSettings.copyWith(
+      enabled: true,
+      mode: LetterboxdSettings.publicMode,
+      username: username.trim(),
+    );
+    final validation = await api.stremboxd.verifyPublic(settings);
+    if (scope != _scopeGeneration) {
+      throw StateError(
+          'The active NOVA profile changed during Letterboxd linking');
+    }
+    await updateLetterboxdSettings(letterboxdSettings.copyWith(
+      enabled: true,
+      mode: LetterboxdSettings.publicMode,
+      username: username.trim(),
+    ));
+    return validation.catalogs;
+  }
+
+  Future<LetterboxdSession> connectLetterboxdFull(
+    String username,
+    String password, {
+    String? totp,
+  }) async {
+    final scope = _scopeGeneration;
+    final session = await api.stremboxd.login(
+      username.trim(),
+      password,
+      totp: totp,
+    );
+    if (scope != _scopeGeneration) {
+      throw StateError(
+          'The active NOVA profile changed during Letterboxd linking');
+    }
+    await api.saveLetterboxdSession(session);
+    if (scope != _scopeGeneration) {
+      throw StateError(
+          'The active NOVA profile changed during Letterboxd linking');
+    }
+    final settings = letterboxdSettings.copyWith(
+      enabled: true,
+      mode: LetterboxdSettings.fullMode,
+      username: session.username,
+    );
+    await updateLetterboxdSettings(settings);
+    return session;
+  }
+
+  Future<void> disconnectLetterboxd() async {
+    final scope = _scopeGeneration;
+    await api.clearLetterboxdSession();
+    if (scope != _scopeGeneration) return;
+    await updateLetterboxdSettings(letterboxdSettings.copyWith(
+      mode: LetterboxdSettings.publicMode,
+    ));
+  }
+
+  Future<void> addLetterboxdList(String url) async {
+    final scope = _scopeGeneration;
+    final ref = await api.stremboxd.resolvePublicList(url);
+    if (scope != _scopeGeneration) {
+      throw StateError(
+          'The active NOVA profile changed while adding a Letterboxd list');
+    }
+    final settings = letterboxdSettings;
+    final catalogId = 'letterboxd-list-${ref.id}';
+    await updateLetterboxdSettings(settings.copyWith(
+      listRefs: [
+        for (final existing in settings.listRefs)
+          if (existing.id != ref.id) existing,
+        ref,
+      ],
+      selectedCatalogs: {
+        ...settings.selectedCatalogs,
+        catalogId,
+      }.toList(),
+    ));
+  }
+
+  Future<void> removeLetterboxdList(String id) async {
+    final settings = letterboxdSettings;
+    final catalogId = 'letterboxd-list-$id';
+    await updateLetterboxdSettings(settings.copyWith(
+      listRefs: settings.listRefs.where((ref) => ref.id != id).toList(),
+      selectedCatalogs: settings.selectedCatalogs
+          .where((catalog) => catalog != catalogId)
+          .toList(),
+      hiddenCatalogs: settings.hiddenCatalogs
+          .where((catalog) => catalog != catalogId)
+          .toList(),
+      catalogOrder: settings.catalogOrder
+          .where((catalog) => catalog != catalogId)
+          .toList(),
+    ));
   }
 
   Future<void> saveMdbListUserKey(String value) async {
@@ -848,6 +1013,126 @@ class AppState extends ChangeNotifier {
   /// plan-to-watch list. Rows never carry position data and are purely
   /// additive presentation state.
   final Map<String, List<MediaItem>> linkedCatalogItems = {};
+
+  /// Film-only Stremboxd rows are presentation catalogs, separate from the
+  /// five tracker import/scrobble paths and local watch history.
+  final Map<String, List<MediaItem>> letterboxdCatalogItems = {};
+  static const _letterboxdContentTtl = Duration(minutes: 5);
+  DateTime? _letterboxdContentAt;
+  bool _letterboxdContentLoading = false;
+  bool _letterboxdContentForceQueued = false;
+  int _letterboxdContentGeneration = 0;
+
+  List<String> get letterboxdVisibleCatalogOrder {
+    final settings = letterboxdSettings;
+    if (!settings.enabled ||
+        (settings.mode == LetterboxdSettings.fullMode &&
+            letterboxdSession == null)) {
+      return const [];
+    }
+    final allowed = {
+      ...LetterboxdSettings.allCatalogs,
+      for (final ref in settings.listRefs) 'letterboxd-list-${ref.id}',
+    };
+    final selected = settings.selectedCatalogs
+        .where((id) =>
+            allowed.contains(id) &&
+            !settings.hiddenCatalogs.contains(id) &&
+            (settings.mode == LetterboxdSettings.fullMode ||
+                !LetterboxdSettings.fullOnlyCatalogs.contains(id)) &&
+            (settings.mode == LetterboxdSettings.fullMode ||
+                settings.username.trim().isNotEmpty ||
+                (id != LetterboxdSettings.watchlistCatalog &&
+                    id != LetterboxdSettings.likedCatalog)))
+        .toSet();
+    return [
+      for (final id in settings.catalogOrder)
+        if (selected.remove(id)) id,
+      ...selected,
+    ];
+  }
+
+  Future<void> refreshLetterboxdCatalogs({bool force = false}) async {
+    if (_letterboxdContentLoading) {
+      if (force) _letterboxdContentForceQueued = true;
+      return;
+    }
+    final order = letterboxdVisibleCatalogOrder;
+    if (order.isEmpty) {
+      _letterboxdContentAt = null;
+      if (letterboxdCatalogItems.isNotEmpty) {
+        letterboxdCatalogItems.clear();
+        notifyListeners();
+      }
+      return;
+    }
+    if (!force &&
+        _letterboxdContentAt != null &&
+        DateTime.now().difference(_letterboxdContentAt!) <
+            _letterboxdContentTtl) {
+      return;
+    }
+    _letterboxdContentLoading = true;
+    final generation = ++_letterboxdContentGeneration;
+    final scope = _scopeGeneration;
+    final settings = letterboxdSettings;
+    final session = letterboxdSession;
+    final signature = jsonEncode(settings.toJson());
+    try {
+      final next = <String, List<MediaItem>>{};
+      for (var start = 0; start < order.length; start += 4) {
+        final batch = order.skip(start).take(4).toList(growable: false);
+        final pages = await Future.wait(batch.map((catalogId) async {
+          try {
+            return await api.stremboxd
+                .fetchCatalog(settings, catalogId, session: session);
+          } catch (_) {
+            return null;
+          }
+        }));
+        if (scope != _scopeGeneration ||
+            generation != _letterboxdContentGeneration ||
+            signature != jsonEncode(letterboxdSettings.toJson())) {
+          return;
+        }
+        for (var i = 0; i < batch.length; i++) {
+          final id = batch[i];
+          final page = pages[i];
+          if (page == null) {
+            if (letterboxdCatalogItems[id] case final previous?) {
+              next[id] = previous;
+            }
+            continue;
+          }
+          final items = <MediaItem>[];
+          for (final meta in page.metas) {
+            if (!RegExp(r'^tt\d+$').hasMatch(meta['id']?.toString() ?? '')) {
+              continue;
+            }
+            try {
+              items.add(MediaItem.fromJson(meta));
+            } catch (_) {
+              // One malformed bridge item must not drop the entire row.
+            }
+          }
+          if (items.isNotEmpty) next[id] = items;
+        }
+      }
+      letterboxdCatalogItems
+        ..clear()
+        ..addAll(next);
+      _letterboxdContentAt = DateTime.now();
+      notifyListeners();
+    } finally {
+      if (generation == _letterboxdContentGeneration) {
+        _letterboxdContentLoading = false;
+        if (_letterboxdContentForceQueued) {
+          _letterboxdContentForceQueued = false;
+          unawaited(refreshLetterboxdCatalogs(force: true));
+        }
+      }
+    }
+  }
 
   /// Active progress returned by linked tracking services. Kept separate from
   /// local playback history so provider rows never overwrite local resume data.
@@ -2039,6 +2324,7 @@ class AppState extends ChangeNotifier {
       }
       if (generation == _scopeGeneration) {
         await refreshLinkedContent(force: true);
+        unawaited(refreshLetterboxdCatalogs(force: true));
       }
     } finally {
       _automaticSyncInFlight = false;

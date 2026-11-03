@@ -11,13 +11,16 @@ import '../trakt/trakt_tokens.dart';
 import '../track/track_link.dart';
 import '../track/scrobble_payload.dart';
 import '../data/catalog_response_cache.dart';
+import '../letterboxd/letterboxd_settings.dart';
+import '../letterboxd/stremboxd_client.dart';
 import '../version.dart';
 
 /// Website-free API layer for Noor.
 ///
-/// Every provider is contacted DIRECTLY from the device — there is no proxy
-/// server in the middle anymore. The operator keys ship embedded as static
-/// defaults below; users can override the TMDB credential from Settings.
+/// The built-in providers are contacted directly from the device. Optional
+/// Letterboxd catalogs use the separate Stremboxd community bridge. The
+/// operator keys ship embedded as static defaults below; users can override
+/// the TMDB credential from Settings.
 /// Plain (non-secret) state lives in [SharedPreferences], secrets live in
 /// [FlutterSecureStorage].
 ///
@@ -196,6 +199,7 @@ class NoorApi {
   static const String _debridSecretPrefix = 'noor.debrid.';
   static const String _iptvPlaylistsKey = 'noor.iptv.playlists';
   static const String _legacyIptvPlaylistsKey = 'horse.mobile.iptv.playlists';
+  static const String _letterboxdSessionKey = 'nova.letterboxd.session.v1';
 
   String _serviceTokenKey(String service) => 'noor.$service.token';
 
@@ -213,6 +217,28 @@ class NoorApi {
   /// TMDB credential override: v4 JWT ('eyJ…') or 32-hex v3 key.
   String? _tmdbUserToken;
   String? _mdblistUserKey;
+  LetterboxdSession? _letterboxdSession;
+
+  /// Stremboxd is an optional third-party bridge, separate from NOVA's
+  /// provider OAuth sessions. Passwords are never stored in this API layer.
+  StremboxdClient get stremboxd => StremboxdClient(dio: _client);
+  LetterboxdSession? get letterboxdSession => _letterboxdSession;
+
+  Future<void> saveLetterboxdSession(LetterboxdSession session) async {
+    final accountId = _accountId;
+    if (accountId == null) {
+      throw StateError('An active account is required for Letterboxd linking');
+    }
+    await _secure.write(
+        key: _letterboxdSessionKey, value: jsonEncode(session.toJson()));
+    if (_accountId == accountId) _letterboxdSession = session;
+  }
+
+  Future<void> clearLetterboxdSession() async {
+    final accountId = _accountId;
+    await _secure.delete(key: _letterboxdSessionKey);
+    if (_accountId == accountId) _letterboxdSession = null;
+  }
 
   final Map<String, String> _serviceTokens = <String, String>{};
 
@@ -267,6 +293,15 @@ class NoorApi {
       _tmdbUserToken = await _secure.read(key: _legacyTmdbUserTokenKey);
     }
     _mdblistUserKey = await _secure.read(key: _mdblistUserKeyKey);
+    final letterboxdRaw = await _secure.read(key: _letterboxdSessionKey);
+    if (letterboxdRaw != null) {
+      try {
+        _letterboxdSession =
+            LetterboxdSession.fromJson(jsonDecode(letterboxdRaw));
+      } catch (_) {
+        _letterboxdSession = null;
+      }
+    }
 
     for (final service in const <String>[
       'trakt',
@@ -334,6 +369,7 @@ class NoorApi {
     _accountId = accountId;
     _tmdbUserToken = null;
     _mdblistUserKey = null;
+    _letterboxdSession = null;
     _serviceTokens.clear();
     _traktExpiresAt = null;
     _anilistExpiresAt = null;
@@ -362,6 +398,7 @@ class NoorApi {
     _accountId = null;
     _tmdbUserToken = null;
     _mdblistUserKey = null;
+    _letterboxdSession = null;
     _serviceTokens.clear();
     _traktExpiresAt = null;
     _anilistExpiresAt = null;
