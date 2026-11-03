@@ -3,6 +3,7 @@ import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/media_item.dart';
 import '../../shared/widgets/image_decode.dart';
@@ -507,6 +508,8 @@ class DetailFactsTable extends StatelessWidget {
         NovaStrings.lookup(english, 'message148'),
         item.productionCompanies.map((company) => company.name).join(' · ')
       ),
+      (NovaStrings.lookup(english, 'tmdbNetworks'), item.networks.join(' · ')),
+      (NovaStrings.lookup(english, 'tmdbCollection'), item.collectionName),
       (
         NovaStrings.lookup(english, 'message157'),
         item.director.isNotEmpty
@@ -547,6 +550,16 @@ class DetailFactsTable extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium)),
               ]),
           ]),
+      if (item.trailerUrl case final trailer?)
+        Padding(
+          padding: const EdgeInsetsDirectional.only(top: 16),
+          child: TextButton.icon(
+            onPressed: () => launchUrl(Uri.parse(trailer),
+                mode: LaunchMode.externalApplication),
+            icon: const Icon(LucideIcons.play),
+            label: Text(NovaStrings.lookup(english, 'tmdbWatchTrailer')),
+          ),
+        ),
     ]);
   }
 }

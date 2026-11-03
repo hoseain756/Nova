@@ -556,29 +556,71 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     );
   }
 
-  /// Linked-service catalog rails: one watchlist rail per linked service
-  /// (Trakt/Simkl watchlists, AniList/MAL plan-to-watch) as `(title, items)`.
-  /// Hidden entirely when anime content is hidden — the tracker rails are
-  /// anime-only by definition.
+  /// Linked tracker rails use the active profile's Simkl category switches.
+  /// The anime visibility choice only hides anime-specific rows.
   List<(String, List<MediaItem>)> _linkedRails(
     AppState app,
     bool english,
   ) {
-    if ((app.webSettings['hideContent'] as Map?)?['anime'] == true) {
-      return const [];
-    }
+    final hideAnime =
+        (app.webSettings['hideContent'] as Map?)?['anime'] == true;
     return [
-      for (final service in const <(String, String)>[
-        ('trakt', 'Trakt'),
-        ('simkl', 'Simkl'),
-        ('anilist', 'AniList'),
-        ('mal', 'MyAnimeList'),
+      for (final service in <(String, String, bool)>[
+        ('trakt', '${NovaStrings.lookup(english, 'watchlist')} · Trakt', false),
+        (
+          'mdblist',
+          '${NovaStrings.lookup(english, 'watchlist')} · MDBList',
+          false
+        ),
+        (
+          'simkl-movies-plan',
+          '${NovaStrings.lookup(english, 'simklMoviesPlan')} · Simkl',
+          false
+        ),
+        (
+          'simkl-shows-watching',
+          '${NovaStrings.lookup(english, 'simklShowsWatching')} · Simkl',
+          false
+        ),
+        (
+          'simkl-shows-plan',
+          '${NovaStrings.lookup(english, 'simklShowsPlan')} · Simkl',
+          false
+        ),
+        (
+          'simkl-anime-watching',
+          '${NovaStrings.lookup(english, 'simklAnimeWatching')} · Simkl',
+          true
+        ),
+        (
+          'simkl-anime-plan',
+          '${NovaStrings.lookup(english, 'simklAnimePlan')} · Simkl',
+          true
+        ),
+        (
+          'simkl-up-next',
+          '${NovaStrings.lookup(english, 'simklUpNext')} · Simkl',
+          true
+        ),
+        (
+          'simkl-trending',
+          '${NovaStrings.lookup(english, 'simklTrending')} · Simkl',
+          false
+        ),
+        (
+          'anilist',
+          '${NovaStrings.lookup(english, 'watchlist')} · AniList',
+          true
+        ),
+        (
+          'mal',
+          '${NovaStrings.lookup(english, 'watchlist')} · MyAnimeList',
+          true
+        ),
       ])
-        if (app.linkedCatalogItems[service.$1]?.isNotEmpty ?? false)
-          (
-            '${NovaStrings.lookup(english, 'watchlist')} · ${service.$2}',
-            app.linkedCatalogItems[service.$1]!
-          ),
+        if ((!hideAnime || !service.$3) &&
+            (app.visibleLinkedCatalogItems[service.$1]?.isNotEmpty ?? false))
+          (service.$2, app.visibleLinkedCatalogItems[service.$1]!),
     ];
   }
 

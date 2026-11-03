@@ -121,6 +121,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       bottom: false,
       child: SettingsPage(onOpenLibrary: () => unawaited(_selectTab(3))));
   HomePage _homePage = const HomePage();
+  Timer? _integrationSyncTimer;
 
   @override
   void initState() {
@@ -131,6 +132,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       ..clear()
       ..add(_selected);
     _homePage = HomePage(active: _selected == 0);
+    _integrationSyncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (mounted && _appActive) {
+        unawaited(context.read<AppState>().refreshAutomaticSync());
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(context.read<AppState>().refreshAutomaticSync());
+    });
     shellRouteVisible.addListener(_onRouteVisibility);
     shellTopRoute.addListener(_onRouteVisibility);
     detailChromeRegistry.addListener(_onRouteVisibility);
@@ -144,6 +153,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final active = state == AppLifecycleState.resumed;
+    if (active && !_appActive && mounted) {
+      unawaited(context.read<AppState>().refreshAutomaticSync());
+    }
     if (_appActive != active && mounted) {
       setState(() => _appActive = active);
     }
@@ -237,6 +249,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _integrationSyncTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     shellRouteVisible.removeListener(_onRouteVisibility);
     shellTopRoute.removeListener(_onRouteVisibility);

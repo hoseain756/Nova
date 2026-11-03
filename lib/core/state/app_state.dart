@@ -21,7 +21,10 @@ import '../storage/resume_snapshot_store.dart';
 import '../track/track_link.dart';
 
 class AppState extends ChangeNotifier {
-  AppState(this.api, this.catalogs);
+  AppState(this.api, this.catalogs) {
+    catalogs.contentLanguageProvider = () => contentLanguage;
+    catalogs.tmdbSettingsProvider = () => webSettings;
+  }
 
   static const settingsStorageKey = 'harbor-web.settings';
 
@@ -33,8 +36,20 @@ class AppState extends ChangeNotifier {
     'themeMode': 'dark', 'oledMode': false,
     'reduceMotion': false, 'reduceTransparency': false,
     'traktScrobbling': true, 'simklScrobbling': true,
-    'traktWatchlistSync': true, 'anilistWatchlistSync': true,
+    'mdblistScrobbling': true,
+    'traktWatchlistSync': true, 'simklWatchlistSync': true,
+    'anilistWatchlistSync': true,
+    'simklHomeRailsEnabled': true,
+    'simklMoviesPlanRail': true,
+    'simklShowsWatchingRail': true,
+    'simklShowsPlanRail': true,
+    'simklAnimeWatchingRail': true,
+    'simklAnimePlanRail': true,
+    'simklUpNextRailEnabled': false,
+    'simklTrendingRailEnabled': false,
+    'simklAnimeTitleLanguage': 'english',
     'malWatchlistSync': true,
+    'mdblistWatchlistSync': true,
     'anilistProgressSync': true, 'malProgressSync': true,
     'contentLanguage': 'ar',
     'homeMode': 'harbor', 'homeShowAllAddonRows': false,
@@ -42,8 +57,28 @@ class AppState extends ChangeNotifier {
     'hideKidsCatalogsHome': false,
     'hideWatchedInCatalogs': false, 'tmdbKey': '',
     'opensubtitlesEnabled': true, 'tmdbEnabled': true,
+    'tmdbUseTrailers': true, 'tmdbUseArtwork': true,
+    'tmdbUseBasicInfo': true, 'tmdbUseDetails': true,
+    'tmdbUseCredits': true, 'tmdbUseProductions': true,
+    'tmdbUseNetworks': true, 'tmdbUseEpisodes': true,
+    'tmdbUseSeasonPosters': true, 'tmdbUseMoreLikeThis': true,
+    'tmdbUseCollections': true,
     'tmdbLanguage': 'en-US', 'tmdbImageQuality': 'medium',
     'tmdbUserKey': '', 'ratingsProviders': <String>[],
+    'mdblistEnabled': true,
+    'watchProgressSource': 'all',
+    'librarySourceMode': 'all',
+    'traktCwDaysCap': 60,
+    'showTraktComments': false,
+    'blurTraktComments': true,
+    'showAnilistComments': false,
+    'anilistBlurComments': true,
+    'simklShowCommunityRatings': true,
+    'simklEnableUserRatings': true,
+    'mdbUseImdb': true, 'mdbUseTmdb': true,
+    'mdbUseTomatoes': true, 'mdbUseMetacritic': true,
+    'mdbUseTrakt': true, 'mdbUseLetterboxd': true,
+    'mdbUseAudience': true, 'mdbUseMal': true,
     'ratingsEnabled': true, 'showImdbBadge': true, 'showMalBadge': true,
     'showQualityBadge': true, 'showCardBadges': true, 'cardBadgeLimit': 3,
     'posterScale': 1.0, 'posterRadius': 12, 'hidePosterTitles': false,
@@ -106,6 +141,7 @@ class AppState extends ChangeNotifier {
   Completer<void>? _pushIdle;
   bool _hasPreAccountData = false;
   int _scopeGeneration = 0;
+  bool _automaticSyncInFlight = false;
   Map<String, ResumeSnapshot> resumeSnapshots = {};
   bool initialized = false;
   bool english = PlatformDispatcher.instance.locale.languageCode != 'ar';
@@ -619,11 +655,31 @@ class AppState extends ChangeNotifier {
     // awaited before the rebuild).
     notifyListeners();
     if (playlists != null) unawaited(api.saveIptvPlaylists(playlists));
-    unawaited(_persistSettings());
+    if (key == 'linkedAvatarPrevious') {
+      await _persistSettings();
+    } else {
+      unawaited(_persistSettings());
+    }
     _schedulePush(NoorSyncService.bucketSettings);
     if (key == 'resumeSnapshotRetentionDays') {
       unawaited(_pruneResumeSnapshots());
     }
+    if (key.startsWith('simkl') && linkedServices['simkl']?['linked'] == true) {
+      unawaited(refreshLinkedContent(force: true));
+    }
+    if (key == 'watchProgressSource' || key == 'traktCwDaysCap') {
+      unawaited(refreshLinkedContent(force: true));
+    }
+  }
+
+  Future<void> saveMdbListUserKey(String value) async {
+    await api.saveMdbListUserKey(value);
+    notifyListeners();
+  }
+
+  Future<void> clearMdbListUserKey() async {
+    await api.clearMdbListUserKey();
+    notifyListeners();
   }
 
   int get _resumeSnapshotRetentionDays =>
@@ -763,6 +819,9 @@ class AppState extends ChangeNotifier {
     // New link → its continue-watching cards and watchlist rail should
     // appear promptly (bypasses the TTL cache).
     unawaited(refreshLinkedContent(force: true));
+    if (const ['trakt', 'simkl', 'anilist', 'mal'].contains(service)) {
+      unawaited(refreshTrackerProfile(service));
+    }
   }
 
   Future<void> unlinkService(String service) async {
@@ -793,6 +852,38 @@ class AppState extends ChangeNotifier {
   /// Active progress returned by linked tracking services. Kept separate from
   /// local playback history so provider rows never overwrite local resume data.
   List<IntegrationCwEntry> linkedContinueWatching = const [];
+
+  Map<String, List<MediaItem>> get visibleLinkedCatalogItems {
+    final selected = webSettings['librarySourceMode']?.toString() ?? 'all';
+    if (selected == 'all') return linkedCatalogItems;
+    if (selected == 'local') return const {};
+    if (linkedServices[selected]?['linked'] != true) return linkedCatalogItems;
+    return {
+      for (final entry in linkedCatalogItems.entries)
+        if (entry.key == selected || entry.key.startsWith('$selected-'))
+          entry.key: entry.value,
+    };
+  }
+
+  bool _visibleTrackerProgress(IntegrationCwEntry entry) {
+    final selected = webSettings['watchProgressSource']?.toString() ?? 'all';
+    if (selected == 'local') return false;
+    if (selected != 'all' &&
+        linkedServices[selected]?['linked'] == true &&
+        entry.source != selected) {
+      return false;
+    }
+    if (entry.source == 'trakt') {
+      final cap = (webSettings['traktCwDaysCap'] as num?)?.toInt() ?? 60;
+      if (cap > 0 &&
+          entry.watchedAt > 0 &&
+          DateTime.now().millisecondsSinceEpoch - entry.watchedAt >
+              Duration(days: cap).inMilliseconds) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   /// Joins provider episode counts and paused episode points to the same
   /// progress model used by detail episode cards. Local rows remain newest
@@ -884,7 +975,11 @@ class AppState extends ChangeNotifier {
         if (linked['trakt']?['linked'] == true)
           'trakt-playback': api.traktPlayback(),
         if (linked['simkl']?['linked'] == true)
-          'simkl-watchlist': api.syncLinkedService('simkl', 'watchlist'),
+          'simkl-all': api.syncLinkedService('simkl', 'all'),
+        if (linked['simkl']?['linked'] == true &&
+            webSettings['simklHomeRailsEnabled'] != false &&
+            webSettings['simklTrendingRailEnabled'] == true)
+          'simkl-trending': api.simklTrending(),
         if (linked['simkl']?['linked'] == true &&
             webSettings['simklScrobbling'] != false)
           'simkl-playback': api.simklPlayback(),
@@ -894,6 +989,10 @@ class AppState extends ChangeNotifier {
           'mal-planning': api.malList(status: 'plan_to_watch'),
         if (linked['mal']?['linked'] == true)
           'mal-watching': api.malList(status: 'watching'),
+        if (linked['mdblist']?['linked'] == true)
+          'mdblist-watchlist': api.syncLinkedService('mdblist', 'watchlist'),
+        if (linked['mdblist']?['linked'] == true)
+          'mdblist-playback': api.mdbListPlayback(),
       };
       if (jobs.isEmpty) {
         final hadEntries =
@@ -937,6 +1036,9 @@ class AppState extends ChangeNotifier {
             entry,
         for (final row in rowsByKey['mal-watching'] ?? const <dynamic>[])
           if (IntegrationCwEntry.fromMalRow(row) case final entry?) entry,
+        for (final row in rowsByKey['mdblist-playback'] ?? const <dynamic>[])
+          if (IntegrationCwEntry.fromMdbListPlayback(row) case final entry?)
+            entry,
         for (final old in linkedContinueWatching)
           if ((old.source == 'trakt' &&
                   rowsByKey.containsKey('trakt-playback') &&
@@ -949,11 +1051,16 @@ class AppState extends ChangeNotifier {
                   rowsByKey['anilist-entries'] == null) ||
               (old.source == 'mal' &&
                   rowsByKey.containsKey('mal-watching') &&
-                  rowsByKey['mal-watching'] == null))
+                  rowsByKey['mal-watching'] == null) ||
+              (old.source == 'mdblist' &&
+                  rowsByKey.containsKey('mdblist-playback') &&
+                  rowsByKey['mdblist-playback'] == null))
             old,
       ].where((entry) => entry.isContinueable).toList(growable: false);
       linkedContinueWatching = await _enrichLinkedProgress(
-        IntegrationCwEntry.merge([serviceProgress]),
+        IntegrationCwEntry.merge([
+          serviceProgress.where(_visibleTrackerProgress),
+        ]),
       );
 
       // Catalog rails. Trakt/Simkl watchlist rows carry only identities, so
@@ -963,15 +1070,29 @@ class AppState extends ChangeNotifier {
           Map<String, List<MediaItem>>.from(linkedCatalogItems);
       final refreshedRails = await _linkedCatalogRails(
         traktWatchlist: rowsByKey['trakt-watchlist'],
-        simklWatchlist: rowsByKey['simkl-watchlist'],
+        simklRows: rowsByKey['simkl-all'],
+        simklTrending: rowsByKey['simkl-trending'],
         anilistEntries: anilistRows,
         malPlanning: rowsByKey['mal-planning'],
+        mdblistWatchlist: rowsByKey['mdblist-watchlist'],
       );
       for (final (requestKey, railKeys) in [
         ('trakt-watchlist', ['trakt']),
-        ('simkl-watchlist', ['simkl']),
+        (
+          'simkl-all',
+          [
+            'simkl-movies-plan',
+            'simkl-shows-watching',
+            'simkl-shows-plan',
+            'simkl-anime-watching',
+            'simkl-anime-plan',
+            'simkl-up-next',
+          ]
+        ),
+        ('simkl-trending', ['simkl-trending']),
         ('anilist-entries', ['anilist', 'anilist-watching']),
         ('mal-planning', ['mal']),
+        ('mdblist-watchlist', ['mdblist']),
       ]) {
         if (rowsByKey.containsKey(requestKey) &&
             rowsByKey[requestKey] == null) {
@@ -1002,18 +1123,68 @@ class AppState extends ChangeNotifier {
 
   Future<Map<String, List<MediaItem>>> _linkedCatalogRails({
     List<dynamic>? traktWatchlist,
-    List<dynamic>? simklWatchlist,
+    List<dynamic>? simklRows,
+    List<dynamic>? simklTrending,
     List<dynamic>? anilistEntries,
     List<dynamic>? malPlanning,
+    List<dynamic>? mdblistWatchlist,
   }) async {
     final rails = <String, List<MediaItem>>{};
     if (traktWatchlist != null && traktWatchlist.isNotEmpty) {
       final items = await _enrichedWatchlistItems(traktWatchlist);
       if (items.isNotEmpty) rails['trakt'] = items;
     }
-    if (simklWatchlist != null && simklWatchlist.isNotEmpty) {
-      final items = await _enrichedWatchlistItems(simklWatchlist);
-      if (items.isNotEmpty) rails['simkl'] = items;
+    if (mdblistWatchlist != null && mdblistWatchlist.isNotEmpty) {
+      final items = await _enrichedWatchlistItems(mdblistWatchlist);
+      if (items.isNotEmpty) rails['mdblist'] = items;
+    }
+    if (simklRows != null &&
+        simklRows.isNotEmpty &&
+        webSettings['simklHomeRailsEnabled'] != false) {
+      final hideAnime = (webSettings['hideContent'] as Map?)?['anime'] == true;
+      const buckets = <(String, String, String, String)>[
+        ('simkl-movies-plan', 'movies', 'plantowatch', 'simklMoviesPlanRail'),
+        ('simkl-shows-watching', 'shows', 'watching', 'simklShowsWatchingRail'),
+        ('simkl-shows-plan', 'shows', 'plantowatch', 'simklShowsPlanRail'),
+        ('simkl-anime-watching', 'anime', 'watching', 'simklAnimeWatchingRail'),
+        ('simkl-anime-plan', 'anime', 'plantowatch', 'simklAnimePlanRail'),
+      ];
+      for (final (key, section, status, preference) in buckets) {
+        if (webSettings[preference] == false) continue;
+        if (section == 'anime' && hideAnime) continue;
+        var rows = simklRows
+            .whereType<Map>()
+            .where(
+                (row) => row['section'] == section && row['status'] == status)
+            .toList();
+        if (section == 'anime') rows = await _localizedSimklAnimeRows(rows);
+        final items = await _enrichedWatchlistItems(rows);
+        if (items.isNotEmpty) rails[key] = items;
+      }
+      if (webSettings['simklUpNextRailEnabled'] == true) {
+        final upcoming = simklRows.whereType<Map>().where((row) {
+          final date = DateTime.tryParse(row['nextDate']?.toString() ?? '');
+          return (!hideAnime || row['section'] != 'anime') &&
+              (row['status'] == 'watching' || row['status'] == 'plantowatch') &&
+              date != null &&
+              date.isAfter(DateTime.now());
+        }).toList();
+        final items = await _enrichedWatchlistItems(upcoming);
+        if (items.isNotEmpty) rails['simkl-up-next'] = items;
+      }
+    }
+    if (simklTrending != null &&
+        simklTrending.isNotEmpty &&
+        webSettings['simklHomeRailsEnabled'] != false &&
+        webSettings['simklTrendingRailEnabled'] == true) {
+      final hideAnime = (webSettings['hideContent'] as Map?)?['anime'] == true;
+      final rows = hideAnime
+          ? simklTrending
+              .where((row) => row is! Map || row['section'] != 'anime')
+              .toList()
+          : simklTrending;
+      final items = await _enrichedWatchlistItems(rows);
+      if (items.isNotEmpty) rails['simkl-trending'] = items;
     }
     if (anilistEntries != null && anilistEntries.isNotEmpty) {
       // 'anilist-watching' feeds the Anime tab's personal rail: every
@@ -1055,6 +1226,36 @@ class AppState extends ChangeNotifier {
       if (items.isNotEmpty) rails['mal'] = items;
     }
     return rails;
+  }
+
+  Future<List<Map>> _localizedSimklAnimeRows(List<Map> rows) async {
+    final preference =
+        webSettings['simklAnimeTitleLanguage']?.toString() ?? 'english';
+    final visible = rows.take(24).toList();
+    final anilistIds = visible
+        .map((row) => row['anilist'])
+        .whereType<num>()
+        .map((id) => id.toInt());
+    final malIds = visible
+        .map((row) => row['mal'])
+        .whereType<num>()
+        .map((id) => id.toInt());
+    if (anilistIds.isEmpty && malIds.isEmpty) return rows;
+    final variants = await api.animeTitleVariants(anilistIds, malIds);
+    final localized = <Map>[];
+    for (final row in rows) {
+      final anilist = row['anilist'];
+      final mal = row['mal'];
+      final titles =
+          (anilist is num ? variants['anilist:${anilist.toInt()}'] : null) ??
+              (mal is num ? variants['mal:${mal.toInt()}'] : null);
+      final title = titles?[preference] ??
+          titles?['english'] ??
+          titles?['romaji'] ??
+          titles?['native'];
+      localized.add(title == null ? row : {...row, 'title': title});
+    }
+    return localized;
   }
 
   Future<List<IntegrationCwEntry>> _enrichLinkedProgress(
@@ -1180,11 +1381,19 @@ class AppState extends ChangeNotifier {
               if (entry['mal'] != null) 'idMal': entry['mal'],
             });
             final watchedAt = entry['watchedAt'];
+            final season = (entry['season'] as num?)?.toInt();
+            final episode = (entry['episode'] as num?)?.toInt();
+            final completed =
+                item.type == 'movie' || (season != null && episode != null);
             return WatchHistoryEntry(
               item: item,
               watchedAt: watchedAt is int
                   ? watchedAt
                   : int.tryParse('$watchedAt') ?? 0,
+              positionMs: completed ? 1 : 0,
+              durationMs: completed ? 1 : 0,
+              season: season,
+              episode: episode,
             );
           })
           .where((row) => row.item.id.isNotEmpty)
@@ -1195,17 +1404,23 @@ class AppState extends ChangeNotifier {
           .where((item) => !watchlistIds.contains(item.id))
           .toList();
       watchlist = [...watchlist, ...freshWatchlist];
-      historyImported = importedHistory.length;
+      var freshHistory = <WatchHistoryEntry>[];
       if (importedHistory.isNotEmpty) {
-        final historyIds = history.map((row) => row.item.id).toSet();
-        final freshHistory = importedHistory
-            .where((row) => !historyIds.contains(row.item.id))
-            .toList();
-        history = [...freshHistory, ...history];
+        String identity(WatchHistoryEntry row) =>
+            '${row.item.id}:${row.season ?? ''}:${row.episode ?? ''}';
+        final historyIds = history.map(identity).toSet();
+        freshHistory = importedHistory
+            .where((row) => historyIds.add(identity(row)))
+            .toList(growable: false);
+        history = [...freshHistory, ...history].take(200).toList();
       }
       imported = freshWatchlist.length;
-      await _persist();
-      _schedulePush('history');
+      historyImported = freshHistory.length;
+      final changed = <String>{
+        if (freshWatchlist.isNotEmpty) NoorSyncService.bucketWatchlist,
+        if (freshHistory.isNotEmpty) NoorSyncService.bucketHistory,
+      };
+      if (changed.isNotEmpty) await _persistAndSync(changed);
       // Stamp the success so the integrations card's "last synced" line
       // (previously dead UI — nothing ever wrote this field) comes alive.
       final current = Map<String, dynamic>.from(linkedServices[service] ?? {});
@@ -1309,6 +1524,19 @@ class AppState extends ChangeNotifier {
       unawaited(
         api.pushTraktWatchlist(type: item.type, imdb: item.id, add: adding),
       );
+    }
+    if (linkedServices['simkl']?['linked'] == true &&
+        webSettings['simklWatchlistSync'] != false &&
+        item.id.startsWith('tt')) {
+      unawaited(
+        api.pushSimklWatchlist(type: item.type, imdb: item.id, add: adding),
+      );
+    }
+    if (linkedServices['mdblist']?['linked'] == true &&
+        webSettings['mdblistWatchlistSync'] != false &&
+        item.id.startsWith('tt')) {
+      unawaited(api.pushMdbListWatchlist(
+          type: item.type, imdb: item.id, add: adding));
     }
     // Independent anime-tracker mirrors: AniList PLANNING / MAL plan_to_watch
     // for anything carrying a provider id. Each integration pushes on its
@@ -1637,7 +1865,7 @@ class AppState extends ChangeNotifier {
     List<Map<String, int>> episodes,
   ) {
     if (!RegExp(r'^tt\d+$').hasMatch(item.id)) return;
-    for (final service in const ['trakt', 'simkl']) {
+    for (final service in const ['trakt', 'simkl', 'mdblist']) {
       if (linkedServices[service]?['linked'] == true &&
           webSettings['${service}Scrobbling'] != false) {
         unawaited(api.pushLinkedEpisodeHistory(
@@ -1763,7 +1991,7 @@ class AppState extends ChangeNotifier {
     if (!sync.hasScope || webSettings['cloudSyncEnabled'] == false) {
       return false;
     }
-    await _pullBuckets();
+    if (!await _pullBuckets()) return false;
     await _persist();
     var ok = true;
     for (final bucket in NoorSyncService.buckets) {
@@ -1780,6 +2008,41 @@ class AppState extends ChangeNotifier {
     unawaited(sync.heartbeat());
     notifyListeners();
     return ok;
+  }
+
+  /// Refreshes the active account and every linked tracker while the app is
+  /// open. The shell calls this on entry, on resume, and on a bounded timer.
+  /// Outgoing edits still use the existing debounce and revision checks.
+  Future<void> refreshAutomaticSync() async {
+    if (!_profileScopeReady || _automaticSyncInFlight) return;
+    _automaticSyncInFlight = true;
+    final generation = _scopeGeneration;
+    try {
+      await _pushIdle?.future;
+      if (generation != _scopeGeneration) return;
+      final cloudReachable = await _pullBuckets();
+      if (generation != _scopeGeneration) return;
+      if (cloudReachable) await _flushPush();
+      if (generation != _scopeGeneration) return;
+      await _refreshLinkedServices();
+      for (final service in const [
+        'trakt',
+        'simkl',
+        'anilist',
+        'mal',
+        'mdblist'
+      ]) {
+        if (generation != _scopeGeneration) return;
+        if (linkedServices[service]?['linked'] == true) {
+          await syncLinkedService(service);
+        }
+      }
+      if (generation == _scopeGeneration) {
+        await refreshLinkedContent(force: true);
+      }
+    } finally {
+      _automaticSyncInFlight = false;
+    }
   }
 
   Future<void> _saveAddons() async {
@@ -1920,10 +2183,15 @@ class AppState extends ChangeNotifier {
 
   /// Boot-time pull: whole-bucket replace whenever the cloud revision is
   /// newer than the last revision recorded locally.
-  Future<void> _pullBuckets() async {
-    if (!sync.hasScope) return;
+  Future<bool> _pullBuckets() async {
+    if (!sync.hasScope) return false;
+    final generation = _scopeGeneration;
     for (final bucket in NoorSyncService.buckets) {
-      final remote = await sync.pullBucket(bucket);
+      final result = await sync.readBucket(bucket);
+      if (generation != _scopeGeneration || !result.reachedServer) {
+        return false;
+      }
+      final remote = result.row;
       if (remote == null) {
         // The bucket has never been written: seed the cloud from local data.
         if (_hasLocalBucketData(bucket)) _schedulePush(bucket);
@@ -1965,6 +2233,7 @@ class AppState extends ChangeNotifier {
       }
     }
     notifyListeners();
+    return true;
   }
 
   bool _hasLocalBucketData(String bucket) {
@@ -2074,7 +2343,13 @@ class AppState extends ChangeNotifier {
     var next = _decodeMap(
       _preferences?.getString(scopedKey),
     );
-    for (final service in const ['trakt', 'simkl']) {
+    for (final service in const [
+      'trakt',
+      'simkl',
+      'anilist',
+      'mal',
+      'mdblist'
+    ]) {
       try {
         // isLinked is synchronous (token presence) — no await needed.
         final dynamic linked = api.isLinked(service);
@@ -2095,6 +2370,7 @@ class AppState extends ChangeNotifier {
       }
     }
     if (scopeGeneration != _scopeGeneration) return;
+    if (_encode(next) == _encode(linkedServices)) return;
     linkedServices = next;
     await _preferences?.setString(
       scopedKey,
@@ -2422,7 +2698,34 @@ class AppState extends ChangeNotifier {
     if (linkedServices[service]?['linked'] != true) return;
     final scopeGeneration = _scopeGeneration;
     try {
-      if (service == 'anilist') {
+      if (service == 'trakt' || service == 'simkl') {
+        final profile = service == 'trakt'
+            ? await api.traktProfile()
+            : await api.simklProfile();
+        if (scopeGeneration != _scopeGeneration || profile == null) return;
+        final user = service == 'simkl'
+            ? _asMapMap(profile['user']) ?? profile
+            : profile;
+        final current =
+            Map<String, dynamic>.from(linkedServices[service] ?? {});
+        current['username'] = (user['username'] ?? user['name'])?.toString() ??
+            current['username'];
+        final images = _asMapMap(user['images']);
+        final avatarData = _asMapMap(images?['avatar']);
+        String? avatar;
+        if (service == 'trakt') {
+          avatar = avatarData?['full']?.toString();
+        } else {
+          avatar = user['avatar']?.toString();
+        }
+        if (avatar != null && Uri.tryParse(avatar)?.scheme == 'https') {
+          current['avatar'] = avatar;
+        }
+        linkedServices = {...linkedServices, service: current};
+        await _preferences?.setString(
+            _linkedServicesKey, _encode(linkedServices));
+        notifyListeners();
+      } else if (service == 'anilist') {
         final viewer = await api.aniListViewer();
         if (scopeGeneration != _scopeGeneration) return;
         if (viewer == null) return;

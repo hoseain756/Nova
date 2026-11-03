@@ -23,6 +23,43 @@ class PosterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (language, tmdbEnabled, basicInfo, artwork) =
+        context.select<AppState, (String, bool, bool, bool)>((app) => (
+              app.contentTmdbLocale,
+              app.webSettings['tmdbEnabled'] != false,
+              app.webSettings['tmdbUseBasicInfo'] != false,
+              app.webSettings['tmdbUseArtwork'] != false,
+            ));
+    if (!tmdbEnabled || !basicInfo || !RegExp(r'^tt\d+$').hasMatch(item.id)) {
+      return _PosterCardContent(item: item, onTap: onTap, width: width);
+    }
+    return FutureBuilder<MediaItem>(
+      future: context
+          .read<AppState>()
+          .catalogs
+          .localizedItem(item, language, artworkEnabled: artwork),
+      builder: (context, snapshot) => _PosterCardContent(
+        item: snapshot.data ?? item,
+        onTap: onTap,
+        width: width,
+      ),
+    );
+  }
+}
+
+class _PosterCardContent extends StatelessWidget {
+  const _PosterCardContent({
+    required this.item,
+    required this.onTap,
+    required this.width,
+  });
+
+  final MediaItem item;
+  final VoidCallback onTap;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
     // Task 122-b (F5): every card on every page used to `watch` AppState and
     // rebuild on ANY notification. Select the exact four settings this card
     // renders as a positional record (structural equality) — the rebuild now

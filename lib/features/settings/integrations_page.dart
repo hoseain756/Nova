@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/app_state.dart';
+import '../../core/auth/account_controller.dart';
 import '../../core/oauth/oauth_redirect.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/noor_toast.dart';
@@ -19,11 +20,12 @@ class IntegrationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     context.select<AppState,
-            (bool, Map<String, Map<String, dynamic>>, bool, String?)>(
+            (bool, Map<String, Map<String, dynamic>>, bool, bool, String?)>(
         (app) => (
               app.english,
               app.linkedServices,
               app.api.hasUserTmdbKey,
+              app.api.hasUserMdbListKey,
               app.api.debridService
             ));
     final app = context.read<AppState>();
@@ -41,22 +43,25 @@ class IntegrationsPage extends StatelessWidget {
                     description: app.tr('message254'),
                     icon: LucideIcons.orbit),
                 SettingsContentSection(title: app.tr('message255'), children: [
-                  for (final service in ['trakt', 'simkl', 'anilist', 'mal'])
+                  for (final service in [
+                    'trakt',
+                    'simkl',
+                    'anilist',
+                    'mal',
+                    'mdblist'
+                  ])
                     _ServiceDestination(
                         service: service,
                         connected: linked[service] != null,
                         subtitle: linked[service]?['username']?.toString()),
                 ]),
+                const _TrackingSourceSettings(),
                 SettingsContentSection(title: app.tr('message256'), children: [
                   _ServiceDestination(
                       service: 'tmdb',
                       connected: app.api.hasUserTmdbKey,
                       subtitle:
                           app.api.hasUserTmdbKey ? null : app.tr('message257')),
-                  _ServiceDestination(
-                      service: 'mdblist',
-                      connected: false,
-                      subtitle: app.tr('message258')),
                 ]),
                 SettingsContentSection(title: app.tr('message259'), children: [
                   _ServiceDestination(
@@ -150,7 +155,8 @@ class _ServiceSettingsPage extends StatelessWidget {
     final connected = context
         .select<AppState, bool>((app) => app.linkedServices[service] != null);
     final app = context.read<AppState>();
-    final tracker = ['trakt', 'simkl', 'anilist', 'mal'].contains(service);
+    final tracker =
+        ['trakt', 'simkl', 'anilist', 'mal', 'mdblist'].contains(service);
     final skipTiming = ['aniskip', 'introdb', 'theintrodb'].contains(service);
     return Scaffold(
         appBar: AppBar(title: Text(_providerName(service))),
@@ -178,25 +184,65 @@ class _ServiceSettingsPage extends StatelessWidget {
                           ? app.tr('message267')
                           : app.tr('message268'),
                       icon: _providerIcon(service)),
-                if (service == 'tmdb') const _TmdbKeyCard(),
+                if (service == 'tmdb') ...[
+                  const _TmdbKeyCard(),
+                  const SizedBox(height: 24),
+                  const _TmdbFeatureCard(),
+                ],
+                if (service == 'mdblist') const _MdbListCard(),
                 if (service == 'debrid') const _DebridCard(),
                 if (skipTiming) SkipTimingServiceCard(service: service),
-                if (service == 'mdblist')
-                  SettingsInfoBanner(
-                      icon: LucideIcons.star, message: app.tr('message269')),
+                if (service == 'trakt' || service == 'anilist') ...[
+                  const SizedBox(height: 24),
+                  SettingsContentSection(
+                    title: app.tr('linkedComments'),
+                    children: [
+                      SettingsOptimisticSwitchTile(
+                        title: Text(app.tr(service == 'trakt'
+                            ? 'showTraktComments'
+                            : 'showAnilistComments')),
+                        value: app.webSettings[service == 'trakt'
+                                ? 'showTraktComments'
+                                : 'showAnilistComments'] ==
+                            true,
+                        onChanged: (value) => app.setSetting(
+                            service == 'trakt'
+                                ? 'showTraktComments'
+                                : 'showAnilistComments',
+                            value),
+                      ),
+                      SettingsOptimisticSwitchTile(
+                        title: Text(app.tr('blurLinkedComments')),
+                        value: app.webSettings[service == 'trakt'
+                                ? 'blurTraktComments'
+                                : 'anilistBlurComments'] !=
+                            false,
+                        onChanged: (value) => app.setSetting(
+                            service == 'trakt'
+                                ? 'blurTraktComments'
+                                : 'anilistBlurComments',
+                            value),
+                      ),
+                    ],
+                  ),
+                ],
                 if (tracker && connected) ...[
                   const SizedBox(height: 24),
                   SettingsContentSection(
                       title: app.tr('message270'),
                       children: [
-                        if (service == 'trakt' || service == 'simkl')
+                        if (service == 'trakt' ||
+                            service == 'simkl' ||
+                            service == 'mdblist')
                           _ServicePreference(
                               settingKey: '${service}Scrobbling',
                               title: app.tr('message271'),
                               description: app.tr('message272')),
                         if (service == 'trakt' ||
+                            service == 'simkl' ||
                             service == 'anilist' ||
-                            service == 'mal')
+                            service == 'mal' ||
+                            service == 'mdblist')
                           _ServicePreference(
                               settingKey: '${service}WatchlistSync',
                               title: app.tr('message273'),
@@ -207,6 +253,44 @@ class _ServiceSettingsPage extends StatelessWidget {
                               title: app.tr('message275'),
                               description: app.tr('message276')),
                       ]),
+                  if (service == 'simkl') ...[
+                    const SizedBox(height: 24),
+                    SettingsContentSection(
+                      title: app.tr('simklRatings'),
+                      children: [
+                        _ServicePreference(
+                          settingKey: 'simklShowCommunityRatings',
+                          title: app.tr('simklCommunityRatings'),
+                        ),
+                        _ServicePreference(
+                          settingKey: 'simklEnableUserRatings',
+                          title: app.tr('simklUserRatings'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    SettingsContentSection(
+                      title: app.tr('simklHomeRails'),
+                      children: [
+                        for (final (key, label) in const [
+                          ('simklHomeRailsEnabled', 'simklShowHomeRails'),
+                          ('simklMoviesPlanRail', 'simklMoviesPlan'),
+                          ('simklShowsWatchingRail', 'simklShowsWatching'),
+                          ('simklShowsPlanRail', 'simklShowsPlan'),
+                          ('simklAnimeWatchingRail', 'simklAnimeWatching'),
+                          ('simklAnimePlanRail', 'simklAnimePlan'),
+                          ('simklUpNextRailEnabled', 'simklShowUpNext'),
+                          ('simklTrendingRailEnabled', 'simklShowTrending'),
+                        ])
+                          _ServicePreference(
+                            settingKey: key,
+                            title: app.tr(label),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const _SimklTitleLanguage(),
+                  ],
                 ],
                 if (tracker) ...[
                   const SizedBox(height: 24),
@@ -232,20 +316,277 @@ class _ServiceSettingsPage extends StatelessWidget {
 
 class _ServicePreference extends StatelessWidget {
   const _ServicePreference(
-      {required this.settingKey,
-      required this.title,
-      required this.description});
-  final String settingKey, title, description;
+      {required this.settingKey, required this.title, this.description});
+  final String settingKey, title;
+  final String? description;
   @override
   Widget build(BuildContext context) {
     final enabled = context
         .select<AppState, bool>((app) => app.webSettings[settingKey] != false);
     return SettingsOptimisticSwitchTile(
         title: Text(title),
-        subtitle: Text(description),
+        subtitle: description == null ? null : Text(description!),
         value: enabled,
         onChanged: (value) =>
             context.read<AppState>().setSetting(settingKey, value));
+  }
+}
+
+class _TrackingSourceSettings extends StatelessWidget {
+  const _TrackingSourceSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final linked = app.linkedServices;
+    final sources = <String>[
+      'all',
+      'local',
+      for (final service in const ['trakt', 'simkl', 'mdblist'])
+        if (linked[service]?['linked'] == true) service,
+    ];
+    String selected(String key) {
+      final saved = app.webSettings[key]?.toString() ?? 'all';
+      return sources.contains(saved) ? saved : 'all';
+    }
+
+    String label(String source) => switch (source) {
+          'all' => app.tr('trackingSourceAll'),
+          'local' => app.tr('trackingSourceLocal'),
+          _ => _providerName(source),
+        };
+
+    Widget picker(String key, String title) => Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              SettingsLanguageDropdown(
+                value: selected(key),
+                expanded: true,
+                items: [
+                  for (final source in sources)
+                    DropdownMenuItem(value: source, child: Text(label(source))),
+                ],
+                onChanged: (source) => app.setSetting(key, source),
+              ),
+            ],
+          ),
+        );
+
+    final cap = (app.webSettings['traktCwDaysCap'] as num?)?.toInt() ?? 60;
+    const capOptions = [14, 30, 60, 90, 180, 365, 0];
+    return SettingsContentSection(
+      title: app.tr('trackingDisplaySources'),
+      children: [
+        picker('watchProgressSource', app.tr('trackingProgressSource')),
+        picker('librarySourceMode', app.tr('trackingLibrarySource')),
+        if (linked['trakt']?['linked'] == true)
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(app.tr('trackingTraktWindow'),
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                SettingsLanguageDropdown(
+                  value: capOptions.contains(cap) ? '$cap' : '60',
+                  expanded: true,
+                  items: [
+                    for (final days in capOptions)
+                      DropdownMenuItem(
+                        value: '$days',
+                        child: Text(days == 0
+                            ? app.tr('trackingSourceAll')
+                            : app.tr('trackingDays', {'days': days})),
+                      ),
+                  ],
+                  onChanged: (value) => app.setSetting(
+                      'traktCwDaysCap', int.tryParse(value) ?? 60),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProviderAvatarSwitch extends StatefulWidget {
+  const _ProviderAvatarSwitch({required this.service, required this.avatar});
+  final String service;
+  final String avatar;
+
+  @override
+  State<_ProviderAvatarSwitch> createState() => _ProviderAvatarSwitchState();
+}
+
+class _ProviderAvatarSwitchState extends State<_ProviderAvatarSwitch> {
+  bool _busy = false;
+
+  Future<void> _change(
+      AccountController account, NovaProfile profile, bool enabled) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final app = context.read<AppState>();
+    final saved = Map<String, dynamic>.from(
+        app.webSettings['linkedAvatarPrevious'] as Map? ?? const {});
+    final oldSaved = Map<String, dynamic>.from(saved);
+    Map<String, dynamic>? previous;
+    try {
+      if (enabled) {
+        saved.putIfAbsent(
+            profile.id,
+            () => {
+                  'kind': profile.avatarKind,
+                  'value': profile.avatarValue,
+                });
+        await app.setSetting('linkedAvatarPrevious', saved);
+        await account.updateProfile(profile.id,
+            name: profile.name, avatarUrl: widget.avatar);
+      } else {
+        final original = saved[profile.id];
+        previous = original is Map
+            ? Map<String, dynamic>.from(original)
+            : const <String, dynamic>{};
+        await account.updateProfile(profile.id,
+            name: profile.name,
+            avatarUrl: previous['kind'] == 'url'
+                ? previous['value']?.toString()
+                : null,
+            avatarPackKey: previous['kind'] == 'pack'
+                ? previous['value']?.toString()
+                : 'nova_avatar_01_smile');
+      }
+      final updated =
+          account.profiles.where((p) => p.id == profile.id).firstOrNull;
+      if (account.error != null ||
+          updated == null ||
+          (enabled &&
+              (updated.avatarKind != 'url' ||
+                  updated.avatarValue != widget.avatar)) ||
+          (!enabled &&
+              (updated.avatarKind != previous?['kind'] ||
+                  updated.avatarValue != previous?['value']))) {
+        throw StateError('Profile avatar update failed');
+      }
+      if (!enabled) {
+        saved.remove(profile.id);
+        await app.setSetting('linkedAvatarPrevious', saved);
+      }
+    } catch (_) {
+      await app.setSetting('linkedAvatarPrevious', oldSaved);
+      if (mounted) {
+        NoorToast.show(context, app.tr('linkedAvatarFailed'), error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    AccountController? account;
+    try {
+      account = context.watch<AccountController?>();
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    final profileId = account?.activeProfileId;
+    final profile =
+        account?.profiles.where((p) => p.id == profileId).firstOrNull;
+    if (profile == null) return const SizedBox.shrink();
+    final app = context.read<AppState>();
+    final saved = app.webSettings['linkedAvatarPrevious'] as Map?;
+    final selected = saved?.containsKey(profile.id) == true &&
+        profile.avatarKind == 'url' &&
+        profile.avatarValue == widget.avatar;
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: Text(app
+          .tr('linkedUseAvatar', {'service': _providerName(widget.service)})),
+      subtitle: Text(app.tr('linkedUseAvatarDescription')),
+      value: selected,
+      onChanged: _busy || account!.busy
+          ? null
+          : (value) => _change(account!, profile, value),
+    );
+  }
+}
+
+class _SimklTitleLanguage extends StatelessWidget {
+  const _SimklTitleLanguage();
+
+  @override
+  Widget build(BuildContext context) {
+    final (english, value) = context.select<AppState, (bool, String)>((app) => (
+          app.english,
+          app.webSettings['simklAnimeTitleLanguage']?.toString() ?? 'english',
+        ));
+    return SettingsContentSection(
+      title: NovaStrings.lookup(english, 'simklAnimeTitleLanguage'),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: SettingsLanguageDropdown(
+            value: value,
+            expanded: true,
+            items: [
+              for (final (id, label) in const [
+                ('english', 'simklTitleEnglish'),
+                ('romaji', 'simklTitleRomaji'),
+                ('native', 'simklTitleNative'),
+              ])
+                DropdownMenuItem(
+                  value: id,
+                  child: Text(NovaStrings.lookup(english, label)),
+                ),
+            ],
+            onChanged: (next) => context
+                .read<AppState>()
+                .setSetting('simklAnimeTitleLanguage', next),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TmdbFeatureCard extends StatelessWidget {
+  const _TmdbFeatureCard();
+
+  static const _features = [
+    'tmdbUseTrailers',
+    'tmdbUseArtwork',
+    'tmdbUseBasicInfo',
+    'tmdbUseDetails',
+    'tmdbUseCredits',
+    'tmdbUseProductions',
+    'tmdbUseNetworks',
+    'tmdbUseEpisodes',
+    'tmdbUseSeasonPosters',
+    'tmdbUseMoreLikeThis',
+    'tmdbUseCollections',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final enabled = app.webSettings['tmdbEnabled'] != false;
+    return SettingsContentSection(
+      title: app.tr('tmdbFeatures'),
+      children: [
+        for (final key in _features)
+          SettingsOptimisticSwitchTile(
+            title: Text(app.tr(key)),
+            value: app.webSettings[key] != false,
+            onChanged: enabled ? (value) => app.setSetting(key, value) : null,
+          ),
+      ],
+    );
   }
 }
 
@@ -346,13 +687,16 @@ class _TmdbKeyCardState extends State<_TmdbKeyCard> {
                     color: Theme.of(context).colorScheme.secondary),
             ],
           ),
-          SettingsOptimisticSwitchTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(NovaStrings.lookup(english, 'message288')),
-            subtitle: Text(NovaStrings.lookup(english, 'message289')),
-            value: tmdbEnabled,
-            onChanged: (value) =>
-                context.read<AppState>().setSetting('tmdbEnabled', value),
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: SettingsOptimisticSwitchTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(NovaStrings.lookup(english, 'message288')),
+              subtitle: Text(NovaStrings.lookup(english, 'message289')),
+              value: tmdbEnabled,
+              onChanged: (value) =>
+                  context.read<AppState>().setSetting('tmdbEnabled', value),
+            ),
           ),
           if (connected) ...[
             Text(
@@ -406,6 +750,152 @@ class _TmdbKeyCardState extends State<_TmdbKeyCard> {
   }
 }
 
+class _MdbListCard extends StatefulWidget {
+  const _MdbListCard();
+
+  @override
+  State<_MdbListCard> createState() => _MdbListCardState();
+}
+
+class _MdbListCardState extends State<_MdbListCard> {
+  final _key = TextEditingController();
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final app = context.read<AppState>();
+    if (_key.text.trim().isEmpty) {
+      NoorToast.show(context, app.tr('mdblistEnterKey'), error: true);
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await app.saveMdbListUserKey(_key.text);
+      _key.clear();
+      if (mounted) NoorToast.show(context, app.tr('mdblistKeySaved'));
+    } catch (error) {
+      if (mounted) NoorToast.show(context, _friendlyError(error), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _remove() async {
+    final app = context.read<AppState>();
+    if (!await confirmSettingsAction(context,
+        title: app.tr('mdblistRemoveKey'),
+        message: app.tr('mdblistRemoveConfirm'),
+        confirm: app.tr('remove'),
+        cancel: app.tr('cancel'))) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await app.clearMdbListUserKey();
+      if (mounted) NoorToast.show(context, app.tr('mdblistKeyRemoved'));
+    } catch (error) {
+      if (mounted) NoorToast.show(context, _friendlyError(error), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final settings = app.webSettings;
+    final enabled = settings['mdblistEnabled'] != false;
+    final hasKey = app.api.hasUserMdbListKey;
+    const providers = <(String, String)>[
+      ('mdbUseImdb', 'IMDb'),
+      ('mdbUseTmdb', 'TMDB'),
+      ('mdbUseTomatoes', 'Rotten Tomatoes'),
+      ('mdbUseMetacritic', 'Metacritic'),
+      ('mdbUseTrakt', 'Trakt'),
+      ('mdbUseLetterboxd', 'Letterboxd'),
+      ('mdbUseAudience', 'RT Audience'),
+      ('mdbUseMal', 'MyAnimeList'),
+    ];
+    return Column(
+      children: [
+        SettingsContentSection(
+          title: app.tr('mdblistRatings'),
+          children: [
+            SettingsOptimisticSwitchTile(
+              title: Text(app.tr('mdblistEnableRatings')),
+              subtitle: Text(app.tr('mdblistEnableRatingsDescription')),
+              value: enabled,
+              onChanged: (next) => app.setSetting('mdblistEnabled', next),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        SettingsContentSection(
+          title: app.tr('mdblistApiKey'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(hasKey
+                      ? app.tr('mdblistPersonalKeySaved')
+                      : app.tr('mdblistBuiltInKey')),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _key,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    textDirection: TextDirection.ltr,
+                    decoration: InputDecoration(
+                      labelText: app.tr('mdblistApiKey'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: _busy ? null : _save,
+                    icon: const Icon(LucideIcons.shieldCheck),
+                    label: Text(app.tr('mdblistSaveKey')),
+                  ),
+                  if (hasKey)
+                    TextButton.icon(
+                      onPressed: _busy ? null : _remove,
+                      icon: const Icon(LucideIcons.keyRound),
+                      label: Text(app.tr('mdblistRemoveKey')),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        SettingsContentSection(
+          title: app.tr('mdblistRatingSources'),
+          children: [
+            for (final (key, label) in providers)
+              SettingsOptimisticSwitchTile(
+                title: Text(label),
+                value: settings[key] != false,
+                onChanged: enabled ? (next) => app.setSetting(key, next) : null,
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SettingsInfoBanner(
+          icon: LucideIcons.shieldCheck,
+          message: app.tr('mdblistKeyStorage'),
+        ),
+      ],
+    );
+  }
+}
+
 class _LinkedServiceCard extends StatefulWidget {
   const _LinkedServiceCard({
     required this.service,
@@ -449,7 +939,7 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         }
       });
     }
-    if (widget.service == 'anilist' || widget.service == 'mal') {
+    if (const ['trakt', 'simkl', 'anilist', 'mal'].contains(widget.service)) {
       // Live profile (username / avatar / anime stats) for the linked card.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -695,8 +1185,14 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         return;
       }
       if (status == 'pending') {
-        final retryMs =
-            ((flow['interval'] as int? ?? 5) * 1000).clamp(3000, 30000);
+        final interval = ((result?['interval'] as num?)?.toInt() ??
+                (flow['interval'] as num?)?.toInt() ??
+                5)
+            .clamp(3, 60);
+        if (interval != flow['interval']) {
+          setState(() => _flow = {...flow, 'interval': interval});
+        }
+        final retryMs = interval * 1000;
         _schedulePoll(Duration(milliseconds: retryMs));
         return;
       }
@@ -742,6 +1238,46 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         confirm: app.tr('message308'),
         cancel: app.tr('cancel'))) {
       return;
+    }
+    if (!mounted) return;
+    final account = context.read<AccountController?>();
+    final profileId = account?.activeProfileId;
+    final profile =
+        account?.profiles.where((p) => p.id == profileId).firstOrNull;
+    final linkedAvatar =
+        app.linkedServices[widget.service]?['avatar']?.toString();
+    if (account != null &&
+        profile != null &&
+        linkedAvatar != null &&
+        profile.avatarKind == 'url' &&
+        profile.avatarValue == linkedAvatar) {
+      final saved = Map<String, dynamic>.from(
+          app.webSettings['linkedAvatarPrevious'] as Map? ?? const {});
+      final original = saved[profile.id];
+      if (original is Map) {
+        final previous = Map<String, dynamic>.from(original);
+        await account.updateProfile(profile.id,
+            name: profile.name,
+            avatarUrl: previous['kind'] == 'url'
+                ? previous['value']?.toString()
+                : null,
+            avatarPackKey: previous['kind'] == 'pack'
+                ? previous['value']?.toString()
+                : 'nova_avatar_01_smile');
+        final restored =
+            account.profiles.where((p) => p.id == profile.id).firstOrNull;
+        if (account.error != null ||
+            restored == null ||
+            restored.avatarKind != previous['kind'] ||
+            restored.avatarValue != previous['value']) {
+          if (mounted) {
+            NoorToast.show(context, app.tr('linkedAvatarFailed'), error: true);
+          }
+          return;
+        }
+        saved.remove(profile.id);
+        await app.setSetting('linkedAvatarPrevious', saved);
+      }
     }
     await app.unlinkService(widget.service);
     if (mounted) {
@@ -867,6 +1403,13 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
                 ],
               ),
             ],
+            if (const ['trakt', 'simkl', 'anilist', 'mal']
+                    .contains(widget.service) &&
+                (linked['avatar']?.toString() ?? '').startsWith('https://'))
+              _ProviderAvatarSwitch(
+                service: widget.service,
+                avatar: linked['avatar'].toString(),
+              ),
             SizedBox(height: 10),
             Wrap(
               spacing: 8,

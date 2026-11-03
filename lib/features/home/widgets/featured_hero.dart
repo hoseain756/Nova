@@ -115,7 +115,10 @@ class _FeaturedCardState extends State<FeaturedHero>
     final uiLanguage = language.split(RegExp('[-_]')).first.toLowerCase();
     final signature =
         '${_itemsSignature(widget.items)}:$language:$region:$uiLanguage:'
-        '${app.webSettings['tmdbEnabled']}:${app.api.hasUserTmdbKey ? 'user' : 'default'}';
+        '${app.webSettings['tmdbEnabled']}:'
+        '${app.webSettings['tmdbUseArtwork']}:'
+        '${app.webSettings['tmdbUseBasicInfo']}:'
+        '${app.api.hasUserTmdbKey ? 'user' : 'default'}';
     if (signature == _artworkSignature) return;
     _artworkSignature = signature;
     _artwork.clear();
@@ -397,6 +400,7 @@ class _FeaturedOverlay extends StatelessWidget {
         ? scheme.onSurface
         : scheme.surface;
     final logo = artwork?.logo ?? item.logo;
+    final displayTitle = artwork?.title ?? item.name;
     final genre = artwork?.genre ?? item.genres.firstOrNull;
     final type = item.type == 'movie'
         ? (NovaStrings.lookup(english, 'message128'))
@@ -423,8 +427,8 @@ class _FeaturedOverlay extends StatelessWidget {
                 alignment: AlignmentDirectional.centerStart
                     .resolve(Directionality.of(context)),
                 cacheWidth: imageCacheWidth(context, 320),
-                semanticLabel: item.name,
-                errorBuilder: (_, __, ___) => Text(item.name,
+                semanticLabel: displayTitle,
+                errorBuilder: (_, __, ___) => Text(displayTitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -433,7 +437,7 @@ class _FeaturedOverlay extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         height: 1.2)))
           else
-            Text(item.name,
+            Text(displayTitle,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

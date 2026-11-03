@@ -35,6 +35,7 @@ import '../home/widgets/async_media_section.dart';
 import '../../core/downloads/download_manager.dart';
 import '../../core/platform/ios_chrome_bridge.dart';
 import 'detail_chrome_registry.dart';
+import 'widgets/linked_comments.dart';
 
 /// Cinematic detail page — the Flutter replica of the Harbor web DetailView:
 /// fixed glass back pill over a full-bleed hero (phone card variant < 700px /
@@ -79,6 +80,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   FeaturedArtwork? _art;
   MediaItem? _enrichedItem;
   int _detailGeneration = 0;
+  String? _contentLocale;
   final Set<int> _requestedEpisodeArtSeasons = {};
   bool _loadingStreams = false;
   Route<dynamic>? _registeredChromeRoute;
@@ -99,6 +101,29 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     _detail = _loadDetail(app);
     _loadFeaturedArtwork(app);
     detailChromeRegistry.nativeRoute.addListener(_onNativeChromeChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final app = context.watch<AppState>();
+    final locale = app.contentTmdbLocale;
+    final signature =
+        '$locale:${app.webSettings.entries.where((entry) => entry.key.startsWith('tmdb')).map((entry) => '${entry.key}=${entry.value}').join('|')}';
+    if (_contentLocale == null) {
+      _contentLocale = signature;
+      return;
+    }
+    if (_contentLocale == signature) return;
+    _contentLocale = signature;
+    _episodes?.removeListener(_onEpisodesChanged);
+    _episodes?.dispose();
+    _episodes = null;
+    _art = null;
+    _enrichedItem = null;
+    _requestedEpisodeArtSeasons.clear();
+    _detail = _loadDetail(app);
+    unawaited(_loadFeaturedArtwork(app));
   }
 
   @override
@@ -494,6 +519,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             ),
             const SizedBox(height: 16),
             _ProviderRatings(item: item, startAligned: true),
+            if (!widget.kidsMode) _SimklPersonalRating(item: item),
             if (item.description?.isNotEmpty == true) ...[
               const SizedBox(height: 32),
               Text(NovaStrings.lookup(english, 'message178'),
@@ -524,6 +550,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             child: Padding(
                 padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, 0),
                 child: DetailFactsTable(item: item, english: english))),
+        if (!widget.kidsMode)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(gutter, 24, gutter, 16),
+              child: LinkedComments(item: item),
+            ),
+          ),
         SliverToBoxAdapter(
             child: _SimilarTitles(item: item, kidsMode: widget.kidsMode)),
         SliverToBoxAdapter(
@@ -1168,21 +1201,7 @@ class _ProviderRatings extends StatefulWidget {
 
 class _ProviderRatingsState extends State<_ProviderRatings> {
   Future<Map<String, dynamic>>? _ratings;
-  bool? _enabled;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final enabled =
-        context.read<AppState>().webSettings['ratingsEnabled'] != false;
-    if (_enabled != enabled) {
-      _enabled = enabled;
-      _ratings = enabled &&
-              (widget.item.type == 'movie' || widget.item.type == 'series')
-          ? _loadRatings()
-          : null;
-    }
-  }
+  String? _requestSignature;
 
   Future<Map<String, dynamic>> _loadRatings() async {
     final item = widget.item;
@@ -1199,6 +1218,17 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
           year: year,
           imdb: imdb,
           anime: anime,
+          mdblistEnabled:
+              context.read<AppState>().webSettings['mdblistEnabled'] != false,
+          simklEnabled: context.read<AppState>().linkedServices['simkl']
+                      ?['linked'] ==
+                  true &&
+              context
+                      .read<AppState>()
+                      .webSettings['simklShowCommunityRatings'] !=
+                  false,
+          malId: item.idMal,
+          anilistId: item.anilistId,
         );
     return data is Map
         ? Map<String, dynamic>.from(data)
@@ -1208,6 +1238,34 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final settings = app.webSettings;
+    final signature = [
+      widget.item.id,
+      widget.item.name,
+      settings['ratingsEnabled'],
+      settings['mdblistEnabled'],
+      settings['simklShowCommunityRatings'],
+      app.linkedServices['simkl']?['linked'],
+      for (final key in const [
+        'mdbUseImdb',
+        'mdbUseTmdb',
+        'mdbUseTomatoes',
+        'mdbUseMetacritic',
+        'mdbUseTrakt',
+        'mdbUseLetterboxd',
+        'mdbUseAudience',
+        'mdbUseMal',
+      ])
+        settings[key],
+      app.api.hasUserMdbListKey,
+    ].join('|');
+    if (_requestSignature != signature) {
+      _requestSignature = signature;
+      _ratings = settings['ratingsEnabled'] != false &&
+              (widget.item.type == 'movie' || widget.item.type == 'series')
+          ? _loadRatings()
+          : null;
+    }
     if (app.webSettings['ratingsEnabled'] == false || _ratings == null) {
       return const SizedBox.shrink();
     }
@@ -1234,7 +1292,7 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
             );
           }
           final ratings =
-              _ratingRows(snapshot.data ?? const <String, dynamic>{});
+              _ratingRows(snapshot.data ?? const <String, dynamic>{}, settings);
           if (ratings.isEmpty) return const SizedBox.shrink();
           final preferred =
               (app.webSettings['ratingsProviders'] as List? ?? const [])
@@ -1265,6 +1323,107 @@ class _ProviderRatingsState extends State<_ProviderRatings> {
   }
 }
 
+class _SimklPersonalRating extends StatefulWidget {
+  const _SimklPersonalRating({required this.item});
+
+  final MediaItem item;
+
+  @override
+  State<_SimklPersonalRating> createState() => _SimklPersonalRatingState();
+}
+
+class _SimklPersonalRatingState extends State<_SimklPersonalRating> {
+  Future<int?>? _rating;
+  String? _signature;
+  bool _saving = false;
+
+  Future<void> _save(int choice) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final app = context.read<AppState>();
+    final item = widget.item;
+    final imdb = RegExp(r'^tt\d+$').hasMatch(item.id) ? item.id : null;
+    final anime = item.hasAnimeIds ||
+        (item.genres.any((g) => g.toLowerCase() == 'animation') &&
+            (item.originCountry ?? '').toLowerCase().contains('japan'));
+    final saved = await app.api.setSimklUserRating(
+      type: item.type,
+      anime: anime,
+      imdb: imdb,
+      malId: item.idMal,
+      anilistId: item.anilistId,
+      rating: choice == 0 ? null : choice,
+    );
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (saved) _rating = Future<int?>.value(choice == 0 ? null : choice);
+    });
+    if (!saved) {
+      NoorToast.show(context, app.tr('simklRatingFailed'), error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final item = widget.item;
+    final imdb = RegExp(r'^tt\d+$').hasMatch(item.id) ? item.id : null;
+    if (app.linkedServices['simkl']?['linked'] != true ||
+        app.webSettings['simklEnableUserRatings'] == false ||
+        (imdb == null && item.idMal == null && item.anilistId == null)) {
+      return const SizedBox.shrink();
+    }
+    final signature = '${item.id}|${item.idMal}|${item.anilistId}';
+    if (_signature != signature) {
+      _signature = signature;
+      _rating = app.api.simklUserRating(
+          imdb: imdb, malId: item.idMal, anilistId: item.anilistId);
+    }
+    return FutureBuilder<int?>(
+      future: _rating,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 12),
+            child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+        final current = snapshot.data;
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: PopupMenuButton<int>(
+              enabled: !_saving,
+              tooltip: app.tr('simklYourRating'),
+              onSelected: _save,
+              itemBuilder: (context) => [
+                for (var score = 1; score <= 10; score++)
+                  PopupMenuItem<int>(value: score, child: Text('$score / 10')),
+                if (current != null)
+                  PopupMenuItem<int>(
+                    value: 0,
+                    child: Text(app.tr('simklClearRating')),
+                  ),
+              ],
+              child: Chip(
+                avatar: const Icon(LucideIcons.star, size: 18),
+                label: Text(current == null
+                    ? app.tr('simklYourRating')
+                    : '${app.tr('simklYourRating')}: $current/10'),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _RatingChip extends StatelessWidget {
   const _RatingChip({required this.rating, required this.english});
   final Map<String, dynamic> rating;
@@ -1280,9 +1439,12 @@ class _RatingChip extends StatelessWidget {
       'tmdb' => 'TMDB',
       'trakt' => 'Trakt',
       'mdblist' => 'MDBList',
+      'audience' => 'RT Audience',
+      'letterboxd' => 'Letterboxd',
       'anilist' => 'AniList',
       'mal' => 'MAL',
       'kitsu' => 'Kitsu',
+      'simkl' => 'Simkl',
       _ => provider.isEmpty
           ? (NovaStrings.lookup(english, 'message184'))
           : provider,
@@ -1467,7 +1629,8 @@ String _compactVotes(int value) {
 /// Converts the consolidated ratings payload into chip rows. The payload maps
 /// provider keys to `{rating, votes}` objects; providers can be missing or
 /// null when their rating is unavailable for the title.
-List<Map<String, dynamic>> _ratingRows(Map<String, dynamic> data) {
+List<Map<String, dynamic>> _ratingRows(
+    Map<String, dynamic> data, Map<String, dynamic> settings) {
   const providers = <String, String>{
     'imdb': 'imdb',
     'rottenTomatoes': 'rotten',
@@ -1475,8 +1638,22 @@ List<Map<String, dynamic>> _ratingRows(Map<String, dynamic> data) {
     'tmdb': 'tmdb',
     'trakt': 'trakt',
     'mdblist': 'mdblist',
+    'audience': 'audience',
+    'letterboxd': 'letterboxd',
+    'mal': 'mal',
+    'simkl': 'simkl',
   };
-  const percentProviders = {'rottenTomatoes', 'mdblist'};
+  const sourceSettings = <String, String>{
+    'imdb': 'mdbUseImdb',
+    'tmdb': 'mdbUseTmdb',
+    'rottenTomatoes': 'mdbUseTomatoes',
+    'metacritic': 'mdbUseMetacritic',
+    'trakt': 'mdbUseTrakt',
+    'letterboxd': 'mdbUseLetterboxd',
+    'audience': 'mdbUseAudience',
+    'mal': 'mdbUseMal',
+  };
+  const percentProviders = {'rottenTomatoes', 'mdblist', 'audience'};
   const scales = <String, String>{
     'imdb': '/10',
     'rottenTomatoes': '%',
@@ -1484,9 +1661,18 @@ List<Map<String, dynamic>> _ratingRows(Map<String, dynamic> data) {
     'tmdb': '/10',
     'trakt': '/10',
     'mdblist': '%',
+    'audience': '%',
+    'letterboxd': '/5',
+    'mal': '/10',
   };
   final rows = <Map<String, dynamic>>[];
   for (final entry in providers.entries) {
+    final setting = sourceSettings[entry.key];
+    if (settings['mdblistEnabled'] != false &&
+        setting != null &&
+        settings[setting] == false) {
+      continue;
+    }
     final value = data[entry.key];
     if (value is! Map) continue;
     final row = Map<String, dynamic>.from(value);

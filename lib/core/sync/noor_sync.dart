@@ -92,7 +92,16 @@ class NoorSyncService {
       _accountBuckets.contains(bucket) ? _accountId! : _profileId!;
 
   Future<Map<String, dynamic>?> pullBucket(String bucket) async {
-    if (!_authorized() || !buckets.contains(bucket)) return null;
+    return (await readBucket(bucket)).row;
+  }
+
+  /// Separates a missing cloud row from a failed request. Automatic refresh
+  /// must never seed old local data merely because the device is offline.
+  Future<({bool reachedServer, Map<String, dynamic>? row})> readBucket(
+      String bucket) async {
+    if (!_authorized() || !buckets.contains(bucket)) {
+      return (reachedServer: false, row: null);
+    }
     try {
       final row = await Supabase.instance.client
           .from(_table(bucket))
@@ -100,12 +109,15 @@ class NoorSyncService {
           .eq(_ownerColumn(bucket), _ownerId(bucket))
           .eq('bucket', bucket)
           .maybeSingle();
-      if (row == null) return null;
+      if (row == null) return (reachedServer: true, row: null);
       final rev = (row['rev'] as num?)?.toInt() ?? 0;
       _lastKnownRev[bucket] = rev;
-      return {'data': row['data'], 'rev': rev, 'updated_at': row['updated_at']};
+      return (
+        reachedServer: true,
+        row: {'data': row['data'], 'rev': rev, 'updated_at': row['updated_at']},
+      );
     } catch (_) {
-      return null;
+      return (reachedServer: false, row: null);
     }
   }
 

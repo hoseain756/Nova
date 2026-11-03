@@ -5,6 +5,7 @@ class FeaturedArtwork {
     this.landscape,
     this.genre,
     this.overview,
+    this.title,
   });
 
   final String? logo;
@@ -12,4 +13,5 @@ class FeaturedArtwork {
   final String? landscape;
   final String? genre;
   final String? overview;
+  final String? title;
 }

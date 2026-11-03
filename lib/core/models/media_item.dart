@@ -27,6 +27,9 @@ class MediaItem {
     this.castMembers = const [],
     this.crewMembers = const [],
     this.productionCompanies = const [],
+    this.networks = const [],
+    this.collectionName,
+    this.trailerUrl,
   });
 
   final String id;
@@ -71,6 +74,9 @@ class MediaItem {
   final List<MediaPerson> castMembers;
   final List<MediaPerson> crewMembers;
   final List<MediaCompany> productionCompanies;
+  final List<String> networks;
+  final String? collectionName;
+  final String? trailerUrl;
 
   bool get hasAnimeIds => anilistId != null || idMal != null;
 
@@ -118,6 +124,9 @@ class MediaItem {
       crewMembers: MediaPerson.parseList(json['crewMembers']),
       productionCompanies: MediaCompany.parseList(
           json['productionCompanies'] ?? json['production_companies']),
+      networks: _stringList(json['networks'], 20),
+      collectionName: _string(json['collectionName']),
+      trailerUrl: _string(json['trailerUrl']),
     );
   }
 
@@ -158,6 +167,9 @@ class MediaItem {
         if (productionCompanies.isNotEmpty)
           'productionCompanies':
               productionCompanies.map((company) => company.toJson()).toList(),
+        if (networks.isNotEmpty) 'networks': networks,
+        if (collectionName != null) 'collectionName': collectionName,
+        if (trailerUrl != null) 'trailerUrl': trailerUrl,
         if (anilistId != null) 'anilistId': anilistId,
         if (idMal != null) 'idMal': idMal,
       };
@@ -190,6 +202,9 @@ class MediaItem {
         castMembers: castMembers,
         crewMembers: crewMembers,
         productionCompanies: productionCompanies,
+        networks: networks,
+        collectionName: collectionName,
+        trailerUrl: trailerUrl,
         anilistId: anilistId ?? this.anilistId,
         idMal: idMal ?? this.idMal,
       );
@@ -222,6 +237,9 @@ class MediaItem {
         castMembers: castMembers,
         crewMembers: crewMembers,
         productionCompanies: productionCompanies,
+        networks: networks,
+        collectionName: collectionName,
+        trailerUrl: trailerUrl,
         anilistId: anilistId,
         idMal: idMal,
       );

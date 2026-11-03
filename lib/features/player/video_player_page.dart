@@ -942,7 +942,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     final type = widget.item.type == 'series' ? 'series' : 'movie';
     final year =
         RegExp(r'^\d{4}').firstMatch(widget.item.releaseInfo ?? '')?.group(0);
-    for (final service in const ['trakt', 'simkl']) {
+    for (final service in const ['trakt', 'simkl', 'mdblist']) {
       if (!app.api.isLinked(service) ||
           app.webSettings['${service}Scrobbling'] == false ||
           !widget.recordProgress) {
@@ -955,6 +955,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         title: widget.item.name,
         year: year,
         imdb: widget.item.id,
+        season: widget.season,
+        episode: widget.episode,
         progress: progress,
       ));
     }

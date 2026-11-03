@@ -96,7 +96,7 @@ class _AnimeSearchSheetState extends State<_AnimeSearchSheet> {
           'Page': {'media': rows},
         },
       },
-      preferNativeTitles: await CatalogRepository.prefersNativeAnimeTitles(),
+      preferNativeTitles: app.catalogs.prefersNativeAnimeTitles(),
     );
   }
 

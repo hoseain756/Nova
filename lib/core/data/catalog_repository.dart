@@ -1,7 +1,6 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/nova_strings.dart';
 import '../api/noor_api.dart';
@@ -31,6 +30,15 @@ class CatalogRepository {
   CatalogRepository(this.api);
 
   final NoorApi api;
+
+  /// Reads the active profile's in-memory choice. A settings write is
+  /// intentionally asynchronous, so reading SharedPreferences here could
+  /// send the previous language immediately after the user changes it.
+  String Function()? contentLanguageProvider;
+  Map<String, dynamic> Function()? tmdbSettingsProvider;
+  bool _tmdbOption(String key) =>
+      tmdbSettingsProvider?.call()['tmdbEnabled'] != false &&
+      tmdbSettingsProvider?.call()[key] != false;
   static const _cinemeta = 'https://v3-cinemeta.strem.io';
 
   static bool isKidsCatalog(AddonCatalogRow row) => RegExp(
@@ -86,6 +94,65 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   final Map<String, String> _tmdbSeriesIds = {};
   final Map<String, Future<SeasonEpisodeArtwork>> _seasonArtworkRequests = {};
   final Map<String, Future<Map<String, dynamic>?>> _animeSubtitleMappings = {};
+  final Map<String, Future<MediaItem>> _localizedItems = {};
+  final Queue<Completer<void>> _localizationWaiters = Queue();
+  int _activeLocalizations = 0;
+
+  /// Localizes only cards that Flutter has built. IDs and playback metadata
+  /// remain supplied by the add-on; TMDB supplies display text and poster.
+  Future<MediaItem> localizedItem(MediaItem item, String language,
+      {bool? artworkEnabled}) async {
+    if (!_tmdbOption('tmdbUseBasicInfo') ||
+        !RegExp(r'^tt\d+$').hasMatch(item.id)) {
+      return item;
+    }
+    final useArtwork = artworkEnabled ?? _tmdbOption('tmdbUseArtwork');
+    final key = '${item.type}:${item.id}:$language:$useArtwork';
+    if (_localizedItems.length > 256) {
+      _localizedItems.remove(_localizedItems.keys.first);
+    }
+    final request = _localizedItems.putIfAbsent(key, () async {
+      if (_activeLocalizations >= 4) {
+        final waiter = Completer<void>();
+        _localizationWaiters.add(waiter);
+        await waiter.future;
+      }
+      _activeLocalizations++;
+      try {
+        final kind = item.type == 'series' ? 'tv' : 'movie';
+        final result = await api.tmdbGet(
+          '/find/${Uri.encodeComponent(item.id)}',
+          query: const {'external_source': 'imdb_id'},
+          language: language,
+        );
+        final rows = result is Map ? result['${kind}_results'] as List? : null;
+        final match = rows?.whereType<Map>().firstOrNull;
+        if (match == null) return item;
+        final name =
+            (match[kind == 'tv' ? 'name' : 'title'] ?? '').toString().trim();
+        final overview = (match['overview'] ?? '').toString().trim();
+        final posterPath = match['poster_path']?.toString();
+        return MediaItem.fromJson({
+          ...item.toJson(),
+          if (name.isNotEmpty) 'name': name,
+          if (overview.isNotEmpty) 'description': overview,
+          if (useArtwork && posterPath != null && posterPath.isNotEmpty)
+            'poster': _tmdbImage(posterPath, 'w500'),
+        });
+      } finally {
+        _activeLocalizations--;
+        if (_localizationWaiters.isNotEmpty) {
+          _localizationWaiters.removeFirst().complete();
+        }
+      }
+    });
+    try {
+      return await request;
+    } catch (_) {
+      _localizedItems.remove(key);
+      return item;
+    }
+  }
 
   Future<List<MediaItem>> catalog(
     String type,
@@ -106,7 +173,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
           addon.catalogs.where((c) => c.type == type && c.id == id).firstOrNull;
       if (definition != null &&
           _declaresLanguageExtra(addon, catalog: definition)) {
-        requestExtras = {...extras, 'language': await _contentLanguage()};
+        requestExtras = {...extras, 'language': _contentLanguage()};
       }
     }
     final url = _resourceUrl(base, 'catalog', type, id, requestExtras);
@@ -133,7 +200,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
       try {
         final extras = _declaresLanguageExtra(addon)
             ? <String, dynamic>{
-                'language': languageExtra ??= await _contentLanguage(),
+                'language': languageExtra ??= _contentLanguage(),
               }
             : const <String, dynamic>{};
         final url = _resourceUrl(addon.baseUrl, 'meta', type, id, extras);
@@ -208,10 +275,15 @@ query ($weekStart: Int!, $weekEnd: Int!) {
       overview: item.description,
     );
     final imdbId = RegExp(r'tt\d+').firstMatch(item.id)?.group(0);
-    if (imdbId == null || imdbId.isEmpty) return fallback;
+    if (imdbId == null ||
+        imdbId.isEmpty ||
+        tmdbSettingsProvider?.call()['tmdbEnabled'] == false) {
+      return fallback;
+    }
 
     final locale = uiLanguage.split(RegExp('[-_]')).first.toLowerCase();
-    final key = '${item.type}:$imdbId:$language:$region:$locale';
+    final key = '${item.type}:$imdbId:$language:$region:$locale:'
+        '${_tmdbOption('tmdbUseArtwork')}:${_tmdbOption('tmdbUseBasicInfo')}';
     final cached = _featuredArtworkCache[key];
     if (cached != null) return cached;
 
@@ -283,14 +355,33 @@ query ($weekStart: Int!, $weekEnd: Int!) {
       final genre = genres.isEmpty ? null : genres.first['name']?.toString();
       final overview = details['overview']?.toString().trim();
 
+      final useArtwork = _tmdbOption('tmdbUseArtwork');
+      final useBasicInfo = _tmdbOption('tmdbUseBasicInfo');
       return FeaturedArtwork(
-        logo: item.logo ?? _tmdbImage(logoPath, 'w500'),
-        portrait: _tmdbImage(textlessPoster, 'w780') ??
-            _tmdbImage(textlessBackdrop, 'w780') ??
-            item.poster,
-        landscape: _tmdbImage(textlessBackdrop, 'w1280') ?? item.background,
-        genre: genre?.isNotEmpty == true ? genre : item.genres.firstOrNull,
-        overview: overview?.isNotEmpty == true ? overview : item.description,
+        logo:
+            useArtwork ? item.logo ?? _tmdbImage(logoPath, 'w500') : item.logo,
+        portrait: useArtwork
+            ? _tmdbImage(textlessPoster, 'w780') ??
+                _tmdbImage(textlessBackdrop, 'w780') ??
+                item.poster
+            : item.poster,
+        landscape: useArtwork
+            ? _tmdbImage(textlessBackdrop, 'w1280') ?? item.background
+            : item.background,
+        genre: useBasicInfo && genre?.isNotEmpty == true
+            ? genre
+            : item.genres.firstOrNull,
+        overview: useBasicInfo && overview?.isNotEmpty == true
+            ? overview
+            : item.description,
+        title: useBasicInfo &&
+                (details[kind == 'tv' ? 'name' : 'title']
+                        ?.toString()
+                        .trim()
+                        .isNotEmpty ==
+                    true)
+            ? details[kind == 'tv' ? 'name' : 'title'].toString().trim()
+            : item.name,
       );
     } catch (_) {
       // The catalog hero must still render when TMDB is unavailable.
@@ -312,7 +403,9 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     // Credits are loaded only for an opened detail page. Home artwork must
     // not pay for the much larger cast payload for every carousel slide.
     Map credits = details['credits'] as Map? ?? const {};
-    if (credits.isEmpty && details['id'] != null) {
+    if (_tmdbOption('tmdbUseCredits') &&
+        credits.isEmpty &&
+        details['id'] != null) {
       try {
         credits = await api.tmdbGet(
             '/${item.type == 'series' ? 'tv' : 'movie'}/${details['id']}/credits',
@@ -347,30 +440,83 @@ query ($weekStart: Int!, $weekEnd: Int!) {
       }
     }
 
-    add('originalTitle', details['original_title'] ?? details['original_name']);
-    add('status', details['status']);
-    add('language', details['original_language']);
-    add('releaseDate', details['release_date'] ?? details['first_air_date']);
-    if (item.type == 'series') {
-      add('seasonCount', details['number_of_seasons']);
-      add('episodeCount', details['number_of_episodes']);
+    // Add-on metadata is often English-only. Apply TMDB's requested locale
+    // to the visible title and synopsis while retaining the add-on identity,
+    // video IDs, and playback fields in the original item.
+    if (_tmdbOption('tmdbUseBasicInfo')) {
+      add('name', details[item.type == 'series' ? 'name' : 'title']);
+      add('description', details['overview']);
     }
-    if ((credits['cast'] as List?)?.isNotEmpty == true) {
+    if (_tmdbOption('tmdbUseDetails')) {
+      add('originalTitle',
+          details['original_title'] ?? details['original_name']);
+      add('status', details['status']);
+      add('language', details['original_language']);
+      add('releaseDate', details['release_date'] ?? details['first_air_date']);
+      if (item.type == 'series') {
+        add('seasonCount', details['number_of_seasons']);
+        add('episodeCount', details['number_of_episodes']);
+      }
+    }
+    if (_tmdbOption('tmdbUseCredits') &&
+        (credits['cast'] as List?)?.isNotEmpty == true) {
       json['castMembers'] = credits['cast'];
     }
-    if (crew.isNotEmpty || creators.isNotEmpty) {
+    if (_tmdbOption('tmdbUseCredits') &&
+        (crew.isNotEmpty || creators.isNotEmpty)) {
       json['crewMembers'] = [...creators, ...crew];
     }
-    if ((details['production_companies'] as List?)?.isNotEmpty == true) {
+    if (_tmdbOption('tmdbUseProductions') &&
+        (details['production_companies'] as List?)?.isNotEmpty == true) {
       json['productionCompanies'] = details['production_companies'];
     }
-    if (item.director.isEmpty && directors.isNotEmpty) {
+    if (_tmdbOption('tmdbUseNetworks') && item.type == 'series') {
+      final names = (details['networks'] as List? ?? const [])
+          .whereType<Map>()
+          .map((network) => network['name']?.toString().trim())
+          .whereType<String>()
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false);
+      if (names.isNotEmpty) json['networks'] = names;
+    }
+    if (_tmdbOption('tmdbUseCollections') && item.type == 'movie') {
+      add('collectionName',
+          (details['belongs_to_collection'] as Map?)?['name']);
+    }
+    if (_tmdbOption('tmdbUseTrailers') && details['id'] != null) {
+      try {
+        final videos = await api.tmdbGet(
+          '/${item.type == 'series' ? 'tv' : 'movie'}/${details['id']}/videos',
+          language: language,
+        );
+        final trailers = (videos['results'] as List? ?? const [])
+            .whereType<Map>()
+            .where((video) =>
+                video['site'] == 'YouTube' &&
+                video['type'] == 'Trailer' &&
+                video['key'] is String)
+            .toList(growable: false);
+        if (trailers.isNotEmpty) {
+          final key = trailers.first['key'].toString();
+          if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(key)) {
+            json['trailerUrl'] = 'https://www.youtube.com/watch?v=$key';
+          }
+        }
+      } catch (_) {
+        // A missing trailer does not delay the remaining detail metadata.
+      }
+    }
+    if (_tmdbOption('tmdbUseCredits') &&
+        item.director.isEmpty &&
+        directors.isNotEmpty) {
       json['director'] = directors;
     }
-    if (item.originCountry == null) {
+    if (_tmdbOption('tmdbUseDetails') && item.originCountry == null) {
       json['countries'] = details['production_countries'];
     }
     if (item.type == 'series' &&
+        (_tmdbOption('tmdbUseEpisodes') ||
+            _tmdbOption('tmdbUseSeasonPosters')) &&
         item.videos.isNotEmpty &&
         details['id'] != null) {
       final seasons = item.videos
@@ -402,7 +548,10 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   /// can show later-season stills as soon as its episode sheet is opened.
   Future<SeasonEpisodeArtwork> seasonEpisodeArtwork(String itemId, int season,
       {String language = 'en-US'}) async {
-    if (season <= 0 || !RegExp(r'^tt\d+$').hasMatch(itemId)) {
+    if (season <= 0 ||
+        !RegExp(r'^tt\d+$').hasMatch(itemId) ||
+        (!_tmdbOption('tmdbUseEpisodes') &&
+            !_tmdbOption('tmdbUseSeasonPosters'))) {
       return (stills: const <int, String>{}, poster: null);
     }
     final key = '$itemId:$season:$language';
@@ -427,15 +576,19 @@ query ($weekStart: Int!, $weekEnd: Int!) {
         final data =
             await api.tmdbGet('/tv/$tmdbId/season/$season', language: language);
         final images = <int, String>{};
-        for (final episode
-            in (data['episodes'] as List? ?? const []).whereType<Map>()) {
+        for (final episode in (_tmdbOption('tmdbUseEpisodes')
+                ? data['episodes'] as List? ?? const []
+                : const [])
+            .whereType<Map>()) {
           final number = (episode['episode_number'] as num?)?.toInt();
           final path = episode['still_path']?.toString();
           if (number != null && path != null && path.isNotEmpty) {
             images[number] = _tmdbImage(path, 'w500')!;
           }
         }
-        final posterPath = data['poster_path']?.toString();
+        final posterPath = _tmdbOption('tmdbUseSeasonPosters')
+            ? data['poster_path']?.toString()
+            : null;
         return (
           stills: images,
           poster: posterPath == null || posterPath.isEmpty
@@ -515,6 +668,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     String language = 'en-US',
     String region = 'US',
   }) async {
+    if (!_tmdbOption('tmdbUseMoreLikeThis')) return const [];
     final imdbId = RegExp(r'tt\d+').firstMatch(seed.id)?.group(0);
     if (imdbId == null || imdbId.isEmpty) return const [];
     try {
@@ -608,7 +762,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     // to native-first; every other language keeps the existing order.
     return parseAnimeResponse(
       response,
-      preferNativeTitles: await prefersNativeAnimeTitles(),
+      preferNativeTitles: prefersNativeAnimeTitles(),
     );
   }
 
@@ -626,7 +780,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     // Task 122-d: same native-title preference as [anime].
     return parseAnimeAiringResponse(
       response,
-      preferNativeTitles: await prefersNativeAnimeTitles(),
+      preferNativeTitles: prefersNativeAnimeTitles(),
     );
   }
 
@@ -1043,38 +1197,14 @@ query ($weekStart: Int!, $weekEnd: Int!) {
   }
 
   // --------------------------------------------------------------------------
-  // Content-language access (Task 122-d)
+  // Content-language access
   // --------------------------------------------------------------------------
 
-  /// Mirrors AppState.settingsStorageKey. This repository is constructed
-  /// BEFORE AppState (main.dart) and holds no AppState handle, and its
-  /// callers sit outside wave 122-d's ownership — so the persisted settings
-  /// blob that AppState._persistSettings maintains is read back here. The
-  /// blob IS the webSettings map, making 'contentLanguage' a top-level
-  /// entry. An absent/unreadable blob resolves to 'ar' — exactly the seeded
-  /// default — and AppState.initialize() re-persists the merged map on every
-  /// boot before any request can run.
-  static const _settingsStorageKey = 'harbor-web.settings';
-
-  /// The effective content language (seeded default 'ar'), read through the
-  /// persisted-settings accessor above. Never throws.
-  static Future<String> _contentLanguage() async {
-    try {
-      final preferences = await SharedPreferences.getInstance();
-      final raw = preferences.getString(_settingsStorageKey);
-      if (raw == null || raw.isEmpty) return 'ar';
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return 'ar';
-      return decoded['contentLanguage']?.toString() ?? 'ar';
-    } catch (_) {
-      return 'ar';
-    }
-  }
+  String _contentLanguage() => contentLanguageProvider?.call() ?? 'ar';
 
   /// Japanese is the only content language with a dedicated AniList title
   /// field, so native titles are preferred for ja alone.
-  static Future<bool> prefersNativeAnimeTitles() async =>
-      await _contentLanguage() == 'ja';
+  bool prefersNativeAnimeTitles() => _contentLanguage() == 'ja';
 
   /// STRICT gate for the addon `language` extra (122-plan contract): true
   /// only when the add-on's manifest itself declares language support —

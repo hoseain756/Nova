@@ -124,6 +124,58 @@ Widget _harness(_SettingsApp app, Widget page,
 
 void main() {
   for (final english in [true, false]) {
+    testWidgets('TMDB feature settings fit ${english ? 'LTR' : 'RTL'} at 200%',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(
+          _harness(app, const IntegrationsPage(), scale: 2, light: !english));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('TMDB'), 200);
+      await tester.ensureVisible(find.text('TMDB'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('TMDB').last);
+      await tester.pumpAndSettle();
+      expect(find.text(app.tr('tmdbFeatures')), findsOneWidget);
+      await tester.scrollUntilVisible(
+          find.text(app.tr('tmdbUseCollections')), 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(find.text(app.tr('tmdbUseCollections')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final english in [true, false]) {
+    testWidgets('MDBList controls fit ${english ? 'LTR' : 'RTL'} at 200%',
+        (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final app = _SettingsApp(NoorApi())..english = english;
+      await tester.pumpWidget(
+          _harness(app, const IntegrationsPage(), scale: 2, light: !english));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('MDBList'), 200);
+      await tester.ensureVisible(find.text('MDBList'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('MDBList').last);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+          find.text(app.tr('mdblistEnableRatings')), 200,
+          scrollable: find.byType(Scrollable).last);
+      expect(find.text(app.tr('mdblistEnableRatings')), findsOneWidget);
+      await tester.scrollUntilVisible(find.byType(TextField), 200,
+          scrollable: find.byType(Scrollable).last);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final english in [true, false]) {
     testWidgets(
         'app icon picker keeps native selection and fits ${english ? 'English dark' : 'Arabic light'} at 200%',
         (tester) async {

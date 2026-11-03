@@ -110,9 +110,10 @@ class _AnimePageState extends State<AnimePage>
     // Personal lists from the LINKED AniList account — CURRENT becomes the
     // "watching" rail, PLANNING the "plan to watch" rail (the same rows the
     // home page uses, scoped here so the tab is self-sufficient).
-    final watching =
-        app.linkedCatalogItems['anilist-watching'] ?? const <MediaItem>[];
-    final planning = app.linkedCatalogItems['anilist'] ?? const <MediaItem>[];
+    final watching = app.visibleLinkedCatalogItems['anilist-watching'] ??
+        const <MediaItem>[];
+    final planning =
+        app.visibleLinkedCatalogItems['anilist'] ?? const <MediaItem>[];
     final anilistLinked = app.linkedServices['anilist']?['linked'] == true;
     final watchingProgress = app.linkedContinueWatching
         .where((entry) => entry.item.type == 'series')

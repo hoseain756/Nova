@@ -9,6 +9,7 @@ import '../oauth/oauth_redirect.dart';
 import '../trakt/trakt_pkce.dart';
 import '../trakt/trakt_tokens.dart';
 import '../track/track_link.dart';
+import '../track/scrobble_payload.dart';
 import '../data/catalog_response_cache.dart';
 import '../version.dart';
 
@@ -69,6 +70,8 @@ class NoorApi {
   static const String defaultOmdbKey = 'b978cd59';
 
   static const String defaultMdbListKey = 'ben6ji6z3db5x1pps3wv5okwd';
+  static const String defaultMdbListClientId =
+      'gXH8WkzbEL228LZojEwLLNaoVr1KLCojpSgy8rIv';
 
   static const String defaultTraktClientId =
       'pk0CCmQaUuZt3VqpWu0lphpro_i52wX9QnkbGbf_fUY';
@@ -169,6 +172,9 @@ class NoorApi {
   // --------------------------------------------------------------------------
 
   static const String _tmdbUserTokenKey = 'noor.tmdb.user-token';
+  static const String _mdblistUserKeyKey = 'noor.mdblist.user-key';
+  static const String _mdblistRefreshKey = 'noor.mdblist.refresh';
+  static const String _mdblistExpiryKey = 'noor.mdblist.expires';
   static const String _legacyTmdbUserTokenKey = 'horse.mobile.tmdb.user-key';
   static const String _traktPkceVerifierKey = 'noor.trakt.pkce.verifier';
   static const String _traktPkceStateKey = 'noor.trakt.pkce.state';
@@ -206,6 +212,7 @@ class NoorApi {
 
   /// TMDB credential override: v4 JWT ('eyJ…') or 32-hex v3 key.
   String? _tmdbUserToken;
+  String? _mdblistUserKey;
 
   final Map<String, String> _serviceTokens = <String, String>{};
 
@@ -219,6 +226,8 @@ class NoorApi {
   DateTime? _anilistExpiresAt;
   DateTime? _malExpiresAt;
   Future<String?>? _malRefreshInFlight;
+  DateTime? _mdblistExpiresAt;
+  Future<String?>? _mdblistRefreshInFlight;
   AniListScoreFormat? _aniListScoreFormat;
 
   TraktTokenRefresher? _traktRefresherInstance;
@@ -230,6 +239,19 @@ class NoorApi {
       <String, _RatingsCacheEntry>{};
   final Map<String, Future<Map<String, dynamic>>> _ratingsInflight =
       <String, Future<Map<String, dynamic>>>{};
+  Future<Map<String, dynamic>>? _simklSyncInFlight;
+  DateTime? _simklSyncCheckedAt;
+  Map<String, dynamic>? _simklSyncState;
+  DateTime? _simklTrendingAt;
+  List<dynamic>? _simklTrendingCache;
+  Map<String, dynamic>? _traktSyncState;
+  Map<String, dynamic>? _traktActivities;
+  DateTime? _traktActivitiesAt;
+  final Map<String, Future<List<dynamic>>> _traktSyncInFlight = {};
+  final Map<String, Map<String, String>> _animeTitleVariants = {};
+  Future<Map<String, dynamic>>? _mdblistSyncInFlight;
+  Map<String, dynamic>? _mdblistSyncState;
+  DateTime? _mdblistSyncCheckedAt;
 
   // --------------------------------------------------------------------------
   // Lifecycle
@@ -244,13 +266,24 @@ class NoorApi {
     if (_tmdbUserToken == null || _tmdbUserToken!.isEmpty) {
       _tmdbUserToken = await _secure.read(key: _legacyTmdbUserTokenKey);
     }
+    _mdblistUserKey = await _secure.read(key: _mdblistUserKeyKey);
 
-    for (final service in const <String>['trakt', 'simkl', 'anilist', 'mal']) {
+    for (final service in const <String>[
+      'trakt',
+      'simkl',
+      'anilist',
+      'mal',
+      'mdblist'
+    ]) {
       final token = await _secure.read(key: _serviceTokenKey(service));
       if (token != null && token.isNotEmpty) {
         _serviceTokens[service] = token;
       }
     }
+    final mdbExpiry = await _secure.read(key: _mdblistExpiryKey);
+    _mdblistExpiresAt = mdbExpiry == null
+        ? null
+        : DateTime.fromMillisecondsSinceEpoch(int.tryParse(mdbExpiry) ?? 0);
 
     // Legacy AniList credential overrides must never leak into the flow:
     // older builds let the owner paste values by hand and the 40-character
@@ -300,28 +333,56 @@ class NoorApi {
     if (_accountId == accountId) return;
     _accountId = accountId;
     _tmdbUserToken = null;
+    _mdblistUserKey = null;
     _serviceTokens.clear();
     _traktExpiresAt = null;
     _anilistExpiresAt = null;
     _malExpiresAt = null;
+    _mdblistExpiresAt = null;
+    _mdblistRefreshInFlight = null;
     _debridService = null;
     _debridApiKey = null;
     _ratingsCache.clear();
     _ratingsInflight.clear();
+    _simklSyncInFlight = null;
+    _simklSyncCheckedAt = null;
+    _simklSyncState = null;
+    _traktSyncState = null;
+    _traktActivities = null;
+    _traktActivitiesAt = null;
+    _traktSyncInFlight.clear();
+    _animeTitleVariants.clear();
+    _mdblistSyncInFlight = null;
+    _mdblistSyncState = null;
+    _mdblistSyncCheckedAt = null;
     await initialize();
   }
 
   Future<void> deactivateAccount() async {
     _accountId = null;
     _tmdbUserToken = null;
+    _mdblistUserKey = null;
     _serviceTokens.clear();
     _traktExpiresAt = null;
     _anilistExpiresAt = null;
     _malExpiresAt = null;
+    _mdblistExpiresAt = null;
+    _mdblistRefreshInFlight = null;
     _debridService = null;
     _debridApiKey = null;
     _ratingsCache.clear();
     _ratingsInflight.clear();
+    _simklSyncInFlight = null;
+    _simklSyncCheckedAt = null;
+    _simklSyncState = null;
+    _traktSyncState = null;
+    _traktActivities = null;
+    _traktActivitiesAt = null;
+    _traktSyncInFlight.clear();
+    _animeTitleVariants.clear();
+    _mdblistSyncInFlight = null;
+    _mdblistSyncState = null;
+    _mdblistSyncCheckedAt = null;
   }
 
   /// Copies old device credentials only after the user accepts legacy import.
@@ -516,6 +577,22 @@ class NoorApi {
     _tmdbUserToken = null;
   }
 
+  bool get hasUserMdbListKey => _mdblistUserKey?.isNotEmpty == true;
+
+  Future<void> saveMdbListUserKey(String value) async {
+    final key = value.trim();
+    if (key.isEmpty) throw const FormatException('An API key is required.');
+    await _secure.write(key: _mdblistUserKeyKey, value: key);
+    _mdblistUserKey = key;
+    _ratingsCache.clear();
+  }
+
+  Future<void> clearMdbListUserKey() async {
+    await _secure.delete(key: _mdblistUserKeyKey);
+    _mdblistUserKey = null;
+    _ratingsCache.clear();
+  }
+
   // --------------------------------------------------------------------------
   // Ratings (direct — replaces the website /api/ratings aggregate)
   // --------------------------------------------------------------------------
@@ -530,6 +607,10 @@ class NoorApi {
     String? year,
     String? imdb,
     bool anime = false,
+    bool mdblistEnabled = true,
+    bool simklEnabled = false,
+    int? malId,
+    int? anilistId,
   }) async {
     final key = <String>[
       type.toLowerCase(),
@@ -537,6 +618,10 @@ class NoorApi {
       year ?? '',
       imdb ?? '',
       anime ? 'anime' : 'live',
+      mdblistEnabled ? 'mdblist' : 'no-mdblist',
+      simklEnabled ? 'simkl' : 'no-simkl',
+      '$malId',
+      '$anilistId',
     ].join('|');
 
     final cached = _ratingsCache[key];
@@ -554,6 +639,10 @@ class NoorApi {
       year: year,
       imdb: imdb,
       anime: anime,
+      mdblistEnabled: mdblistEnabled,
+      simklEnabled: simklEnabled,
+      malId: malId,
+      anilistId: anilistId,
     );
     _ratingsInflight[key] = future;
     Map<String, dynamic> data;
@@ -575,6 +664,10 @@ class NoorApi {
     required String? year,
     required String? imdb,
     required bool anime,
+    required bool mdblistEnabled,
+    required bool simklEnabled,
+    required int? malId,
+    required int? anilistId,
   }) async {
     final result = <String, dynamic>{
       'imdb': null,
@@ -583,6 +676,10 @@ class NoorApi {
       'tmdb': null,
       'trakt': null,
       'mdblist': null,
+      'audience': null,
+      'letterboxd': null,
+      'mal': null,
+      'simkl': null,
     };
     try {
       final kind = type.toLowerCase() == 'series' ? 'series' : 'movie';
@@ -598,6 +695,9 @@ class NoorApi {
         imdb: imdb,
         anime: anime,
       );
+      final simklFuture = simklEnabled
+          ? _ratingsFromSimkl(imdb: imdb, malId: malId, anilistId: anilistId)
+          : Future<Map<String, dynamic>?>.value(null);
 
       final omdb = await omdbFuture;
       result['imdb'] = omdb?['imdb'];
@@ -607,21 +707,30 @@ class NoorApi {
       final trakt = await traktFuture;
       result['trakt'] = trakt;
 
-      // TMDB also yields the id MDBList needs; skipped when absent.
+      // TMDB also yields an ID for the MDBList fallback lookup.
       final tmdb = await tmdbFuture;
       if (tmdb != null) {
         result['tmdb'] = <String, dynamic>{
           'rating': _asDouble(tmdb['vote_average']),
           'votes': _asInt(tmdb['vote_count']),
         };
-        final tmdbId = tmdb['id'];
-        if (tmdbId is num || tmdbId is String) {
-          result['mdblist'] = await _ratingsFromMdbList(
+      }
+      if (mdblistEnabled) {
+        final tmdbId = tmdb?['id'];
+        if ((imdb != null && imdb.isNotEmpty) ||
+            tmdbId is num ||
+            tmdbId is String) {
+          final mdb = await _ratingsFromMdbList(
             kind: kind,
-            tmdbId: tmdbId.toString(),
+            imdb: imdb,
+            tmdbId: tmdbId?.toString(),
           );
+          for (final entry in mdb.entries) {
+            if (entry.value != null) result[entry.key] = entry.value;
+          }
         }
       }
+      result['simkl'] = await simklFuture;
       return result;
     } catch (_) {
       return result; // Partial data beats a crash — never rethrow.
@@ -767,18 +876,124 @@ class NoorApi {
     }
   }
 
-  Future<Map<String, dynamic>?> _ratingsFromMdbList({
+  Future<Map<String, dynamic>?> _ratingsFromSimkl(
+      {String? imdb, int? malId, int? anilistId}) async {
+    if (imdb?.startsWith('tt') != true && malId == null && anilistId == null) {
+      return null;
+    }
+    final token = _serviceTokens['simkl'];
+    if (token == null || token.isEmpty) return null;
+    final common = <String, String>{
+      'client_id': defaultSimklClientId,
+      'app-name': 'nova',
+      'app-version': noorVersion,
+    };
+    final headers = <String, String>{
+      'User-Agent': 'nova/$noorVersion',
+      'simkl-api-key': defaultSimklClientId,
+      'Authorization': 'Bearer $token',
+    };
+    try {
+      final redirect = await _client.get<dynamic>(
+        '$simklBaseUrl/redirect',
+        queryParameters: {
+          ...common,
+          if (imdb?.startsWith('tt') == true)
+            'imdb': imdb!
+          else if (malId != null)
+            'mal': '$malId'
+          else
+            'anilist': '$anilistId',
+        },
+        options: Options(
+          headers: headers,
+          followRedirects: false,
+          validateStatus: (status) => status == 301 || status == 302,
+        ),
+      );
+      final location = Uri.tryParse(redirect.headers.value('location') ?? '');
+      if (location?.scheme != 'https' || location?.host != 'simkl.com') {
+        return null;
+      }
+      final segments = location!.pathSegments;
+      if (segments.length < 2 ||
+          !const ['movies', 'tv', 'anime'].contains(segments.first) ||
+          int.tryParse(segments[1]) == null) {
+        return null;
+      }
+      final response = await _client.get<dynamic>(
+        '$simklBaseUrl/${segments.first}/${segments[1]}',
+        queryParameters: common,
+        options: Options(headers: headers),
+      );
+      final ratings = _asMap(_asMap(response.data)?['ratings']);
+      final simkl = _asMap(ratings?['simkl']);
+      final rating = _asDouble(simkl?['rating']);
+      final votes = _asInt(simkl?['votes']);
+      if (rating == null) return null;
+      return {'rating': rating, 'votes': votes};
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> _ratingsFromMdbList({
     required String kind,
-    required String tmdbId,
+    String? imdb,
+    String? tmdbId,
   }) async {
     try {
+      final path = imdb != null && imdb.isNotEmpty
+          ? '/imdb/${kind == 'series' ? 'show' : 'movie'}/$imdb/'
+          : '/tmdb/${kind == 'series' ? 'show' : 'movie'}/$tmdbId';
+      final accountToken =
+          _mdblistUserKey == null ? await _validMdbListAccessToken() : null;
       final response = await _client.get<dynamic>(
-        'https://api.mdblist.com/tmdb/${kind == 'series' ? 'show' : 'movie'}'
-        '/$tmdbId',
-        queryParameters: <String, String>{'apikey': defaultMdbListKey},
+        'https://api.mdblist.com$path',
+        queryParameters: accountToken == null
+            ? <String, String>{
+                'apikey': _mdblistUserKey ?? defaultMdbListKey,
+              }
+            : null,
+        options: accountToken == null
+            ? null
+            : Options(headers: {'Authorization': 'Bearer $accountToken'}),
       );
       final data = response.data;
-      if (data is! Map) return null;
+      if (data is! Map) return const {};
+      final values = <String, dynamic>{};
+      const sources = <String, String>{
+        'imdb': 'imdb',
+        'tmdb': 'tmdb',
+        'tomatoes': 'rottenTomatoes',
+        'metacritic': 'metacritic',
+        'trakt': 'trakt',
+        'letterboxd': 'letterboxd',
+        'popcorn': 'audience',
+        'audience': 'audience',
+        'tomatoesaudience': 'audience',
+        'mal': 'mal',
+        'myanimelist': 'mal',
+      };
+      for (final raw
+          in data['ratings'] is List ? data['ratings'] as List : const []) {
+        if (raw is! Map) continue;
+        final source = sources[raw['source']?.toString().toLowerCase()];
+        final value = _asDouble(raw['value']);
+        if (source == null || value == null || value < 0) continue;
+        final maximum = switch (source) {
+          'imdb' || 'mal' => 10,
+          'letterboxd' => 5,
+          _ => 100,
+        };
+        if (value > maximum) continue;
+        final normalized = source == 'letterboxd' && raw['score'] is num
+            ? (raw['score'] as num).toDouble() / 20
+            : (source == 'tmdb' || source == 'trakt') && value > 10
+                ? value / 10
+                : value;
+        values[source] = <String, dynamic>{'rating': normalized, 'votes': null};
+      }
       var score = _asDouble(data['score_average']) ??
           _asDouble(data['score']) ??
           _asDouble(data['rating']);
@@ -787,10 +1002,12 @@ class NoorApi {
         score =
             _asDouble(scores['score_average']) ?? _asDouble(scores['average']);
       }
-      if (score == null) return null;
-      return <String, dynamic>{'rating': score, 'votes': null};
+      if (score != null) {
+        values['mdblist'] = <String, dynamic>{'rating': score, 'votes': null};
+      }
+      return values;
     } catch (_) {
-      return null;
+      return const {};
     }
   }
 
@@ -1307,6 +1524,19 @@ class NoorApi {
   Future<Map<String, dynamic>?> startLinkedService(String service) async {
     try {
       switch (service) {
+        case 'mdblist':
+          {
+            final response = await _client.post<dynamic>(
+              'https://api.mdblist.com/oauth/device-authorization/',
+              data: <String, String>{
+                'client_id': defaultMdbListClientId,
+                'scope': 'write',
+              },
+              options:
+                  Options(contentType: 'application/x-www-form-urlencoded'),
+            );
+            return _asMap(response.data);
+          }
         case 'simkl':
           {
             // Simkl registers this client as an OAuth 2.0 app: the legacy
@@ -1345,6 +1575,26 @@ class NoorApi {
   ) async {
     try {
       switch (service) {
+        case 'mdblist':
+          {
+            final code = start['device_code']?.toString() ?? '';
+            if (code.isEmpty) return const {'status': 'error'};
+            final response = await _client.post<dynamic>(
+              'https://api.mdblist.com/oauth/token/',
+              data: <String, String>{
+                'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
+                'device_code': code,
+                'client_id': defaultMdbListClientId,
+              },
+              options:
+                  Options(contentType: 'application/x-www-form-urlencoded'),
+            );
+            final body = _asMap(response.data);
+            if (await _storeMdbListTokens(body)) {
+              return const {'status': 'success'};
+            }
+            return const {'status': 'error'};
+          }
         case 'simkl':
           {
             // The confidential Simkl client secret lives only in the Edge
@@ -1393,7 +1643,13 @@ class NoorApi {
       // Simkl signals pending via a 400/429 body (authorization_pending /
       // slow_down); expired_token means the device code timed out.
       if (status == 400 || status == 429) {
-        if (detail.contains('pending') || detail.contains('slow_down')) {
+        if (detail.contains('slow_down')) {
+          return <String, dynamic>{
+            'status': 'pending',
+            'interval': ((start['interval'] as num?)?.toInt() ?? 5) + 5,
+          };
+        }
+        if (detail.contains('pending')) {
           return <String, dynamic>{'status': 'pending'};
         }
       }
@@ -1422,6 +1678,88 @@ class NoorApi {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<bool> _storeMdbListTokens(Map<String, dynamic>? body,
+      {String? previousRefresh}) async {
+    final access = body?['access_token']?.toString();
+    final refresh = body?['refresh_token']?.toString() ?? previousRefresh;
+    final seconds = (body?['expires_in'] as num?)?.toInt();
+    if (access == null ||
+        access.isEmpty ||
+        refresh == null ||
+        refresh.isEmpty ||
+        seconds == null ||
+        seconds <= 0 ||
+        body?['token_type']?.toString().toLowerCase() != 'bearer') {
+      return false;
+    }
+    if (body?['scope'] != null &&
+        !body!['scope'].toString().split(RegExp(r'\s+')).contains('write')) {
+      return false;
+    }
+    await _secure.write(key: _serviceTokenKey('mdblist'), value: access);
+    await _secure.write(key: _mdblistRefreshKey, value: refresh);
+    _mdblistExpiresAt = DateTime.now().add(Duration(seconds: seconds));
+    await _secure.write(
+        key: _mdblistExpiryKey,
+        value: _mdblistExpiresAt!.millisecondsSinceEpoch.toString());
+    _serviceTokens['mdblist'] = access;
+    return true;
+  }
+
+  Future<String?> _validMdbListAccessToken() async {
+    final token = _serviceTokens['mdblist'];
+    if (token == null || token.isEmpty) return null;
+    final expiry = _mdblistExpiresAt;
+    if (expiry == null ||
+        DateTime.now().isBefore(expiry.subtract(const Duration(minutes: 5)))) {
+      return token;
+    }
+    return _mdblistRefreshInFlight ??= _refreshMdbListToken().whenComplete(() {
+      _mdblistRefreshInFlight = null;
+    });
+  }
+
+  Future<String?> _refreshMdbListToken() async {
+    final refresh = await _secure.read(key: _mdblistRefreshKey);
+    if (refresh == null || refresh.isEmpty) {
+      await _clearMdbListTokens();
+      return null;
+    }
+    try {
+      final response = await _client.post<dynamic>(
+        'https://api.mdblist.com/oauth/token/',
+        data: <String, String>{
+          'grant_type': 'refresh_token',
+          'refresh_token': refresh,
+          'client_id': defaultMdbListClientId,
+        },
+        options: Options(contentType: 'application/x-www-form-urlencoded'),
+      );
+      if (await _storeMdbListTokens(_asMap(response.data),
+          previousRefresh: refresh)) {
+        return _serviceTokens['mdblist'];
+      }
+    } on DioException catch (error) {
+      final code = _asMap(error.response?.data)?['error']?.toString();
+      if (code == 'invalid_grant' || code == 'invalid_token') {
+        await _clearMdbListTokens();
+        return null;
+      }
+    } catch (_) {}
+    final expiry = _mdblistExpiresAt;
+    return expiry != null && DateTime.now().isBefore(expiry)
+        ? _serviceTokens['mdblist']
+        : null;
+  }
+
+  Future<void> _clearMdbListTokens() async {
+    _serviceTokens.remove('mdblist');
+    _mdblistExpiresAt = null;
+    await _secure.delete(key: _serviceTokenKey('mdblist'));
+    await _secure.delete(key: _mdblistRefreshKey);
+    await _secure.delete(key: _mdblistExpiryKey);
   }
 
   // --------------------------------------------------------------------------
@@ -1776,6 +2114,80 @@ query {
     final page = _asMap(data?['Page']);
     final media = page?['media'];
     return media is List ? media : const <dynamic>[];
+  }
+
+  /// Public title variants for Simkl anime rows; one bounded GraphQL request
+  /// per 50 ids, cached for the lifetime of the account session.
+  Future<Map<String, Map<String, String>>> animeTitleVariants(
+      Iterable<int> aniListIds, Iterable<int> malIds) async {
+    const query = r'''
+query ($ids: [Int], $malIds: [Int], $perPage: Int) {
+  byAniList: Page(page: 1, perPage: $perPage) {
+    media(id_in: $ids, type: ANIME) {
+      id idMal title { english romaji native }
+    }
+  }
+  byMal: Page(page: 1, perPage: $perPage) {
+    media(idMal_in: $malIds, type: ANIME) {
+      id idMal title { english romaji native }
+    }
+  }
+}''';
+    final ids = aniListIds.toSet().toList();
+    final mals = malIds.toSet().toList();
+    final missingIds = ids
+        .where((id) => !_animeTitleVariants.containsKey('anilist:$id'))
+        .toList();
+    final missingMals = mals
+        .where((id) => !_animeTitleVariants.containsKey('mal:$id'))
+        .toList();
+    for (var index = 0;
+        index < missingIds.length || index < missingMals.length;
+        index += 50) {
+      final idBatch = missingIds.skip(index).take(50).toList();
+      final malBatch = missingMals.skip(index).take(50).toList();
+      final data = await _aniListQuery(
+          query,
+          {
+            'ids': idBatch,
+            'malIds': malBatch,
+            'perPage': 50,
+          },
+          auth: false);
+      if (data == null) continue;
+      for (final pageName in const ['byAniList', 'byMal']) {
+        final page = _asMap(data[pageName]);
+        for (final raw in page?['media'] as List? ?? const []) {
+          final media = _asMap(raw);
+          final title = _asMap(media?['title']);
+          if (media == null || title == null) continue;
+          final variants = <String, String>{
+            for (final name in const ['english', 'romaji', 'native'])
+              if (title[name]?.toString().trim().isNotEmpty == true)
+                name: title[name].toString().trim(),
+          };
+          if (media['id'] is num) {
+            _animeTitleVariants['anilist:${media['id']}'] = variants;
+          }
+          if (media['idMal'] is num) {
+            _animeTitleVariants['mal:${media['idMal']}'] = variants;
+          }
+        }
+      }
+      // Empty or unavailable matches keep the original Simkl title.
+      for (final id in idBatch) {
+        _animeTitleVariants.putIfAbsent('anilist:$id', () => const {});
+      }
+      for (final id in malBatch) {
+        _animeTitleVariants.putIfAbsent('mal:$id', () => const {});
+      }
+    }
+    return {
+      for (final id in ids)
+        'anilist:$id': _animeTitleVariants['anilist:$id'] ?? const {},
+      for (final id in mals)
+        'mal:$id': _animeTitleVariants['mal:$id'] ?? const {},
+    };
   }
 
   static const String _aniListSearchQuery = r'''
@@ -2446,19 +2858,12 @@ query ($userId: Int) {
     final token = await _validMalAccessToken();
     if (token == null) return const <dynamic>[];
     try {
-      final response = await _client.get<dynamic>(
-        '$malApiBase/users/@me/animelist',
-        queryParameters: <String, String>{
-          'limit': '500',
-          'nsfw': 'true',
-          'fields':
-              'id,title,main_picture{large},start_season{year},media_type,'
-                  'list_status{status,score,num_episodes_watched,updated_at}',
-        },
-        options: Options(headers: await _malBearer(token)),
-      );
-      final data = _asMap(response.data);
-      final rows = data?['data'] is List ? data!['data'] as List : const [];
+      final rows = await _malListRows(token, <String, String>{
+        'limit': '500',
+        'nsfw': 'true',
+        'fields': 'id,title,main_picture{large},start_season{year},media_type,'
+            'list_status{status,score,num_episodes_watched,updated_at}',
+      });
       return rows
           .map((row) => _mapMalListRow(row, kind))
           .whereType<Map<String, dynamic>>()
@@ -2817,14 +3222,124 @@ query ($userId: Int) {
           },
         ),
       );
-      final user = _asMap(response.data)?['user'];
-      final name = user is Map ? user['username']?.toString() : null;
+      final data = _asMap(response.data);
+      final user = _asMap(data?['user']) ?? data;
+      final name = user?['username']?.toString();
       return (name == null || name.isEmpty) ? null : name;
     } on DioException catch (error) {
       // Revoked/expired session that the proactive refresh could not see —
       // drop the stored pair so the UI falls back to the disconnected card.
       if (error.response?.statusCode == 401) await _clearTraktTokens();
       return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> traktProfile() async {
+    final access = await _validTraktAccessToken();
+    if (access == null) return null;
+    try {
+      final response = await _client.get<dynamic>(
+        '$traktBaseUrl/users/me',
+        queryParameters: const {'extended': 'full'},
+        options: Options(headers: {
+          'trakt-api-version': '2',
+          'trakt-api-key': defaultTraktClientId,
+          'Authorization': 'Bearer $access',
+        }),
+      );
+      final body = _asMap(response.data);
+      return _asMap(body?['user']) ?? body;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> traktComments(
+      {required String mediaId, required String type}) async {
+    if (!RegExp(r'^tt\d+$').hasMatch(mediaId)) return const [];
+    final kind = type == 'series' ? 'shows' : 'movies';
+    try {
+      final token = await _validTraktAccessToken();
+      final response = await _client.get<dynamic>(
+        '$traktBaseUrl/$kind/$mediaId/comments/likes',
+        queryParameters: const {'page': 1, 'limit': 12, 'extended': 'images'},
+        options: Options(headers: {
+          'trakt-api-version': '2',
+          'trakt-api-key': defaultTraktClientId,
+          if (token != null) 'Authorization': 'Bearer $token',
+        }),
+      );
+      return [
+        for (final raw in response.data as List? ?? const [])
+          if (_asMap(raw) case final row?)
+            {
+              'source': 'trakt',
+              'id': row['id'],
+              'text': row['comment']?.toString() ?? '',
+              'spoiler': row['spoiler'] == true,
+              'username': _asMap(row['user'])?['username']?.toString() ?? '',
+              'createdAt': row['created_at']?.toString(),
+              'url': 'https://trakt.tv/comments/${row['id']}',
+            },
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static const String _aniListThreadsQuery = r'''
+query ($mediaId: Int) {
+  Page(page: 1, perPage: 10) {
+    threads(mediaCategoryId: $mediaId, sort: [ID_DESC]) {
+      id title body(asHtml: true) replyCount siteUrl createdAt
+      user { name }
+    }
+  }
+}''';
+
+  Future<List<Map<String, dynamic>>> aniListThreads(int mediaId) async {
+    if (mediaId <= 0) return const [];
+    final data = await _aniListQuery(_aniListThreadsQuery, {'mediaId': mediaId},
+        auth: false);
+    final page = _asMap(data?['Page']);
+    return [
+      for (final raw in page?['threads'] as List? ?? const [])
+        if (_asMap(raw) case final row?)
+          {
+            'source': 'anilist',
+            'id': row['id'],
+            'title': row['title']?.toString() ?? '',
+            'text': row['body']?.toString() ?? '',
+            'spoiler': false,
+            'username': _asMap(row['user'])?['name']?.toString() ?? '',
+            'createdAt': row['createdAt']?.toString(),
+            'url': row['siteUrl']?.toString(),
+            'replies': row['replyCount'],
+          },
+    ];
+  }
+
+  Future<Map<String, dynamic>?> simklProfile() async {
+    final token = _serviceTokens['simkl'];
+    if (token == null || token.isEmpty) return null;
+    try {
+      final response = await _client.post<dynamic>(
+        '$simklBaseUrl/users/settings',
+        queryParameters: {
+          'client_id': defaultSimklClientId,
+          'app-name': 'nova',
+          'app-version': noorVersion,
+        },
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'simkl-api-key': defaultSimklClientId,
+          'User-Agent': 'nova/$noorVersion',
+          'Content-Type': 'application/json',
+        }),
+      );
+      return _asMap(response.data);
     } catch (_) {
       return null;
     }
@@ -2898,6 +3413,10 @@ query ($userId: Int) {
   Future<void> _clearTraktTokens() async {
     _serviceTokens.remove('trakt');
     _traktExpiresAt = null;
+    _traktSyncState = null;
+    _traktActivities = null;
+    _traktActivitiesAt = null;
+    await _clearTraktSyncState();
     await _secure.delete(key: _serviceTokenKey('trakt'));
     await _secure.delete(key: _traktRefreshKey);
     await _secure.delete(key: _traktExpiryKey);
@@ -2913,9 +3432,45 @@ query ($userId: Int) {
   Future<void> _storeServiceToken(String service, String token) async {
     _serviceTokens[service] = token;
     await _secure.write(key: _serviceTokenKey(service), value: token);
+    if (service == 'simkl') {
+      _simklSyncCheckedAt = null;
+      _simklSyncState = null;
+      await _clearSimklSyncState();
+    }
+    if (service == 'trakt') {
+      _traktActivities = null;
+      _traktActivitiesAt = null;
+      _traktSyncState = null;
+      await _clearTraktSyncState();
+    }
   }
 
   Future<void> unlinkService(String service) async {
+    if (service == 'mdblist') {
+      final refresh = await _secure.read(key: _mdblistRefreshKey);
+      if (refresh != null && refresh.isNotEmpty) {
+        try {
+          await _client.post<dynamic>(
+            'https://api.mdblist.com/oauth/revoke_token/',
+            data: <String, String>{
+              'client_id': defaultMdbListClientId,
+              'token': refresh,
+              'token_type_hint': 'refresh_token',
+            },
+            options: Options(contentType: 'application/x-www-form-urlencoded'),
+          );
+        } catch (_) {}
+      }
+      await _clearMdbListTokens();
+      _mdblistSyncState = null;
+      _mdblistSyncCheckedAt = null;
+      final id = _accountId;
+      if (id != null) {
+        _preferences ??= await SharedPreferences.getInstance();
+        await _preferences!.remove('nova.account.$id.mdblist.sync.v1');
+      }
+      return;
+    }
     if (service == 'trakt') {
       // Documented remote revocation before dropping the local session —
       // works with just the token + client_id for PKCE apps (verified live:
@@ -2958,6 +3513,11 @@ query ($userId: Int) {
     }
     _serviceTokens.remove(service);
     await _secure.delete(key: _serviceTokenKey(service));
+    if (service == 'simkl') {
+      _simklSyncCheckedAt = null;
+      _simklSyncState = null;
+      await _clearSimklSyncState();
+    }
   }
 
   /// Mirrors a local watchlist change to the linked Trakt account via the
@@ -2995,6 +3555,94 @@ query ($userId: Int) {
           },
         ),
       );
+      _traktActivitiesAt = null;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> pushMdbListWatchlist({
+    required String type,
+    required String imdb,
+    required bool add,
+  }) async {
+    if (!RegExp(r'^tt\d+$').hasMatch(imdb)) return false;
+    final token = await _validMdbListAccessToken();
+    if (token == null) return false;
+    final bucket = type == 'series' ? 'shows' : 'movies';
+    try {
+      await _client.post<dynamic>(
+        'https://api.mdblist.com/watchlist/items/${add ? 'add' : 'remove'}',
+        data: {
+          bucket: [
+            add
+                ? {
+                    'ids': {'imdb': imdb}
+                  }
+                : {'imdb': imdb},
+          ],
+        },
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      _mdblistSyncCheckedAt = null;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mirrors a planning-list edit without deleting an existing watched item.
+  /// Simkl's remove endpoint also removes history, so removal is restricted to
+  /// a title currently known to be in the planning status.
+  Future<bool> pushSimklWatchlist({
+    required String type,
+    required String imdb,
+    required bool add,
+  }) async {
+    final token = _serviceTokens['simkl'];
+    if (token == null || token.isEmpty || !imdb.startsWith('tt')) return false;
+    try {
+      if (!add) {
+        final state = await _simklState(token);
+        final items = _asMap(state['items']);
+        if (items == null ||
+            !items.values.any((raw) {
+              final row = _asMap(raw);
+              return row?['imdb'] == imdb && row?['status'] == 'plantowatch';
+            })) {
+          return false;
+        }
+      }
+      final item = <String, dynamic>{
+        if (add) 'to': 'plantowatch',
+        'ids': <String, dynamic>{'imdb': imdb},
+      };
+      final body = type == 'series'
+          ? <String, dynamic>{
+              'shows': [item]
+            }
+          : <String, dynamic>{
+              'movies': [item]
+            };
+      final response = await _client.post<dynamic>(
+        '$simklBaseUrl/sync/${add ? 'add-to-list' : 'history/remove'}',
+        data: body,
+        options: Options(headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+          'simkl-api-key': defaultSimklClientId,
+          'User-Agent': 'nova/$noorVersion',
+        }),
+      );
+      final result = _asMap(response.data);
+      final notFound = _asMap(result?['not_found']);
+      final section = type == 'series' ? 'shows' : 'movies';
+      if (notFound?[section] is List &&
+          (notFound![section] as List).isNotEmpty) {
+        return false;
+      }
+      _simklSyncCheckedAt = null;
       return true;
     } catch (_) {
       return false;
@@ -3047,6 +3695,7 @@ query ($userId: Int) {
             'trakt-api-key': defaultTraktClientId,
           }),
         );
+        _traktActivitiesAt = null;
       } else if (service == 'simkl') {
         final token = _serviceTokens['simkl'];
         if (token == null || token.isEmpty) return;
@@ -3066,6 +3715,32 @@ query ($userId: Int) {
             'User-Agent': 'nova/$noorVersion',
           }),
         );
+      } else if (service == 'mdblist') {
+        final token = await _validMdbListAccessToken();
+        if (token == null) return;
+        final watchedAt = DateTime.now().toUtc().toIso8601String();
+        await _client.post<dynamic>(
+          'https://api.mdblist.com/sync/watched',
+          data: {
+            'shows': [
+              {
+                'ids': {'imdb': imdb},
+                'seasons': [
+                  for (final season in bySeason.keys.toList()..sort())
+                    {
+                      'number': season,
+                      'episodes': [
+                        for (final number in bySeason[season]!.toList()..sort())
+                          {'number': number, 'watched_at': watchedAt},
+                      ],
+                    },
+                ],
+              },
+            ],
+          },
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        _mdblistSyncCheckedAt = null;
       }
     } catch (_) {
       // Remote history sync must never block local watched state.
@@ -3091,6 +3766,9 @@ query ($userId: Int) {
           return await _syncAniList(kind: kind);
         case 'mal':
           return await _syncMal(kind: kind);
+        case 'mdblist':
+          final state = await _mdblistState();
+          return List<dynamic>.from(state[kind] as List? ?? const []);
         default:
           return const <dynamic>[];
       }
@@ -3128,37 +3806,169 @@ query ($userId: Int) {
     }
   }
 
+  Future<List<dynamic>> simklTrending() async {
+    if (_simklTrendingCache != null &&
+        _simklTrendingAt != null &&
+        DateTime.now().difference(_simklTrendingAt!) <
+            const Duration(hours: 1)) {
+      return _simklTrendingCache!;
+    }
+    final response = await _client.get<dynamic>(
+      Uri.parse('https://data.simkl.in/discover/trending/today_100.json')
+          .replace(
+              queryParameters: {'client_id': defaultSimklClientId}).toString(),
+      options: Options(headers: {'User-Agent': 'nova/$noorVersion'}),
+    );
+    final data = _asMap(response.data);
+    if (data == null) throw const FormatException('Invalid Simkl trending');
+    final rows = <Map<String, dynamic>>[];
+    for (final section in const ['movies', 'tv', 'anime']) {
+      for (final raw in (data[section] as List? ?? const []).take(12)) {
+        final entry = _asMap(raw);
+        final ids = _asMap(entry?['ids']);
+        final imdb = ids?['imdb']?.toString();
+        final fallbackId = ids?['anilist'] != null
+            ? 'anilist:${ids!['anilist']}'
+            : ids?['mal'] != null
+                ? 'mal:${ids!['mal']}'
+                : ids?['simkl_id'] != null
+                    ? 'simkl:${ids!['simkl_id']}'
+                    : null;
+        final title = entry?['title']?.toString();
+        if (title == null ||
+            title.isEmpty ||
+            (imdb?.startsWith('tt') != true && fallbackId == null)) {
+          continue;
+        }
+        rows.add({
+          'type': section == 'movies' ||
+                  (section == 'anime' && entry?['anime_type'] == 'movie')
+              ? 'movie'
+              : 'series',
+          'imdb': imdb,
+          'id': imdb?.startsWith('tt') == true ? imdb : fallbackId,
+          'title': title,
+          'section': section == 'tv' ? 'shows' : section,
+        });
+      }
+    }
+    _simklTrendingAt = DateTime.now();
+    _simklTrendingCache = rows;
+    return rows;
+  }
+
   Future<List<dynamic>> _syncTrakt({required String kind}) async {
-    // Transparently refreshes an expiring token before the request.
-    final token = await _validTraktAccessToken();
-    if (token == null) return const <dynamic>[];
-    final Uri uri = kind == 'history'
-        ? Uri.parse('$traktBaseUrl/users/me/history')
-            .replace(queryParameters: <String, String>{'limit': '50'})
-        : Uri.parse('$traktBaseUrl/users/me/watchlist');
+    if (kind != 'history' && kind != 'watchlist') return const [];
+    final pending = _traktSyncInFlight[kind];
+    if (pending != null) return pending;
+    final request = _fetchTraktRows(kind);
+    _traktSyncInFlight[kind] = request;
     try {
-      final response = await _client.get<dynamic>(
-        uri.toString(),
-        options: Options(
-          headers: <String, String>{
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-            'trakt-api-version': '2',
-            'trakt-api-key': defaultTraktClientId,
+      return await request;
+    } finally {
+      if (identical(_traktSyncInFlight[kind], request)) {
+        _traktSyncInFlight.remove(kind);
+      }
+    }
+  }
+
+  String? get _traktStateKey =>
+      _accountId == null ? null : 'nova.account.$_accountId.trakt.sync.v1';
+
+  Future<void> _clearTraktSyncState() async {
+    final key = _traktStateKey;
+    if (key != null) await _preferences?.remove(key);
+  }
+
+  Future<Map<String, dynamic>> _readTraktActivities(String token) async {
+    if (_traktActivities != null &&
+        _traktActivitiesAt != null &&
+        DateTime.now().difference(_traktActivitiesAt!) <
+            const Duration(minutes: 1)) {
+      return _traktActivities!;
+    }
+    final response = await _client.get<dynamic>(
+      '$traktBaseUrl/sync/last_activities',
+      options: Options(headers: <String, String>{
+        'Authorization': 'Bearer $token',
+        'trakt-api-version': '2',
+        'trakt-api-key': defaultTraktClientId,
+      }),
+    );
+    final data = _asMap(response.data) ??
+        (throw const FormatException('Invalid Trakt activities'));
+    _traktActivities = data;
+    _traktActivitiesAt = DateTime.now();
+    return data;
+  }
+
+  Future<List<dynamic>> _fetchTraktRows(String kind) async {
+    final token = await _validTraktAccessToken();
+    if (token == null) return const [];
+    _preferences ??= await SharedPreferences.getInstance();
+    final key = _traktStateKey;
+    final account = _accountId;
+    Map<String, dynamic>? previous = _traktSyncState;
+    if (previous == null && key != null) {
+      try {
+        previous = _asMap(jsonDecode(_preferences!.getString(key) ?? ''));
+      } catch (_) {
+        previous = null;
+      }
+    }
+    final cached = previous?[kind] is List
+        ? List<dynamic>.from(previous![kind] as List)
+        : <dynamic>[];
+    try {
+      final activity = await _readTraktActivities(token);
+      final all = activity['all']?.toString();
+      if (all != null && all == previous?['${kind}Activity']) {
+        return cached;
+      }
+      final headers = <String, String>{
+        'Authorization': 'Bearer $token',
+        'trakt-api-version': '2',
+        'trakt-api-key': defaultTraktClientId,
+      };
+      final rows = <Map<String, dynamic>>[];
+      var page = 1;
+      var totalPages = 1;
+      do {
+        final uri = Uri.parse('$traktBaseUrl/users/me/$kind').replace(
+          queryParameters: <String, String>{
+            'page': '$page',
+            'limit': '100',
           },
-        ),
-      );
-      final items =
-          response.data is List ? response.data as List : const <dynamic>[];
-      return items
-          .map(_mapTraktItem)
-          .whereType<Map<String, dynamic>>()
-          .toList(growable: false);
+        );
+        final response = await _client.get<dynamic>(uri.toString(),
+            options: Options(headers: headers));
+        final items =
+            response.data is List ? response.data as List : const <dynamic>[];
+        rows.addAll(items.map(_mapTraktItem).whereType<Map<String, dynamic>>());
+        totalPages = int.tryParse(
+                response.headers.value('x-pagination-page-count') ?? '') ??
+            1;
+        if (items.isEmpty) break;
+        page++;
+      } while (page <= totalPages);
+      if (account == _accountId && token == _serviceTokens['trakt']) {
+        final state = <String, dynamic>{
+          ...?previous,
+          kind: rows,
+          '${kind}Activity': all
+        };
+        _traktSyncState = state;
+        if (key != null) await _preferences!.setString(key, jsonEncode(state));
+      }
+      return rows;
     } on DioException catch (error) {
-      // Token revoked server-side (or hard-expired without expiry metadata):
-      // drop the session so the integrations card returns to "connect".
-      if (error.response?.statusCode == 401) await _clearTraktTokens();
-      return const <dynamic>[];
+      if (error.response?.statusCode == 401) {
+        await _clearTraktTokens();
+        return const [];
+      }
+      return cached;
+    } catch (_) {
+      return cached;
     }
   }
 
@@ -3180,6 +3990,7 @@ query ($userId: Int) {
     }
     // show / season / episode entries all resolve to the parent show.
     final show = _asMap(entry['show']);
+    final episode = _asMap(entry['episode']);
     final title = show?['title']?.toString();
     if (title == null || title.isEmpty) return null;
     return <String, dynamic>{
@@ -3187,6 +3998,8 @@ query ($userId: Int) {
       'imdb': _asMap(show?['ids'])?['imdb']?.toString(),
       'title': title,
       'year': show?['year'],
+      if (episode?['season'] is num) 'season': episode!['season'],
+      if (episode?['number'] is num) 'episode': episode!['number'],
       if (watchedAt != null) 'watchedAt': watchedAt,
     };
   }
@@ -3195,67 +4008,617 @@ query ($userId: Int) {
     required String token,
     required String kind,
   }) async {
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-      'simkl-api-key': defaultSimklClientId,
-    };
-    // History: try /sync/history first, fall back to the full event log.
-    final urls = <String>[
-      kind == 'history'
-          ? '$simklBaseUrl/sync/history'
-          : '$simklBaseUrl/sync/watchlist',
-      if (kind == 'history') '$simklBaseUrl/sync/all-events/',
-    ];
-    Map<String, dynamic>? data;
-    for (final url in urls) {
-      try {
-        final response = await _client.get<dynamic>(
-          url,
-          options: Options(headers: headers),
-        );
-        data = _asMap(response.data);
-        if (data != null) break;
-      } on DioException catch (error) {
-        if (error.response?.statusCode == 404 && url != urls.last) continue;
-        rethrow;
-      }
-    }
-    if (data == null) return const <dynamic>[];
-
-    final sections = <String, String>{
-      'movies': 'movie',
-      'shows': 'series',
-      'anime': 'series',
-      'episodes': 'series',
-    };
+    final state = await _simklState(token);
+    final rows = _asMap(state['items']);
+    if (rows == null) return const <dynamic>[];
     final result = <Map<String, dynamic>>[];
-    final seen = <String>{};
-    for (final section in sections.entries) {
-      final rows = data[section.key];
-      if (rows is! List) continue;
-      for (final row in rows) {
-        final entry = _asMap(row);
-        if (entry == null) continue;
-        final meta = _asMap(entry['movie']) ?? _asMap(entry['show']);
-        final title = meta?['title']?.toString();
-        if (title == null || title.isEmpty) continue;
-        final imdb = _asMap(meta?['ids'])?['imdb']?.toString();
-        final dedupeKey = '${section.value}|${imdb ?? title.toLowerCase()}';
-        if (!seen.add(dedupeKey)) continue;
-        final watchedAt = _epochMillis(
-          entry['watched_at'] ?? entry['last_watched_at'] ?? entry['added_at'],
-        );
-        result.add(<String, dynamic>{
-          'type': section.value,
-          'imdb': imdb,
-          'title': title,
-          'year': meta?['year'],
-          if (watchedAt != null) 'watchedAt': watchedAt,
-        });
+    for (final value in rows.values) {
+      final entry = _asMap(value);
+      if (entry == null) continue;
+      final base = <String, dynamic>{
+        'type': entry['type'],
+        'id': entry['id'],
+        'imdb': entry['imdb'],
+        'title': entry['title'],
+        'year': entry['year'],
+        'section': entry['section'],
+        'status': entry['status'],
+        'nextToWatch': entry['nextToWatch'],
+        'nextDate': entry['nextDate'],
+        'anilist': entry['anilist'],
+        'mal': entry['mal'],
+      };
+      if (kind == 'all') {
+        result.add(base);
+        continue;
+      }
+      if (kind == 'watchlist') {
+        if (entry['status'] == 'plantowatch') result.add(base);
+        continue;
+      }
+      final watchedAt = entry['watchedAt'];
+      if (entry['type'] == 'movie') {
+        if (watchedAt != null) result.add({...base, 'watchedAt': watchedAt});
+        continue;
+      }
+      for (final episode in (entry['episodes'] as List? ?? const [])) {
+        final e = _asMap(episode);
+        if (e == null) continue;
+        result.add({...base, ...e});
       }
     }
     return result;
+  }
+
+  String? get _mdblistStateKey =>
+      _accountId == null ? null : 'nova.account.$_accountId.mdblist.sync.v1';
+
+  Future<Map<String, dynamic>> _mdblistState() async {
+    if (_mdblistSyncCheckedAt != null &&
+        _mdblistSyncState != null &&
+        DateTime.now().difference(_mdblistSyncCheckedAt!) <
+            const Duration(minutes: 5)) {
+      return _mdblistSyncState!;
+    }
+    final pending = _mdblistSyncInFlight;
+    if (pending != null) return pending;
+    final request = _fetchMdbListState();
+    _mdblistSyncInFlight = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_mdblistSyncInFlight, request)) {
+        _mdblistSyncInFlight = null;
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchMdbListState() async {
+    final token = await _validMdbListAccessToken();
+    if (token == null) return const {};
+    _preferences ??= await SharedPreferences.getInstance();
+    final account = _accountId;
+    final key = _mdblistStateKey;
+    Map<String, dynamic>? previous = _mdblistSyncState;
+    if (previous == null && key != null) {
+      try {
+        previous = _asMap(jsonDecode(_preferences!.getString(key) ?? ''));
+      } catch (_) {}
+    }
+    try {
+      final activities =
+          _asMap(await _mdbListGet(token, '/sync/last_activities')) ??
+              const <String, dynamic>{};
+      final previousActivities = _asMap(previous?['activities']);
+      bool changed(List<String> keys) =>
+          previousActivities == null ||
+          keys.any((key) => previousActivities[key] != activities[key]);
+      final watchlistChanged =
+          changed(const ['watchlisted_at', 'list_updated_at']) ||
+              previous?['watchlist'] is! List;
+      final watchedChanged = changed(const [
+            'watched_at',
+            'season_watched_at',
+            'episode_watched_at',
+            'journal_at'
+          ]) ||
+          previous?['history'] is! List;
+      final playbackChanged =
+          changed(const ['paused_at', 'episode_paused_at']) ||
+              previous?['playback'] is! List;
+      if (!watchlistChanged && !watchedChanged && !playbackChanged) {
+        _mdblistSyncState = previous!;
+        _mdblistSyncCheckedAt = DateTime.now();
+        return previous;
+      }
+      final watchlistPages = watchlistChanged
+          ? await _mdbListPages(token, '/watchlist/items', {
+              'unified': 'true',
+              'append_to_response': 'poster,description,genres',
+            })
+          : const <dynamic>[];
+      final watchedPages = watchedChanged
+          ? await _mdbListPages(token, '/sync/watched', {
+              'append_to_response': 'poster',
+            })
+          : const <dynamic>[];
+      final playback = playbackChanged
+          ? await _mdbListGet(token, '/sync/playback')
+          : previous?['playback'];
+      final next = <String, dynamic>{
+        'activities': activities,
+        'watchlist': watchlistChanged
+            ? [
+                for (final page in watchlistPages)
+                  for (final row in _mdbListPageItems(page))
+                    if (_mapMdbListItem(row) case final item?) item,
+              ]
+            : previous!['watchlist'],
+        'history': watchedChanged
+            ? [
+                for (final page in watchedPages) ..._mapMdbListWatched(page),
+              ]
+            : previous!['history'],
+        'playback': playback is List ? playback : const <dynamic>[],
+      };
+      if (account == _accountId && token == _serviceTokens['mdblist']) {
+        _mdblistSyncState = next;
+        _mdblistSyncCheckedAt = DateTime.now();
+        if (key != null) await _preferences!.setString(key, jsonEncode(next));
+      }
+      return next;
+    } catch (_) {
+      if (previous != null) return previous;
+      rethrow;
+    }
+  }
+
+  Future<dynamic> _mdbListGet(String token, String path,
+      [Map<String, String> query = const {}]) async {
+    try {
+      final response = await _client.get<dynamic>(
+        'https://api.mdblist.com$path',
+        queryParameters: query,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return response.data;
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 401 &&
+          token == _serviceTokens['mdblist']) {
+        await _clearMdbListTokens();
+      }
+      rethrow;
+    }
+  }
+
+  Future<List<dynamic>> _mdbListPages(
+      String token, String path, Map<String, String> extras) async {
+    final pages = <dynamic>[];
+    final seen = <String>{};
+    var query = <String, String>{...extras, 'limit': '1000'};
+    while (true) {
+      if (!seen.add(jsonEncode(query))) {
+        throw const FormatException('Repeated MDBList page');
+      }
+      final page = await _mdbListGet(token, path, query);
+      pages.add(page);
+      final data = _asMap(page);
+      if (data == null) break;
+      final pagination = _asMap(data['pagination']) ?? data;
+      final cursor = pagination['next_cursor']?.toString();
+      if (cursor != null && cursor.isNotEmpty) {
+        query = {...extras, 'limit': '1000', 'cursor': cursor};
+        continue;
+      }
+      final hasMore = pagination['has_more'] == true;
+      final offset = (pagination['offset'] as num?)?.toInt();
+      final limit = (pagination['limit'] as num?)?.toInt();
+      final total = (pagination['total'] as num?)?.toInt();
+      if (hasMore ||
+          (offset != null &&
+              limit != null &&
+              total != null &&
+              offset + limit < total)) {
+        if (offset == null || limit == null || limit <= 0) {
+          throw const FormatException('Incomplete MDBList pagination');
+        }
+        query = {...extras, 'limit': '1000', 'offset': '${offset + limit}'};
+        continue;
+      }
+      break;
+    }
+    return pages;
+  }
+
+  Iterable<dynamic> _mdbListPageItems(dynamic page) sync* {
+    if (page is List) {
+      yield* page;
+      return;
+    }
+    final data = _asMap(page);
+    if (data == null) return;
+    for (final kind in const ['items', 'movies', 'shows']) {
+      for (final row in data[kind] as List? ?? const []) {
+        final mapped = _asMap(row);
+        if (mapped != null) {
+          yield {
+            ...mapped,
+            if (kind != 'items') 'type': kind == 'movies' ? 'movie' : 'show'
+          };
+        }
+      }
+    }
+  }
+
+  Map<String, dynamic>? _mapMdbListItem(Object? raw) {
+    final row = _asMap(raw);
+    if (row == null) return null;
+    final ids = _asMap(row['ids']) ?? const <String, dynamic>{};
+    final imdb = (ids['imdb'] ?? row['imdb_id'])?.toString();
+    final tmdb = ids['tmdb'] ?? row['id'];
+    final id = imdb?.startsWith('tt') == true
+        ? imdb
+        : tmdb == null
+            ? null
+            : 'tmdb:$tmdb';
+    final title = (row['title'] ?? row['name'])?.toString();
+    if (id == null || title == null || title.isEmpty) return null;
+    final type = row['mediatype'] ?? row['type'];
+    final movie = type?.toString().toLowerCase() == 'movie';
+    final rawPoster = row['poster']?.toString();
+    final poster = rawPoster?.startsWith('/') == true &&
+            rawPoster?.startsWith('//') != true
+        ? 'https://image.tmdb.org/t/p/w500$rawPoster'
+        : rawPoster;
+    return {
+      'id': id,
+      'imdb': imdb?.startsWith('tt') == true ? imdb : null,
+      'type': movie ? 'movie' : 'series',
+      'title': title,
+      'year': row['release_year'] ?? row['year'],
+      if (poster != null && poster.startsWith('https://')) 'poster': poster,
+    };
+  }
+
+  List<Map<String, dynamic>> _mapMdbListWatched(dynamic page) {
+    final data = _asMap(page);
+    if (data == null) return const [];
+    final result = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    void append(Map<String, dynamic>? item, Object? watchedAt,
+        {int? season, int? episode}) {
+      if (item == null) return;
+      final time = _epochMillis(watchedAt);
+      if (time == null) return;
+      final identity = '${item['id']}:$season:$episode';
+      if (!seen.add(identity)) return;
+      result.add({
+        ...item,
+        'watchedAt': time,
+        if (season != null) 'season': season,
+        if (episode != null) 'episode': episode,
+      });
+    }
+
+    for (final raw in data['movies'] as List? ?? const []) {
+      final row = _asMap(raw);
+      final movie = _asMap(row?['movie']);
+      append(_mapMdbListItem({...?movie, 'type': 'movie'}),
+          row?['last_watched_at'] ?? row?['watched_at']);
+    }
+    for (final raw in data['shows'] as List? ?? const []) {
+      final row = _asMap(raw);
+      final show = _asMap(row?['show']);
+      final item = _mapMdbListItem({...?show, 'type': 'show'});
+      for (final seasonRaw in row?['seasons'] as List? ?? const []) {
+        final seasonRow = _asMap(seasonRaw);
+        final season = (seasonRow?['number'] as num?)?.toInt();
+        if (season == null) continue;
+        for (final episodeRaw in seasonRow?['episodes'] as List? ?? const []) {
+          final e = _asMap(episodeRaw);
+          append(item, e?['last_watched_at'] ?? e?['watched_at'],
+              season: season, episode: (e?['number'] as num?)?.toInt());
+        }
+      }
+    }
+    for (final raw in data['episodes'] as List? ?? const []) {
+      final row = _asMap(raw);
+      final episodeRow = _asMap(row?['episode']);
+      final show = _asMap(row?['show']) ?? _asMap(episodeRow?['show']);
+      append(_mapMdbListItem({...?show, 'type': 'show'}),
+          row?['last_watched_at'] ?? row?['watched_at'],
+          season: (episodeRow?['season'] as num?)?.toInt(),
+          episode: (episodeRow?['number'] as num?)?.toInt());
+    }
+    return result;
+  }
+
+  Future<List<dynamic>> mdbListPlayback() async {
+    if (!isLinked('mdblist')) return const [];
+    try {
+      final state = await _mdblistState();
+      return List<dynamic>.from(state['playback'] as List? ?? const []);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String? get _simklStateKey =>
+      _accountId == null ? null : 'nova.account.$_accountId.simkl.sync.v2';
+
+  Future<void> _clearSimklSyncState() async {
+    final key = _simklStateKey;
+    if (key != null) await _preferences?.remove(key);
+  }
+
+  Future<Map<String, dynamic>> _simklState(String token) async {
+    if (_simklSyncCheckedAt != null &&
+        DateTime.now().difference(_simklSyncCheckedAt!) <
+            const Duration(minutes: 1) &&
+        _simklSyncState != null) {
+      return _simklSyncState!;
+    }
+    final pending = _simklSyncInFlight;
+    if (pending != null) return pending;
+    final request = _fetchSimklState(token);
+    _simklSyncInFlight = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_simklSyncInFlight, request)) _simklSyncInFlight = null;
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchSimklState(String token) async {
+    _preferences ??= await SharedPreferences.getInstance();
+    final account = _accountId;
+    final key = _simklStateKey;
+    Map<String, dynamic>? previous = _simklSyncState;
+    if (previous == null && key != null) {
+      try {
+        previous = _asMap(jsonDecode(_preferences!.getString(key) ?? ''));
+      } catch (_) {
+        previous = null;
+      }
+    }
+    final headers = <String, String>{
+      'Authorization': 'Bearer $token',
+      'simkl-api-key': defaultSimklClientId,
+      'User-Agent': 'nova/$noorVersion',
+    };
+    Uri endpoint(String path, [Map<String, String> extras = const {}]) =>
+        Uri.parse('$simklBaseUrl$path').replace(queryParameters: {
+          'client_id': defaultSimklClientId,
+          'app-name': 'nova',
+          'app-version': noorVersion,
+          ...extras,
+        });
+    Future<Map<String, dynamic>> get(String path,
+        [Map<String, String> extras = const {}]) async {
+      final response = await _client.get<dynamic>(
+          endpoint(path, extras).toString(),
+          options: Options(headers: headers));
+      return _asMap(response.data) ??
+          (throw const FormatException('Invalid Simkl sync response'));
+    }
+
+    try {
+      // Simkl requires an activities check before every incremental pull.
+      final activities = await get('/sync/activities');
+      final currentAll = activities['all']?.toString();
+      if (currentAll == null || currentAll.isEmpty) {
+        throw const FormatException('Missing Simkl activity timestamp');
+      }
+      final previousActivities = _asMap(previous?['activities']);
+      final items = Map<String, dynamic>.from(_asMap(previous?['items']) ?? {});
+      if (previousActivities == null || previous?['items'] is! Map) {
+        items.clear();
+        // The full episode baseline is read once; subsequent reads use
+        // activity-gated deltas, including changes made while this runs.
+        for (final type in const ['shows', 'movies', 'anime']) {
+          _mergeSimklItems(
+              items,
+              await get('/sync/all-items/$type', {
+                'extended': 'full',
+                'episode_watched_at': 'yes',
+                'include_all_episodes': 'yes',
+                'next_watch_info': 'yes',
+              }));
+        }
+      } else if (previousActivities['all'] != currentAll) {
+        final listMoved = const ['tv_shows', 'movies', 'anime'].any((type) {
+          final before = _asMap(previousActivities[type]);
+          final now = _asMap(activities[type]);
+          return const [
+            'plantowatch',
+            'watching',
+            'hold',
+            'completed',
+            'dropped',
+          ].any((status) => before?[status] != now?[status]);
+        });
+        final ratingsMoved = const ['tv_shows', 'movies', 'anime'].any((type) {
+          final before = _asMap(previousActivities[type]);
+          final now = _asMap(activities[type]);
+          return before?['rated_at'] != now?['rated_at'];
+        });
+        if (listMoved || ratingsMoved) {
+          _mergeSimklItems(
+              items,
+              await get('/sync/all-items', {
+                'date_from': previousActivities['all'].toString(),
+                'extended': 'full',
+                'episode_watched_at': 'yes',
+                'include_all_episodes': 'yes',
+                'next_watch_info': 'yes',
+              }));
+        }
+        final removed = const ['tv_shows', 'movies', 'anime'].any((type) {
+          final before = _asMap(previousActivities[type]);
+          final now = _asMap(activities[type]);
+          return before?['removed_from_list'] != now?['removed_from_list'];
+        });
+        if (removed) {
+          final live = await get('/sync/all-items', {
+            'extended': 'simkl_ids_only',
+          });
+          final liveIds = <String>{};
+          for (final type in const ['shows', 'movies', 'anime']) {
+            for (final raw in live[type] as List? ?? const []) {
+              final row = _asMap(raw);
+              final meta = _asMap(row?['movie']) ?? _asMap(row?['show']);
+              final id = _asMap(meta?['ids'])?['simkl'];
+              if (id != null) liveIds.add('$type:$id');
+            }
+          }
+          items.removeWhere((id, _) => !liveIds.contains(id));
+        }
+      }
+      final next = <String, dynamic>{'activities': activities, 'items': items};
+      if (account == _accountId && token == _serviceTokens['simkl']) {
+        _simklSyncState = next;
+        _simklSyncCheckedAt = DateTime.now();
+        if (key != null) await _preferences!.setString(key, jsonEncode(next));
+      }
+      return next;
+    } catch (_) {
+      // An offline or throttled provider keeps the last successful snapshot.
+      if (previous != null) return previous;
+      rethrow;
+    }
+  }
+
+  void _mergeSimklItems(
+      Map<String, dynamic> items, Map<String, dynamic> response) {
+    for (final type in const ['shows', 'movies', 'anime']) {
+      for (final raw in response[type] as List? ?? const []) {
+        final row = _asMap(raw);
+        final meta = _asMap(row?['movie']) ?? _asMap(row?['show']);
+        final ids = _asMap(meta?['ids']);
+        final simklId = ids?['simkl'];
+        final title = meta?['title']?.toString();
+        if (simklId == null || title == null || title.isEmpty) continue;
+        final imdb = ids?['imdb']?.toString();
+        final fallbackId = ids?['anilist'] != null
+            ? 'anilist:${ids!['anilist']}'
+            : ids?['mal'] != null
+                ? 'mal:${ids!['mal']}'
+                : 'simkl:$simklId';
+        final episodes = <Map<String, dynamic>>[];
+        for (final seasonRaw in row?['seasons'] as List? ?? const []) {
+          final season = _asMap(seasonRaw);
+          final seasonNo = (season?['number'] as num?)?.toInt();
+          if (seasonNo == null) continue;
+          for (final episodeRaw in season?['episodes'] as List? ?? const []) {
+            final episode = _asMap(episodeRaw);
+            final episodeNo = (episode?['number'] as num?)?.toInt();
+            final watchedAt = _epochMillis(episode?['watched_at']);
+            if (episodeNo == null || watchedAt == null) continue;
+            episodes.add({
+              'season': seasonNo,
+              'episode': episodeNo,
+              'watchedAt': watchedAt,
+            });
+          }
+        }
+        items['$type:$simklId'] = {
+          'type': type == 'movies' ? 'movie' : 'series',
+          'id': imdb?.startsWith('tt') == true ? imdb : fallbackId,
+          'imdb': imdb,
+          'title': title,
+          'year': meta?['year'],
+          'status': row?['status'],
+          'section': type,
+          'nextToWatch': row?['next_to_watch'],
+          'nextDate': _asMap(row?['next_to_watch_info'])?['date'],
+          'anilist': ids?['anilist'],
+          'mal': ids?['mal'],
+          'watchedAt': _epochMillis(row?['last_watched_at']),
+          'episodes': episodes,
+          'userRating': row?['user_rating'],
+        };
+      }
+    }
+  }
+
+  Future<int?> simklUserRating(
+      {String? imdb, int? malId, int? anilistId}) async {
+    final token = _serviceTokens['simkl'];
+    if (token == null || token.isEmpty) return null;
+    try {
+      final state = await _simklState(token);
+      final items = _asMap(state['items']);
+      for (final raw in items?.values ?? const <dynamic>[]) {
+        final row = _asMap(raw);
+        if (row == null) continue;
+        final same = (imdb != null && row['imdb'] == imdb) ||
+            (malId != null && row['mal']?.toString() == '$malId') ||
+            (anilistId != null && row['anilist']?.toString() == '$anilistId');
+        if (!same) continue;
+        final rating = (row['userRating'] as num?)?.toInt();
+        return rating != null && rating >= 1 && rating <= 10 ? rating : null;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> setSimklUserRating({
+    required String type,
+    required bool anime,
+    String? imdb,
+    int? malId,
+    int? anilistId,
+    int? rating,
+  }) async {
+    final token = _serviceTokens['simkl'];
+    if (token == null ||
+        token.isEmpty ||
+        (rating != null && (rating < 1 || rating > 10))) {
+      return false;
+    }
+    final ids = <String, dynamic>{
+      if (imdb != null && RegExp(r'^tt\d+$').hasMatch(imdb)) 'imdb': imdb,
+      if (malId != null && malId > 0) 'mal': malId,
+      if (anilistId != null && anilistId > 0) 'anilist': anilistId,
+    };
+    if (ids.isEmpty) return false;
+    final section = anime && rating != null
+        ? 'anime'
+        : type == 'series' || anime
+            ? 'shows'
+            : 'movies';
+    try {
+      final response = await _client.post<dynamic>(
+        '$simklBaseUrl/sync/ratings${rating == null ? '/remove' : ''}',
+        queryParameters: {
+          'client_id': defaultSimklClientId,
+          'app-name': 'nova',
+          'app-version': noorVersion,
+        },
+        data: {
+          section: [
+            {if (rating != null) 'rating': rating, 'ids': ids}
+          ],
+        },
+        options: Options(headers: {
+          'Authorization': 'Bearer $token',
+          'simkl-api-key': defaultSimklClientId,
+          'User-Agent': 'nova/$noorVersion',
+          'Content-Type': 'application/json',
+        }),
+      );
+      final result = _asMap(response.data);
+      final accepted = rating == null
+          ? (_asInt(_asMap(result?['deleted'])?[
+                      section == 'movies' ? 'movies' : 'shows']) ??
+                  0) >
+              0
+          : (_asMap(result?['added'])?['statuses'] as List?)
+                  ?.any((value) => _asMap(value)?['response'] != null) ==
+              true;
+      if (!accepted) return false;
+      final items = _asMap(_simklSyncState?['items']);
+      if (items != null) {
+        for (final entry in items.entries) {
+          final row = _asMap(entry.value);
+          if (row == null) continue;
+          final same = (imdb != null && row['imdb'] == imdb) ||
+              (malId != null && row['mal']?.toString() == '$malId') ||
+              (anilistId != null && row['anilist']?.toString() == '$anilistId');
+          if (same) items[entry.key] = {...row, 'userRating': rating};
+        }
+        _simklSyncState = {..._simklSyncState!, 'items': items};
+        final key = _simklStateKey;
+        if (key != null) {
+          _preferences ??= await SharedPreferences.getInstance();
+          await _preferences!.setString(key, jsonEncode(_simklSyncState));
+        }
+      }
+      _simklSyncCheckedAt = null;
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -3350,25 +4713,54 @@ query ($userId: Int) {
     final token = await _validMalAccessToken();
     if (token == null) return const <dynamic>[];
     try {
-      final response = await _client.get<dynamic>(
-        '$malApiBase/users/@me/animelist',
-        queryParameters: <String, String>{
-          'status': status,
-          'limit': '50',
-          'nsfw': 'true',
-          'fields': 'id,title,main_picture{large},start_season{year},'
-              'media_type,num_episodes,list_status{num_episodes_watched,updated_at}',
-        },
-        options: Options(headers: await _malBearer(token)),
-      );
-      final data = _asMap(response.data);
-      return data?['data'] is List ? data!['data'] as List : const <dynamic>[];
+      return await _malListRows(token, <String, String>{
+        'status': status,
+        'limit': '500',
+        'nsfw': 'true',
+        'fields': 'id,title,main_picture{large},start_season{year},'
+            'media_type,num_episodes,list_status{num_episodes_watched,updated_at}',
+      });
     } on DioException catch (error) {
       if (error.response?.statusCode == 401) await _clearMalSession();
       return const <dynamic>[];
     } catch (_) {
       return const <dynamic>[];
     }
+  }
+
+  /// MAL returns an absolute `paging.next` URL. Follow every page while
+  /// keeping requests on the same official API host and list endpoint.
+  Future<List<dynamic>> _malListRows(
+      String token, Map<String, String> query) async {
+    final endpoint = Uri.parse('$malApiBase/users/@me/animelist');
+    final headers = await _malBearer(token);
+    final seen = <Uri>{};
+    final rows = <dynamic>[];
+    Uri? next = endpoint.replace(queryParameters: query);
+    while (next != null && seen.add(next)) {
+      if (next.scheme != endpoint.scheme ||
+          next.host != endpoint.host ||
+          next.path != endpoint.path) {
+        break;
+      }
+      final response = await _client.get<dynamic>(next.toString(),
+          options: Options(headers: headers));
+      final data = _asMap(response.data);
+      if (data == null) break;
+      for (final raw in data['data'] as List? ?? const []) {
+        final envelope = _asMap(raw);
+        final node = _asMap(envelope?['node']) ?? envelope;
+        if (node == null) continue;
+        rows.add({
+          ...node,
+          if (envelope?['list_status'] != null)
+            'list_status': envelope!['list_status'],
+        });
+      }
+      final nextUrl = _asMap(data['paging'])?['next']?.toString();
+      next = nextUrl == null || nextUrl.isEmpty ? null : Uri.tryParse(nextUrl);
+    }
+    return rows;
   }
 
   /// Fire-and-forget scrobble. Never throws; silently no-ops when the
@@ -3380,31 +4772,33 @@ query ($userId: Int) {
     required String title,
     String? year,
     String? imdb,
+    int? season,
+    int? episode,
     required double progress,
   }) async {
     try {
-      final percent = progress.clamp(0.0, 100.0).toDouble();
       final normalizedAction =
           const <String>{'start', 'pause', 'stop'}.contains(action)
               ? action
               : 'start';
+      final payload = buildScrobblePayload(
+        type: type,
+        title: title,
+        year: year,
+        imdb: imdb,
+        season: season,
+        episode: episode,
+        progress: progress,
+      );
+      if (payload == null) return;
       if (service == 'trakt') {
         // Fresh token (auto-refresh) — scrobble must never run on a stale
         // session mid-playback.
         final token = await _validTraktAccessToken();
         if (token == null) return;
-        final ids = <String, dynamic>{
-          if (imdb != null && imdb.isNotEmpty) 'imdb': imdb,
-        };
         await _client.post<dynamic>(
           '$traktBaseUrl/scrobble/$normalizedAction',
-          data: <String, dynamic>{
-            if (type.toLowerCase() == 'movie')
-              'movie': <String, dynamic>{'ids': ids}
-            else
-              'show': <String, dynamic>{'ids': ids},
-            'progress': percent,
-          },
+          data: payload,
           options: Options(
             headers: <String, String>{
               'Content-Type': 'application/json',
@@ -3418,16 +4812,8 @@ query ($userId: Int) {
         final token = _serviceTokens[service];
         if (token == null || token.isEmpty) return;
         await _client.post<dynamic>(
-          '$simklBaseUrl/scrobble',
-          data: <String, dynamic>{
-            'progress': percent,
-            'action': normalizedAction, // start|pause|stop map 1:1
-            'type': type.toLowerCase() == 'movie' ? 'movies' : 'episodes',
-            'title': title,
-            if (year != null && year.isNotEmpty)
-              'year': int.tryParse(year) ?? year,
-            if (imdb != null && imdb.isNotEmpty) 'imdb': imdb,
-          },
+          '$simklBaseUrl/scrobble/$normalizedAction',
+          data: payload,
           options: Options(
             headers: <String, String>{
               'Content-Type': 'application/json',
@@ -3436,6 +4822,27 @@ query ($userId: Int) {
             },
           ),
         );
+      } else if (service == 'mdblist') {
+        final token = await _validMdbListAccessToken();
+        if (token == null ||
+            imdb == null ||
+            !RegExp(r'^tt\d+$').hasMatch(imdb) ||
+            (type == 'series' && (season == null || episode == null))) {
+          return;
+        }
+        await _client.post<dynamic>(
+          'https://api.mdblist.com/scrobble/$normalizedAction',
+          data: {
+            type == 'series' ? 'show' : 'movie': {
+              'ids': {'imdb': imdb},
+              if (type == 'series') 'season': season,
+              if (type == 'series') 'episode': episode,
+            },
+            'progress': progress.clamp(0, 100),
+          },
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        _mdblistSyncCheckedAt = null;
       }
     } catch (_) {
       // Provider hiccups must never interrupt playback.

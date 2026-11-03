@@ -105,6 +105,28 @@ class IntegrationCwEntry {
     return null;
   }
 
+  /// MDBList playback uses the same movie/episode envelope as Trakt, with
+  /// `updated_at` as a fallback pause timestamp.
+  static IntegrationCwEntry? fromMdbListPlayback(Object? raw) {
+    final row = _asMap(raw);
+    if (row == null) return null;
+    final entry = fromTraktPlayback({
+      ...row,
+      'paused_at': row['paused_at'] ?? row['updated_at'],
+      if (row['type'] == 'episode' && row['show'] == null)
+        'show': _asMap(row['episode'])?['show'],
+    });
+    if (entry == null) return null;
+    return IntegrationCwEntry(
+      item: entry.item,
+      source: 'mdblist',
+      progress: entry.progress,
+      season: entry.season,
+      episode: entry.episode,
+      watchedAt: entry.watchedAt,
+    );
+  }
+
   /// Simkl paused playback from `GET /sync/playback`. Simkl reports progress
   /// as a percentage and keeps movie and episode sessions in separate lists.
   static IntegrationCwEntry? fromSimklPlayback(Object? raw) {
@@ -288,6 +310,7 @@ class IntegrationCwEntry {
       type: type,
       name: name,
       releaseInfo: row?['year']?.toString(),
+      poster: row?['poster']?.toString(),
     );
   }
 
