@@ -247,12 +247,13 @@ class MainActivity :
         captureLink(intent)
     }
 
-    /** Emits a magnet / noor:// / app.noor.mobile:// / Trakt HTTPS ACTION_VIEW link to Dart, or parks it. */
+    /** Emits supported media, OAuth, collection-invite, and Trakt links to Dart, or parks them. */
     private fun captureLink(intent: Intent?) {
         val link = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.dataString ?: return
         // magnet: → torrent flow; noor://callback → legacy Trakt OAuth return;
         // app.noor.mobile://callback?code=… → MyAnimeList OAuth return;
         // app.nova.mobile://callback#access_token=… → AniList OAuth return;
+        // app.nova.mobile://collection-invite?token=… → collection membership;
         // https://<registered redirect host>/?code=… → primary Trakt return
         // (Android App Links / browser redirect).
         val isTraktHttpsReturn = link.startsWith("https://", ignoreCase = true) &&

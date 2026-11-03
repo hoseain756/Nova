@@ -1,7 +1,9 @@
 # NOVA account backend
 
 The account migration and Edge Functions have been deployed to the current
-NOVA Supabase project. New account/profile tables are RLS-protected. This does
+NOVA Supabase project. The shared-collection schema and permission-transition
+follow-up were deployed on 2026-11-03. New account/profile and shared-collection
+tables are RLS-protected. This does
 not establish end-to-end readiness: physical client flows remain pending.
 Anonymous Auth sign-ins, manual identity linking, email confirmation, and the
 two mobile redirect URLs are enabled. The Simkl Edge secrets were entered by
@@ -84,6 +86,17 @@ until cutover.
   `p_data`, `p_expected_rev`; `save_profile_bucket` also takes `p_profile_id`.
   Both return a one-row `(rev,updated_at)` result. Pass 0 for an absent bucket;
   SQLSTATE `40001` means reload/merge/retry instead of overwriting.
+- Shared collections use separate account-owned tables and authenticated RPCs,
+  not `profile_buckets.lists`. Deploy
+  `migrations/20261103203415_shared_collections.sql` and
+  `migrations/20261103203706_shared_collection_permission_transitions.sql`
+  before shipping the Flutter client to another project. The owner controls metadata; per-member flags govern view,
+  item writes, member management, and invites. New members receive view/add.
+  Item and collection edits require the current row version and return SQLSTATE
+  `40001` on a stale version. The current invite token is private and rotating
+  or disabling it invalidates old links. Only the per-account sync revision
+  table enters Realtime; clients refetch under RLS after a signal. See
+  `../docs/shared-collections/README.md` for the complete schema/RPC contract.
 
 ## Required security checks
 
@@ -108,6 +121,12 @@ until cutover.
   expired/missing JWT, pending authorization, approval, slow-down, provider
   timeout, and invalid device code. Verify the secret is absent from Flutter
   artifacts and that no endpoint or log echoes it.
+- For shared collections, verify two accounts can create, invite, join, and
+  contribute; direct table writes and nonmember reads fail; delegated grants
+  never modify the owner or escalate rights; a removed member loses RLS access
+  and receives an invalidation; a rotated/disabled token fails to join; and
+  competing edits produce one `40001` conflict. Repeat with an anonymous Auth
+  guest and across two connected clients.
 
 The manual live smoke harness is `tests/manual_live_guest_smoke.mjs`. It is
 guarded by `NOVA_LIVE_SMOKE=1`, prints only test user IDs and check results,
@@ -126,3 +145,12 @@ while a valid six-digit PIN, verifier, `has_pin`, and default profile commit
 together. Its disposable guest user and cascaded rows were removed afterward.
 - Run Supabase security/performance advisors and verify all newly exposed
   tables and functions have the intended grants as well as RLS policies.
+
+The shared-collection migrations were applied to the connected project on
+2026-11-03. Structural queries confirmed RLS on all four public tables,
+authenticated SELECT without direct writes, no anonymous RPC execution, and
+Realtime publication of only `shared_collection_sync`. Rollback-only SQL smoke
+tests covered owner operations and two temporary Auth identities across join,
+contribution, revocation, delegated rights, removal, invite invalidation, RLS,
+and stale-version rejection. Live client, Realtime delivery, and device link
+behavior remain unverified.

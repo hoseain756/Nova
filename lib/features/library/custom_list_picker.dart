@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/models/custom_list.dart';
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
+import '../../l10n/nova_strings.dart';
 import 'custom_lists_page.dart';
+import '../shared_collections/shared_collection_picker.dart';
 
 Future<void> showCustomListPicker(BuildContext context, MediaItem item) async {
   final app = context.read<AppState>();
@@ -107,14 +110,35 @@ Future<void> showCustomListPicker(BuildContext context, MediaItem item) async {
                   const Divider(height: 1),
                   Padding(
                       padding: const EdgeInsets.all(24),
-                      child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, 'create'),
-                          icon: const Icon(LucideIcons.plus),
-                          label: Text(app.tr('message605')))),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                                onPressed: () =>
+                                    Navigator.pop(sheetContext, 'create'),
+                                icon: const Icon(LucideIcons.plus),
+                                label: Text(app.tr('message605')))),
+                        if (Supabase.instance.isInitialized &&
+                            Supabase.instance.client.auth.currentUser !=
+                                null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                  onPressed: () =>
+                                      Navigator.pop(sheetContext, 'shared'),
+                                  icon: const Icon(LucideIcons.usersRound),
+                                  label: Text(NovaStrings.of(sheetContext)
+                                      .text('sharedAddToCollection')))),
+                        ],
+                      ])),
                 ]))),
   );
   if (selection == null || !context.mounted) return;
+  if (selection == 'shared') {
+    await showSharedCollectionPicker(context, item);
+    return;
+  }
   if (selection == 'create') {
     await createNovaCollection(context);
     if (context.mounted && app.customLists.isNotEmpty) {

@@ -1,16 +1,22 @@
-import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nova_mobile/l10n/nova_strings.dart';
 
 import '../../core/api/noor_api.dart';
+import '../../core/auth/account_controller.dart';
 import '../../core/oauth/oauth_redirect.dart';
+import '../../core/shared_collections/invite_link.dart';
+import '../../core/shared_collections/shared_collections_service.dart';
 import '../../core/state/app_state.dart';
 import '../../shared/widgets/noor_toast.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
+import '../shared_collections/shared_collection_detail_page.dart';
 import 'magnet_opener.dart';
 
 /// Listens for VIEW intents forwarded by the Android side over the
@@ -25,6 +31,8 @@ import 'magnet_opener.dart';
 ///  - `app.nova.mobile://callback#access_token=…` → AniList token return.
 ///    Both are parsed by OAuthRedirect and stored in AppState so the
 ///    matching linking flow can consume it.
+///  - `app.nova.mobile://collection-invite?token=…` → server-checked shared
+///    collection membership after the current account becomes active.
 ///
 /// All Trakt returns finish through the same handshake anywhere in the app;
 /// relay-based completions (the app polling the web companion) are surfaced
@@ -41,8 +49,16 @@ class IncomingLinkListener extends StatefulWidget {
   State<IncomingLinkListener> createState() => _IncomingLinkListenerState();
 }
 
-class _IncomingLinkListenerState extends State<IncomingLinkListener> {
+class _IncomingLinkListenerState extends State<IncomingLinkListener>
+    with WidgetsBindingObserver {
+  static const _inviteStorage = FlutterSecureStorage();
+  static const _pendingInviteKey = 'nova.shared-collections.pending-invite';
   StreamSubscription<Object?>? _sub;
+  String? _pendingInvite;
+  bool _joiningInvite = false;
+  bool _retryInviteOnResume = false;
+  int _inviteGeneration = 0;
+  Future<void> _inviteWrite = Future<void>.value();
 
   int _seenTraktLinkEventAt = 0;
   int _seenOAuthLinkEventAt = 0;
@@ -50,6 +66,8 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_restorePendingInvite());
     try {
       _sub = const EventChannel('noor/links')
           .receiveBroadcastStream()
@@ -62,7 +80,20 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
   }
 
   void _onLink(Object? data) {
-    if (data is! String) return;
+    if (!mounted || data is! String) return;
+    final invite = parseSharedCollectionInvite(data);
+    if (invite != null) {
+      unawaited(_queueInvite(invite));
+      return;
+    }
+    final uri = Uri.tryParse(data);
+    if (uri?.scheme.toLowerCase() == 'app.nova.mobile' &&
+        uri?.host.toLowerCase() == 'collection-invite') {
+      NoorToast.show(context,
+          NovaStrings.of(context).text('sharedCollectionInviteInvalid'),
+          error: true);
+      return;
+    }
     final lower = data.toLowerCase();
     if (lower.startsWith('magnet:')) {
       if (!mounted) return;
@@ -85,6 +116,127 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
     }
     if (lower.startsWith('https://') && NoorApi.isTraktHttpsReturn(data)) {
       unawaited(_completeTrakt(data));
+    }
+  }
+
+  Future<void> _restorePendingInvite() async {
+    final generation = _inviteGeneration;
+    try {
+      final token = await _inviteStorage.read(key: _pendingInviteKey);
+      if (!mounted || generation != _inviteGeneration || token == null) return;
+      if (!RegExp(r'^[0-9a-f]{64}$').hasMatch(token)) {
+        await _inviteStorage.delete(key: _pendingInviteKey);
+        return;
+      }
+      setState(() => _pendingInvite = token);
+    } catch (_) {
+      // A storage failure does not prevent newly opened links from working.
+    }
+  }
+
+  Future<void> _queueInvite(String token) async {
+    final generation = ++_inviteGeneration;
+    _retryInviteOnResume = false;
+    setState(() => _pendingInvite = token);
+    _inviteWrite = _inviteWrite.then((_) async {
+      try {
+        await _inviteStorage.write(key: _pendingInviteKey, value: token);
+      } catch (_) {
+        // Keep the invite in memory for this run if secure storage is down.
+      }
+    });
+    await _inviteWrite;
+    if (mounted && generation == _inviteGeneration) _scheduleJoinInvite();
+  }
+
+  void _scheduleJoinInvite() {
+    if (_joiningInvite || _pendingInvite == null || _retryInviteOnResume) {
+      return;
+    }
+    final account = context.read<AccountController?>();
+    final app = context.read<AppState>();
+    if (account?.user == null ||
+        account!.activeProfileId == null ||
+        app.sync.accountId != account.user!.id) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_joinPendingInvite());
+    });
+  }
+
+  Future<void> _joinPendingInvite() async {
+    if (_joiningInvite) return;
+    final token = _pendingInvite;
+    if (token == null) return;
+    final account = context.read<AccountController?>();
+    final app = context.read<AppState>();
+    if (account?.user == null ||
+        account!.activeProfileId == null ||
+        app.sync.accountId != account.user!.id) {
+      return;
+    }
+    _joiningInvite = true;
+    try {
+      await _inviteWrite;
+      final id = await SharedCollectionsService(Supabase.instance.client)
+          .joinInvite(token);
+      if (!mounted || _pendingInvite != token) return;
+      await _clearPendingInvite(token);
+      if (!mounted) return;
+      NoorToast.show(context,
+          NovaStrings.of(context).text('sharedCollectionInviteJoined'));
+      Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => SharedCollectionDetailPage(collectionId: id),
+      ));
+    } on PostgrestException catch (error) {
+      if (!mounted || _pendingInvite != token) return;
+      if (error.code == '22023') {
+        await _clearPendingInvite(token);
+        if (!mounted) return;
+        NoorToast.show(context,
+            NovaStrings.of(context).text('sharedCollectionInviteInvalid'),
+            error: true);
+      } else {
+        _retryInviteOnResume = true;
+        NoorToast.show(context,
+            NovaStrings.of(context).text('sharedCollectionInvitePending'),
+            error: true);
+      }
+    } catch (_) {
+      if (mounted && _pendingInvite == token) {
+        _retryInviteOnResume = true;
+        NoorToast.show(context,
+            NovaStrings.of(context).text('sharedCollectionInvitePending'),
+            error: true);
+      }
+    } finally {
+      _joiningInvite = false;
+      if (mounted && _pendingInvite != null && !_retryInviteOnResume) {
+        _scheduleJoinInvite();
+      }
+    }
+  }
+
+  Future<void> _clearPendingInvite(String token) async {
+    if (_pendingInvite != token) return;
+    ++_inviteGeneration;
+    setState(() => _pendingInvite = null);
+    _inviteWrite = _inviteWrite.then((_) async {
+      try {
+        await _inviteStorage.delete(key: _pendingInviteKey);
+      } catch (_) {
+        // The in-memory invite has been consumed even if storage is down.
+      }
+    });
+    await _inviteWrite;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _retryInviteOnResume) {
+      _retryInviteOnResume = false;
+      _scheduleJoinInvite();
     }
   }
 
@@ -179,6 +331,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_sub?.cancel());
     super.dispose();
   }
@@ -189,6 +342,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
     // user is anywhere in the app) announce themselves through app state;
     // surface each new event exactly once as a toast.
     final app = context.watch<AppState>();
+    final account = context.watch<AccountController?>();
     final event = app.traktLinkEvent;
     if (event != null) {
       final at = (event['at'] as num?)?.toInt() ?? 0;
@@ -246,6 +400,9 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener> {
           }
         });
       }
+    }
+    if (_pendingInvite != null && account?.activeProfileId != null) {
+      _scheduleJoinInvite();
     }
     return widget.child;
   }

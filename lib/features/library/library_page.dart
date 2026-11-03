@@ -16,10 +16,12 @@ import '../shell/noor_dock_tabs.dart';
 import '../shell/nova_browse_widgets.dart';
 import '../downloads/downloads_page.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../player/playback_entry_page.dart';
 import '../torrent/magnet_opener.dart';
 import 'custom_lists_page.dart';
 import '../media/media_detail_page.dart';
+import '../shared_collections/shared_collections_panel.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -161,8 +163,12 @@ class _LibraryPageState extends State<LibraryPage> {
                   itemCount: history.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 16),
                   itemBuilder: (_, i) => _HistoryRow(entry: history[i]))),
-      ] else
+      ] else ...[
+        if (Supabase.instance.isInitialized &&
+            Supabase.instance.client.auth.currentUser != null)
+          const SharedCollectionsPanel(),
         const CustomListsPanel(),
+      ],
       SliverToBoxAdapter(
           child: SizedBox(height: glassDockContentClearance(context))),
     ]);
