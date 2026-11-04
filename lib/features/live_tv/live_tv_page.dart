@@ -181,7 +181,6 @@ class _LiveTvPageState extends State<LiveTvPage> {
       return matchesGroup && matchesQuery;
     }).toList();
     final playlists = _playlists(app);
-    final theme = Theme.of(context);
     return Scaffold(
         appBar: AppBar(title: Text(app.tr('message658')), actions: [
           IconButton(
@@ -274,147 +273,24 @@ class _LiveTvPageState extends State<LiveTvPage> {
                     const SliverToBoxAdapter(
                         child: LinearProgressIndicator(minHeight: 2)),
                   SliverPadding(
-                      padding:
-                          const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
-                      sliver:
-                          SliverLayoutBuilder(builder: (context, constraints) {
-                        final columns =
-                            constraints.crossAxisExtent >= 800 ? 2 : 1;
-                        return SliverGrid.builder(
-                            itemCount: visible.length,
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: columns,
-                                    mainAxisExtent: 170 +
-                                        74 *
-                                            MediaQuery.textScalerOf(context)
-                                                .scale(1),
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16),
-                            itemBuilder: (_, index) {
-                              final entry = visible[index];
-                              final channel = entry.channel;
-                              final program = _nowProgram(channel);
-                              final playable =
-                                  _isHttp(Uri.tryParse(channel.url));
-                              final duration = program == null
-                                  ? 0
-                                  : program.stop
-                                      .difference(program.start)
-                                      .inSeconds;
-                              final progress = duration <= 0
-                                  ? 0.0
-                                  : DateTime.now()
-                                          .difference(program!.start)
-                                          .inSeconds /
-                                      duration;
-                              return Material(
-                                color: theme.colorScheme.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(24),
-                                child: InkWell(
-                                    borderRadius: BorderRadius.circular(24),
-                                    onTap: playable ? () => _play(entry) : null,
-                                    child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(children: [
-                                                Container(
-                                                    width: 56,
-                                                    height: 56,
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                        color: theme.colorScheme
-                                                            .surfaceContainerHighest,
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                                16)),
-                                                    child: channel.logo == null
-                                                        ? Icon(LucideIcons.radio,
-                                                            color: theme
-                                                                .colorScheme
-                                                                .primary)
-                                                        : NovaNetworkImage(
-                                                            channel.logo!,
-                                                            fit: BoxFit.contain,
-                                                            cacheWidth:
-                                                                imageCacheWidth(
-                                                                    context, 56),
-                                                            errorBuilder: (_,
-                                                                    __, ___) =>
-                                                                Icon(LucideIcons.radio, color: theme.colorScheme.secondary))),
-                                                const SizedBox(width: 16),
-                                                Expanded(
-                                                    child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                      Text(channel.name,
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: theme.textTheme
-                                                              .titleMedium),
-                                                      const SizedBox(height: 4),
-                                                      Text(entry.playlistName,
-                                                          maxLines: 1,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: theme.textTheme
-                                                              .bodySmall),
-                                                    ])),
-                                                const SizedBox(width: 12),
-                                                Icon(
-                                                    playable
-                                                        ? LucideIcons.play
-                                                        : LucideIcons
-                                                            .circleAlert,
-                                                    color: theme
-                                                        .colorScheme.secondary),
-                                              ]),
-                                              const SizedBox(height: 20),
-                                              Text(
-                                                  program == null
-                                                      ? app.tr('message668')
-                                                      : app.tr('message669'),
-                                                  style: theme
-                                                      .textTheme.labelSmall
-                                                      ?.copyWith(
-                                                          color: theme
-                                                              .colorScheme
-                                                              .primary,
-                                                          fontWeight:
-                                                              FontWeight.w800)),
-                                              const SizedBox(height: 6),
-                                              Expanded(
-                                                  child: Text(
-                                                      program?.title ??
-                                                          (playable
-                                                              ? app.tr(
-                                                                  'message670')
-                                                              : app.tr(
-                                                                  'message671')),
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: theme.textTheme
-                                                          .bodyLarge)),
-                                              if (program != null)
-                                                LinearProgressIndicator(
-                                                    value: progress.clamp(
-                                                        0.0, 1.0),
-                                                    minHeight: 4,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            4)),
-                                            ]))),
-                              );
-                            });
-                      })),
+                    padding:
+                        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
+                    sliver: SliverList.separated(
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final entry = visible[index];
+                        final playable =
+                            _isHttp(Uri.tryParse(entry.channel.url));
+                        return _LiveChannelTile(
+                          entry: entry,
+                          program: _nowProgram(entry.channel),
+                          playable: playable,
+                          onTap: playable ? () => _play(entry) : null,
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ])),
         )));
@@ -440,6 +316,112 @@ class _LiveTvPageState extends State<LiveTvPage> {
         ),
       ),
     );
+  }
+}
+
+class _LiveChannelTile extends StatelessWidget {
+  const _LiveChannelTile(
+      {required this.entry,
+      required this.program,
+      required this.playable,
+      required this.onTap});
+  final _LiveChannel entry;
+  final IptvProgram? program;
+  final bool playable;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final app = context.read<AppState>();
+    final channel = entry.channel;
+    final current = program;
+    final seconds =
+        current == null ? 0 : current.stop.difference(current.start).inSeconds;
+    final progress = seconds <= 0
+        ? 0.0
+        : DateTime.now().difference(current!.start).inSeconds / seconds;
+    final channelInfo =
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(
+        width: 72,
+        height: 72,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: channel.logo == null
+              ? Icon(LucideIcons.radio,
+                  size: 32, color: theme.colorScheme.onSurfaceVariant)
+              : NovaNetworkImage(channel.logo!,
+                  fit: BoxFit.contain,
+                  cacheWidth: imageCacheWidth(context, 72),
+                  errorBuilder: (_, __, ___) => Icon(LucideIcons.radio,
+                      color: theme.colorScheme.onSurfaceVariant)),
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(channel.name,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(entry.playlistName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      ])),
+      const SizedBox(width: 8),
+      SizedBox.square(
+          dimension: 48,
+          child: Icon(playable ? LucideIcons.play : LucideIcons.circleAlert,
+              color: playable
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.error)),
+    ]);
+    final guide =
+        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(current == null ? app.tr('message668') : app.tr('message669'),
+          style: theme.textTheme.labelLarge
+              ?.copyWith(color: theme.colorScheme.primary)),
+      const SizedBox(height: 8),
+      Text(
+          current?.title ??
+              (playable ? app.tr('message670') : app.tr('message671')),
+          style: theme.textTheme.bodyLarge),
+      if (current != null) ...[
+        const SizedBox(height: 16),
+        LinearProgressIndicator(value: progress.clamp(0.0, 1.0), minHeight: 3),
+      ],
+    ]);
+    return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(vertical: 24),
+            child: LayoutBuilder(builder: (context, constraints) {
+              if (constraints.maxWidth >= 860) {
+                return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: channelInfo),
+                      const SizedBox(width: 48),
+                      Expanded(child: guide),
+                    ]);
+              }
+              return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    channelInfo,
+                    const SizedBox(height: 24),
+                    guide,
+                  ]);
+            }),
+          ),
+        ));
   }
 }
 

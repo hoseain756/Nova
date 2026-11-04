@@ -838,12 +838,7 @@ class _DataRow extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsetsDirectional.only(bottom: 8),
         child: Material(
-          color: Theme.of(context).colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-            side:
-                BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          ),
+          color: Colors.transparent,
           clipBehavior: Clip.antiAlias,
           child: ListTile(
             onTap: onTap,
@@ -857,8 +852,7 @@ class _DataRow extends StatelessWidget {
                     color: destructive
                         ? Theme.of(context).colorScheme.error
                         : null)),
-            subtitle:
-                Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: Text(detail),
             trailing: Icon(
                 Directionality.of(context) == TextDirection.rtl
                     ? LucideIcons.chevronLeft

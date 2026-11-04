@@ -452,6 +452,82 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final heroHeight = (viewportSize.height * (isWide ? .65 : .60))
             .clamp(360.0, 640.0) +
         (MediaQuery.textScalerOf(context).scale(16) - 16).clamp(0.0, 32.0) * 4;
+    final splitOverview = viewportSize.width >= 1000 &&
+        MediaQuery.textScalerOf(context).scale(16) <= 22;
+    final hasLetterboxd = !widget.kidsMode &&
+        app.letterboxdSettings.enabled &&
+        item.type == 'movie' &&
+        RegExp(r'^tt\d+$').hasMatch(item.id);
+    final intro =
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (refreshFailed) ...[
+        Text(NovaStrings.lookup(english, 'message173'),
+            style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        TextButton(
+            onPressed: _reloadDetail,
+            child: Text(NovaStrings.lookup(english, 'message174'))),
+        const SizedBox(height: 16),
+      ],
+      DetailMetaRow(item: item, isWide: true),
+      if (linkedProgress.isNotEmpty) ...[
+        const SizedBox(height: 14),
+        _LinkedProvidersProgress(
+          english: english,
+          entries: linkedProgress,
+        ),
+      ],
+      const SizedBox(height: 20),
+      DetailActionRow(
+        english: english,
+        nativeTopActions: _nativeDetailChrome,
+        isWide: true,
+        inList: app.contains(item),
+        showTrackAnime: item.hasAnimeIds &&
+            (app.linkedServices['anilist']?['linked'] == true ||
+                app.linkedServices['mal']?['linked'] == true),
+        primaryLabel: resume.isResume
+            ? (item.type == 'series'
+                ? (NovaStrings.lookup(english, 'message175',
+                    {'p0': resume.season, 'p1': resume.episode}))
+                : (NovaStrings.lookup(english, 'message176')))
+            : (NovaStrings.lookup(english, 'message177')),
+        primaryIsResume: resume.isResume,
+        loading: _loadingStreams,
+        onPrimaryPressed: () => _play(item,
+            video: resume.video ?? defaultVideo,
+            resumePositionMs: resume.positionMs),
+        onToggleWatchlist: () => unawaited(app.toggleWatchlist(item)),
+        onOpenStreams: () => _play(item, video: resume.video ?? defaultVideo),
+        onTrackAnime: () => unawaited(showAnimeTrackerSheet(context, item)),
+        onShare: () => unawaited(_share(item, english)),
+        onAddToList: () => unawaited(showCustomListPicker(context, item)),
+        onDownload: widget.kidsMode
+            ? null
+            : () =>
+                unawaited(_download(item, video: resume.video ?? defaultVideo)),
+      ),
+      const SizedBox(height: 16),
+      _ProviderRatings(item: item, startAligned: true),
+      if (!widget.kidsMode) _SimklPersonalRating(item: item),
+    ]);
+    final editorial =
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (hasLetterboxd) ...[
+        if (!splitOverview) const SizedBox(height: 20),
+        LetterboxdDetailSection(item: item),
+      ],
+      if (item.description?.isNotEmpty == true) ...[
+        if (!splitOverview || hasLetterboxd) const SizedBox(height: 32),
+        Text(NovaStrings.lookup(english, 'message178'),
+            style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        DetailSynopsis(
+            description: item.description!,
+            isWide: isWide,
+            viewportWidth: viewportSize.width),
+      ],
+    ]);
     return CinematicCoverScroll(
       storageKey: PageStorageKey('detail-${item.id}'),
       heroHeight: heroHeight,
@@ -465,81 +541,22 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           contentVisibility: contentVisibility),
       slivers: [
         SliverToBoxAdapter(
-            child: Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(gutter, 24, gutter, 32),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (refreshFailed) ...[
-              Text(NovaStrings.lookup(english, 'message173'),
-                  style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              TextButton(
-                  onPressed: _reloadDetail,
-                  child: Text(NovaStrings.lookup(english, 'message174'))),
-              const SizedBox(height: 16),
-            ],
-            DetailMetaRow(item: item, isWide: true),
-            if (linkedProgress.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _LinkedProvidersProgress(
-                english: english,
-                entries: linkedProgress,
-              ),
-            ],
-            const SizedBox(height: 20),
-            DetailActionRow(
-              english: english,
-              nativeTopActions: _nativeDetailChrome,
-              isWide: true,
-              inList: app.contains(item),
-              showTrackAnime: item.hasAnimeIds &&
-                  (app.linkedServices['anilist']?['linked'] == true ||
-                      app.linkedServices['mal']?['linked'] == true),
-              primaryLabel: resume.isResume
-                  ? (item.type == 'series'
-                      ? (NovaStrings.lookup(english, 'message175',
-                          {'p0': resume.season, 'p1': resume.episode}))
-                      : (NovaStrings.lookup(english, 'message176')))
-                  : (NovaStrings.lookup(english, 'message177')),
-              primaryIsResume: resume.isResume,
-              loading: _loadingStreams,
-              onPrimaryPressed: () => _play(item,
-                  video: resume.video ?? defaultVideo,
-                  resumePositionMs: resume.positionMs),
-              onToggleWatchlist: () => unawaited(app.toggleWatchlist(item)),
-              onOpenStreams: () =>
-                  _play(item, video: resume.video ?? defaultVideo),
-              onTrackAnime: () =>
-                  unawaited(showAnimeTrackerSheet(context, item)),
-              onShare: () => unawaited(_share(item, english)),
-              onAddToList: () => unawaited(showCustomListPicker(context, item)),
-              onDownload: widget.kidsMode
-                  ? null
-                  : () => unawaited(
-                      _download(item, video: resume.video ?? defaultVideo)),
-            ),
-            const SizedBox(height: 16),
-            _ProviderRatings(item: item, startAligned: true),
-            if (!widget.kidsMode) _SimklPersonalRating(item: item),
-            if (!widget.kidsMode &&
-                app.letterboxdSettings.enabled &&
-                item.type == 'movie' &&
-                RegExp(r'^tt\d+$').hasMatch(item.id)) ...[
-              const SizedBox(height: 20),
-              LetterboxdDetailSection(item: item),
-            ],
-            if (item.description?.isNotEmpty == true) ...[
-              const SizedBox(height: 32),
-              Text(NovaStrings.lookup(english, 'message178'),
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              DetailSynopsis(
-                  description: item.description!,
-                  isWide: isWide,
-                  viewportWidth: viewportSize.width),
-            ],
-          ]),
-        )),
+          child: Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(gutter, 24, gutter, 32),
+            child: splitOverview
+                ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Expanded(flex: 5, child: intro),
+                    const SizedBox(width: 48),
+                    Expanded(flex: 4, child: editorial),
+                  ])
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                        intro,
+                        editorial,
+                      ]),
+          ),
+        ),
         if (episodeSlivers.isNotEmpty)
           SliverPadding(
               padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, 32),

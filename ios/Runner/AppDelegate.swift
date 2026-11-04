@@ -1,9 +1,15 @@
 import Flutter
 import UIKit
+import Network
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private let pathMonitor = NWPathMonitor()
+  private let pathQueue = DispatchQueue(label: "app.nova.network-path")
+  private var currentPath: NWPath?
+  private var appearanceChannel: FlutterMethodChannel?
   private var chromeChannel: FlutterMethodChannel?
+  private var transparencyObserver: NSObjectProtocol?
   private var downloadsChannel: FlutterMethodChannel?
   private var appIconChannel: FlutterMethodChannel?
 
@@ -11,6 +17,10 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    pathMonitor.pathUpdateHandler = { [weak self] path in
+      DispatchQueue.main.async { self?.currentPath = path }
+    }
+    pathMonitor.start(queue: pathQueue)
     NovaBackgroundDownloads.shared.startAtLaunch()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
@@ -39,10 +49,36 @@ import UIKit
     // Register before Dart subscribes, even when the scene has not yet
     // installed its FlutterViewController. Cold-start OAuth links wait here.
     NoorLinkForwarder.shared.attach(messenger: registrar.messenger())
+    appearanceChannel = FlutterMethodChannel(name: "nova/appearance", binaryMessenger: registrar.messenger())
+    appearanceChannel?.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "environment":
+        let path = self?.currentPath
+        result([
+          "wifi": path?.status == .satisfied && path?.usesInterfaceType(.wifi) == true,
+          "lowPower": ProcessInfo.processInfo.isLowPowerModeEnabled,
+          "dataSaver": path == nil || path?.status != .satisfied || path?.isConstrained == true
+        ])
+      case "palette": result(nil)
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
     chromeChannel = FlutterMethodChannel(
       name: "nova/ios_chrome/v1",
       binaryMessenger: registrar.messenger()
     )
+    if transparencyObserver == nil {
+      transparencyObserver = NotificationCenter.default.addObserver(
+        forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+        object: nil, queue: .main
+      ) { [weak self] _ in
+        if UIAccessibility.isReduceTransparencyEnabled {
+          UIApplication.shared.connectedScenes.compactMap { $0.delegate as? SceneDelegate }
+            .forEach { $0.removeChrome() }
+        }
+        self?.chromeChannel?.invokeMethod("capabilitiesChanged", arguments: nil)
+      }
+    }
     downloadsChannel = FlutterMethodChannel(
       name: "nova/ios_downloads",
       binaryMessenger: registrar.messenger()
@@ -94,7 +130,7 @@ import UIKit
           result([
             "osMajor": ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
             "systemGlassAvailable": true,
-            "nativeChromeAvailable": UIDevice.current.userInterfaceIdiom == .phone
+            "nativeChromeAvailable": !UIAccessibility.isReduceTransparencyEnabled
               && UIApplication.shared.connectedScenes.contains { ($0.delegate as? SceneDelegate)?.canPresentChrome == true },
             "phoneIdiom": UIDevice.current.userInterfaceIdiom == .phone
           ])
@@ -107,6 +143,12 @@ import UIKit
           ])
         }
       case "setPresentation":
+        // A queued Flutter presentation cannot resurrect a retired overlay
+        // after the system accessibility setting has changed.
+        guard !UIAccessibility.isReduceTransparencyEnabled else {
+          result(FlutterError(code: "native_chrome_unavailable", message: nil, details: nil))
+          return
+        }
         // Flutter confirms route and chrome state before UIKit renders it.
         guard let state = call.arguments as? [String: Any],
               state["revision"] is Int,

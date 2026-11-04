@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/models/visual_preferences.dart';
 import '../../core/data/content_classifier.dart';
 import '../../core/data/catalog_repository.dart';
 import '../../core/state/app_state.dart';
@@ -26,6 +27,20 @@ bool novaIsChildRated(MediaItem item) => const {
       '6',
       '7',
     }.contains(item.certification?.trim().toLowerCase());
+
+/// The old default seeded `medium` for every profile, so it cannot identify an
+/// explicit Kids choice. It now inherits app-wide sizing; new explicit Medium
+/// selections use `mediumOverride`. Existing Small/Large choices remain local.
+CardPreferences novaKidsCardPreferences(Map<String, dynamic> settings) {
+  final shared = CardPreferences.fromSettings(settings);
+  final size = switch (settings['kidsCardSize']) {
+    'small' => CardSize.small,
+    'mediumOverride' => CardSize.medium,
+    'large' => CardSize.large,
+    _ => null,
+  };
+  return size == null ? shared : shared.copyWith(size: size);
+}
 
 class KidsPage extends StatefulWidget {
   const KidsPage({super.key});
@@ -104,13 +119,11 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
   @override
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
-    final cardSize = context.select<AppState, String>(
-        (app) => app.webSettings['kidsCardSize']?.toString() ?? 'medium');
-    final preferredWidth = cardSize == 'large'
-        ? 220.0
-        : cardSize == 'small'
-            ? 140.0
-            : 170.0;
+    final cards = context.select<AppState, CardPreferences>(
+        (app) => novaKidsCardPreferences(app.webSettings));
+    final dimensions = cards.dimensions(MediaQuery.sizeOf(context).width);
+    final heroQuality = context.select<AppState, ImageQuality>(
+        (app) => ImageQualityPreferences.fromSettings(app.webSettings).hero);
     final app = context.read<AppState>();
     final theme = Theme.of(context);
     return FutureBuilder<List<MediaItem>>(
@@ -126,43 +139,18 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
               items.firstOrNull;
           return CustomScrollView(slivers: [
             SliverToBoxAdapter(
-                child: ColoredBox(
-                    color: theme.colorScheme.primaryContainer,
-                    child: Padding(
-                        padding: const EdgeInsetsDirectional.fromSTEB(
-                            24, 32, 24, 24),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(children: [
-                                Icon(LucideIcons.sparkles,
-                                    color: theme.colorScheme.onPrimaryContainer,
-                                    size: 32),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                    child: Text(app.tr('message596'),
-                                        style: theme.textTheme.titleLarge
-                                            ?.copyWith(
-                                                color: theme.colorScheme
-                                                    .onPrimaryContainer,
-                                                fontWeight: FontWeight.w800))),
-                                Icon(LucideIcons.shieldCheck,
-                                    color: theme.colorScheme.onPrimaryContainer)
-                              ]),
-                              const SizedBox(height: 24),
-                              Text(app.tr('message597'),
-                                  style: theme.textTheme.headlineLarge
-                                      ?.copyWith(
-                                          color: theme
-                                              .colorScheme.onPrimaryContainer,
-                                          fontWeight: FontWeight.w900,
-                                          height: 1.25)),
-                              const SizedBox(height: 16),
-                              Text(app.tr('message598'),
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                      color: theme
-                                          .colorScheme.onPrimaryContainer)),
-                            ])))),
+              child: NovaBrowseHeader(
+                eyebrow: app.tr('message596'),
+                title: app.tr('message597'),
+                subtitle: app.tr('message598'),
+                actions: [
+                  Tooltip(
+                      message: app.tr('message596'),
+                      child: Icon(LucideIcons.shieldCheck,
+                          color: theme.colorScheme.primary, size: 32))
+                ],
+              ),
+            ),
             SliverToBoxAdapter(
                 child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -185,6 +173,7 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
               SliverToBoxAdapter(
                 child: NovaBrowseFeature(
                   item: featuredItem,
+                  quality: heroQuality,
                   label: app.tr('message596'),
                   actionLabel: app.tr('message131'),
                   onOpen: () => Navigator.of(context).push(
@@ -232,23 +221,26 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
                   padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
                   sliver: SliverLayoutBuilder(builder: (context, constraints) {
                     final columns =
-                        (constraints.crossAxisExtent / preferredWidth)
-                            .floor()
-                            .clamp(2, 6);
-                    final width =
-                        (constraints.crossAxisExtent - (columns - 1) * 20) /
-                            columns;
+                        dimensions.gridColumns(constraints.crossAxisExtent);
+                    final width = dimensions.gridCellWidth(
+                        constraints.crossAxisExtent, columns);
                     return SliverGrid.builder(
                         itemCount: items.length,
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: columns,
-                            mainAxisExtent: width / .72 +
-                                86 * MediaQuery.textScalerOf(context).scale(1),
+                            mainAxisExtent: cards.isHorizontal
+                                ? dimensions.horizontalExtent(width,
+                                    MediaQuery.textScalerOf(context).scale(1))
+                                : width / CardDimensions.verticalArtworkRatio +
+                                    86 *
+                                        MediaQuery.textScalerOf(context)
+                                            .scale(1),
                             crossAxisSpacing: 20,
                             mainAxisSpacing: 24),
                         itemBuilder: (context, index) => PosterCard(
                             item: items[index],
                             width: width,
+                            preferencesOverride: cards,
                             onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute<void>(
                                     builder: (_) => MediaDetailPage(

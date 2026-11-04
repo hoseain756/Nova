@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/media_item.dart';
+import '../../../core/models/visual_preferences.dart';
 import '../../../core/models/integration_cw.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/horse_theme.dart';
@@ -30,13 +30,18 @@ class _CwRailMetrics {
     required this.pad,
   });
 
-  factory _CwRailMetrics.solve(double width) {
-    final wide = width >= HorseTheme.bpWide;
-    final cardWidth = math.min(width * .66, 300.0);
+  factory _CwRailMetrics.solve(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final preferences =
+        CardPreferences.fromSettings(context.watch<AppState>().webSettings);
+    final dimensions = preferences.dimensions(width);
+    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final cardWidth = dimensions.railWidth.clamp(100.0, width - 48).toDouble();
     return _CwRailMetrics(
       cardWidth: cardWidth,
-      cardHeight: cardWidth * 9 / 16,
-      pad: wide ? 34 : 20,
+      cardHeight: (preferences.isHorizontal ? 160 : cardWidth * 1.2 + 120) +
+          (scale - 1).clamp(0, 3) * 100,
+      pad: width >= 700 ? 32 : 20,
     );
   }
 
@@ -298,7 +303,7 @@ class _ContinueRailState extends State<ContinueWatchingRail> {
       for (final entry in widget.entries) _ContinueRailItem.local(entry),
       for (final entry in widget.linkedEntries) _ContinueRailItem.linked(entry),
     ]..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
-    final metrics = _CwRailMetrics.solve(MediaQuery.sizeOf(context).width);
+    final metrics = _CwRailMetrics.solve(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -399,6 +404,9 @@ class ContinueCard extends StatelessWidget {
     final item = data.item;
     final progress = data.progress;
     final image = item.background ?? item.poster;
+    final imageKind = item.background != null
+        ? ProviderImageKind.backdrop
+        : ProviderImageKind.poster;
     final snapshotPath = data.localSnapshotPath;
     final epTag = data.epTag;
     final subtitle = data.subtitle;
@@ -483,231 +491,118 @@ class ContinueCard extends StatelessWidget {
       );
     }
 
+    final scheme = Theme.of(context).colorScheme;
+    final preferences =
+        CardPreferences.fromSettings(context.watch<AppState>().webSettings);
+    final quality = ImageQualityPreferences.fromSettings(
+            context.read<AppState>().webSettings)
+        .card;
+    final radius = BorderRadius.circular(preferences.radius);
+    final fallback = image == null
+        ? ColoredBox(
+            color: scheme.surfaceContainerHighest,
+            child: Center(
+                child: Icon(LucideIcons.film, color: scheme.onSurfaceVariant)))
+        : NovaNetworkImage(image,
+            fit: BoxFit.cover,
+            quality: quality,
+            providerKind: imageKind,
+            cacheWidth: imageCacheWidthForQuality(context, width,
+                quality: quality, kind: imageKind),
+            excludeFromSemantics: true);
+    final artwork = Stack(fit: StackFit.expand, children: [
+      if (snapshotPath == null)
+        fallback
+      else
+        Image.file(File(snapshotPath),
+            fit: BoxFit.cover,
+            cacheWidth: imageCacheWidth(context, width),
+            excludeFromSemantics: true,
+            errorBuilder: (_, __, ___) => fallback),
+      Align(
+          alignment: AlignmentDirectional.topStart,
+          child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      color: NovaColors.ink.withValues(alpha: .8),
+                      borderRadius: BorderRadius.circular(8)),
+                  child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(
+                          fresh ? LucideIcons.sparkles : LucideIcons.play,
+                          size: 18,
+                          color: fresh ? _freshDot : NovaColors.white))))),
+    ]);
+    final details = Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (epTag != null)
+              Text(epTag,
+                  textDirection: TextDirection.ltr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: scheme.primary)),
+            Text(item.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall),
+            if (subtitle != null)
+              Text(subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall),
+            if (sourceLabel != null || badge != null)
+              Text(
+                  [
+                    if (sourceLabel != null) sourceLabel,
+                    if (badge != null) badge
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+                value: progress.clamp(0, 1),
+                minHeight: 4,
+                borderRadius: BorderRadius.circular(2),
+                backgroundColor: scheme.surfaceContainerHighest,
+                color: scheme.primary),
+          ],
+        ));
     return SizedBox(
       width: width,
       height: height,
       child: Semantics(
         button: true,
         label: semantics,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: openDetail,
-          onLongPress: () => unawaited(openMenu()),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      snapshotPath != null
-                          ? Image.file(
-                              File(snapshotPath),
-                              fit: BoxFit.cover,
-                              cacheWidth: imageCacheWidth(context, width),
-                              errorBuilder: (_, __, ___) => image == null
-                                  ? ColoredBox(
-                                      color: NovaTheme.of(context).surface)
-                                  : NovaNetworkImage(
-                                      image,
-                                      fit: BoxFit.cover,
-                                      cacheWidth:
-                                          imageCacheWidth(context, width),
-                                      errorBuilder: (_, __, ___) => ColoredBox(
-                                        color: NovaTheme.of(context).surface,
-                                      ),
-                                    ),
-                            )
-                          : image == null
-                              ? ColoredBox(color: NovaTheme.of(context).surface)
-                              : NovaNetworkImage(
-                                  image,
-                                  fit: BoxFit.cover,
-                                  // Task 136: decode at the card's on-screen size.
-                                  cacheWidth: imageCacheWidth(context, width),
-                                  errorBuilder: (_, __, ___) => ColoredBox(
-                                    color: NovaTheme.of(context).surface,
-                                  ),
-                                ),
-                      // Web scrim: to top, 85% black → 45% → transparent.
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            stops: [0, .45, .75],
-                            colors: [
-                              NovaColors.ink.withValues(alpha: .85),
-                              NovaColors.ink.withValues(alpha: .45),
-                              NovaColors.ink.withValues(alpha: 0),
-                            ],
-                          ),
-                        ),
-                      ),
-                      PositionedDirectional(
-                        start: 10,
-                        end: 10,
-                        bottom: 12,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (epTag != null) ...[
-                              Directionality(
-                                textDirection: TextDirection.ltr,
-                                child: Text(
-                                  epTag,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
-                                    color:
-                                        NovaColors.white.withValues(alpha: .95),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                            ],
-                            Text(
-                              item.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                height: 1.2,
-                                color: NovaColors.white,
-                              ),
-                            ),
-                            if (subtitle != null)
-                              Text(
-                                subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.35,
-                                  color:
-                                      NovaColors.white.withValues(alpha: .65),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      if (progress > 0)
-                        PositionedDirectional(
-                          start: 8,
-                          end: 8,
-                          bottom: 4,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              minHeight: 3,
-                              backgroundColor:
-                                  NovaColors.white.withValues(alpha: .24),
-                              color: _progressRed,
-                            ),
-                          ),
-                        ),
-                      // Web .cw-badge: top-end black-70 pill, radius 8,
-                      // 12px/500 white text, 8px inset.
-                      if (badge != null)
-                        PositionedDirectional(
-                          top: 8,
-                          end: 8,
-                          child: Container(
-                            height: 22,
-                            constraints: BoxConstraints(maxWidth: width * .7),
-                            padding: const EdgeInsetsDirectional.symmetric(
-                              horizontal: 7,
-                            ),
-                            alignment: AlignmentDirectional.center,
-                            decoration: BoxDecoration(
-                              color: NovaColors.ink.withValues(alpha: .7),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              badge,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: NovaColors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Source pill (linked-service cards only): top-start
-                      // black-60 pill naming the provider — Trakt, AniList,
-                      // MyAnimeList — so provenance is visible at a glance.
-                      if (sourceLabel != null)
-                        PositionedDirectional(
-                          top: 8,
-                          start: 8,
-                          child: Container(
-                            height: 20,
-                            padding: const EdgeInsetsDirectional.symmetric(
-                              horizontal: 7,
-                            ),
-                            alignment: AlignmentDirectional.center,
-                            decoration: BoxDecoration(
-                              color: NovaColors.ink.withValues(alpha: .6),
-                              borderRadius: BorderRadius.circular(7),
-                            ),
-                            child: Text(
-                              sourceLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: .2,
-                                color: NovaColors.white.withValues(alpha: .92),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Web .cw-fresh: 5px amber dot above the progress bar.
-                      if (fresh)
-                        const PositionedDirectional(
-                          start: 8,
-                          bottom: 12,
-                          child: SizedBox(
-                            width: 5,
-                            height: 5,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: _freshDot,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              // Web card border: 1px rgba(255,255,255,.22), radius 16.
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: NovaColors.white.withValues(alpha: .22),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        child: Material(
+          color: scheme.surfaceContainerLow,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: openDetail,
+            onLongPress: () => unawaited(openMenu()),
+            child: ExcludeSemantics(
+                child: preferences.isHorizontal
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                            Expanded(flex: 4, child: artwork),
+                            Expanded(flex: 6, child: details)
+                          ])
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [Expanded(child: artwork), details])),
           ),
         ),
       ),
@@ -731,7 +626,7 @@ class IntegrationContinueWatchingRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metrics = _CwRailMetrics.solve(MediaQuery.sizeOf(context).width);
+    final metrics = _CwRailMetrics.solve(context);
     final sorted = [...entries]
       ..sort((a, b) => b.watchedAt.compareTo(a.watchedAt));
     return Column(

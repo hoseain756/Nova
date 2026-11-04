@@ -143,6 +143,99 @@ void main() {
     await bridge.dispose();
   });
 
+  test('iPad glass sidebar is a presentation of Flutter state', () async {
+    Map<dynamic, dynamic>? snapshot;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'getCapabilities') {
+        return {
+          'osMajor': 26,
+          'systemGlassAvailable': true,
+          'nativeChromeAvailable': true,
+          'phoneIdiom': false
+        };
+      }
+      if (call.method == 'setPresentation') snapshot = call.arguments as Map;
+      return null;
+    });
+    final bridge = IosChromeBridge(channel: channel, isIOS: true);
+    expect((await bridge.capabilities()).phoneIdiom, isFalse);
+    expect(
+        await bridge.publish(const IosChromePresentation(
+          revision: 1,
+          selectedId: 'home',
+          tabs: [IosChromeTab(id: 'home', label: 'Home')],
+          visible: true,
+          locale: 'en',
+          rtl: false,
+          dark: true,
+          active: true,
+          sidebar: true,
+        )),
+        isTrue);
+    expect(snapshot?['sidebar'], isTrue);
+    expect(snapshot?['selectedId'], 'home');
+    await bridge.dispose();
+  });
+
+  test('capability notifications retire intent authority and allow recovery',
+      () async {
+    var available = false;
+    var changes = 0;
+    var retirements = 0;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'getCapabilities') {
+        return {
+          'osMajor': 26,
+          'systemGlassAvailable': true,
+          'nativeChromeAvailable': available,
+          'phoneIdiom': true
+        };
+      }
+      if (call.method == 'dispose') retirements++;
+      return null;
+    });
+    final bridge = IosChromeBridge(channel: channel, isIOS: true);
+    bridge.onCapabilitiesChanged = () => changes++;
+    final selections = <String>[];
+    bridge.onSelectIntent = (id, _) => selections.add(id);
+    // Listening must work even if the first capability query is unavailable.
+    bridge.listenForIntents();
+    expect((await bridge.capabilities()).nativeChromeAvailable, isFalse);
+    Future<void> event(String method, [Object? arguments]) =>
+        messenger.handlePlatformMessage(
+            channel.name,
+            const StandardMethodCodec()
+                .encodeMethodCall(MethodCall(method, arguments)),
+            (_) {});
+    available = true;
+    await event('capabilitiesChanged');
+    expect((await bridge.capabilities()).nativeChromeAvailable, isTrue);
+    expect(await bridge.publish(_state(1)), isTrue);
+    await event('selectIntent', {'id': 'home', 'revision': 1});
+    expect(selections, ['home']);
+    available = false;
+    await event('capabilitiesChanged');
+    await event('selectIntent', {'id': 'home', 'revision': 1});
+    expect(selections, ['home']);
+    expect(changes, 2);
+    expect((await bridge.capabilities()).nativeChromeAvailable, isFalse);
+    await bridge.retire();
+    expect(retirements, 1);
+    available = true;
+    await event('capabilitiesChanged');
+    expect((await bridge.capabilities()).nativeChromeAvailable, isTrue);
+    expect(await bridge.publish(_state(1)), isFalse);
+    expect(await bridge.publish(_state(2)), isTrue);
+    await event('selectIntent', {'id': 'home', 'revision': 1});
+    await event('selectIntent', {'id': 'home', 'revision': 2});
+    expect(selections, ['home', 'home']);
+    expect(changes, 3);
+    await bridge.dispose();
+  });
+
   test('pre-26 cannot publish even if a host misreports native capability',
       () async {
     final methods = <String>[];
@@ -444,6 +537,7 @@ void main() {
       'rtl',
       'dark',
       'active',
+      'sidebar',
       'searchVisible',
       'searchLabel',
       'detail',

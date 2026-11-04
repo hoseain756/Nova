@@ -297,6 +297,7 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     }
 
     return CinematicCoverScroll(
+      scrollHero: true,
       storageKey: const PageStorageKey('nova-home'),
       heroBuilder: buildHero,
       heroHeight: classicHome ? 360 : featuredHeroHeight(context),

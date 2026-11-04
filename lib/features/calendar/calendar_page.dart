@@ -325,67 +325,82 @@ class _EpisodeTile extends StatelessWidget {
     final time = MaterialLocalizations.of(context).formatTimeOfDay(
         TimeOfDay.fromDateTime(episode.released),
         alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context));
-    return Padding(
-        padding: const EdgeInsetsDirectional.only(bottom: 16),
-        child: Material(
-            color: theme.colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: LayoutBuilder(builder: (context, constraints) {
-                    final wide = constraints.maxWidth >= 500;
-                    final art = ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: SizedBox(
-                            width: wide ? 160 : 88,
-                            height: wide ? 96 : 112,
-                            child: still == null
-                                ? ColoredBox(
-                                    color: theme
-                                        .colorScheme.surfaceContainerHighest,
-                                    child: const Icon(LucideIcons.tv))
-                                : NovaNetworkImage(still,
-                                    fit: BoxFit.cover,
-                                    cacheWidth: imageCacheWidth(
-                                        context, wide ? 160 : 88),
-                                    errorBuilder: (_, __, ___) => ColoredBox(
-                                        color: theme.colorScheme
-                                            .surfaceContainerHighest,
-                                        child: const Icon(LucideIcons.tv)))));
-                    return Row(children: [
-                      art,
-                      const SizedBox(width: 16),
-                      Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                            Text(time,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                    color: theme.colorScheme.secondary)),
-                            const SizedBox(height: 6),
-                            Text(episode.series.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleMedium),
-                            const SizedBox(height: 6),
-                            Text('$episodeLabel · $title',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall),
-                            const SizedBox(height: 6),
-                            Text(app.tr('message575'),
-                                style: theme.textTheme.labelMedium),
-                          ])),
-                      if (wide) ...[
-                        const SizedBox(width: 16),
-                        const Icon(LucideIcons.play, size: 24)
-                      ],
-                    ]);
-                  })),
-            )));
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsetsDirectional.symmetric(vertical: 24),
+          decoration: BoxDecoration(
+              border: Border(
+                  bottom: BorderSide(color: theme.colorScheme.outlineVariant))),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 680;
+            final artWidth = wide ? 176.0 : 88.0;
+            final art = ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: artWidth,
+                height: wide ? 104 : 120,
+                child: still == null
+                    ? ColoredBox(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(LucideIcons.tv))
+                    : NovaNetworkImage(still,
+                        fit: BoxFit.cover,
+                        cacheWidth: imageCacheWidth(context, artWidth),
+                        errorBuilder: (_, __, ___) => ColoredBox(
+                            color: theme.colorScheme.surfaceContainerHighest,
+                            child: const Icon(LucideIcons.tv))),
+              ),
+            );
+            final copy =
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(episode.series.name,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text('$episodeLabel · $title',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 12),
+              Text(app.tr('message575'),
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(color: theme.colorScheme.primary)),
+            ]);
+            final timeLabel = Text(time,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: theme.colorScheme.primary));
+            final content =
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              art,
+              const SizedBox(width: 20),
+              Expanded(child: copy),
+            ]);
+            if (!wide) {
+              return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    timeLabel,
+                    const SizedBox(height: 16),
+                    content,
+                  ]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 96, child: timeLabel),
+              const SizedBox(width: 16),
+              Expanded(child: content),
+              const SizedBox(width: 16),
+              const SizedBox.square(
+                  dimension: 48, child: Icon(LucideIcons.play)),
+            ]);
+          }),
+        ),
+      ),
+    );
   }
 }
 

@@ -84,71 +84,36 @@ class _NovaSplashState extends State<NovaSplash>
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final compactHeight = constraints.maxHeight < 420;
-              final horizontalPadding = compactHeight ? 24.0 : 32.0;
-              final footerGap = compactHeight ? 12.0 : 28.0;
-              final topPadding = compactHeight ? 12.0 : 24.0;
-              final bottomPadding = compactHeight ? 12.0 : 28.0;
-              final contentHeight =
-                  (constraints.maxHeight - topPadding - bottomPadding)
-                      .clamp(0.0, double.infinity);
-              final logoAreaHeight = compactHeight
-                  ? (contentHeight * .52).clamp(88.0, 196.0)
-                  : (contentHeight * .7).clamp(140.0, 560.0);
+              final compact = constraints.maxHeight < 420;
+              final logoHeight = compact ? 120.0 : 260.0;
               return SingleChildScrollView(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
                     padding: EdgeInsetsDirectional.fromSTEB(
-                      horizontalPadding,
-                      topPadding,
-                      horizontalPadding,
-                      bottomPadding,
-                    ),
-                    child: compactHeight
-                        ? Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              SizedBox(
-                                height: logoAreaHeight,
-                                child: Center(
-                                  child: _AnimatedNovaLockup(
-                                    animation: _controller,
-                                    dark: dark,
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding:
-                                    EdgeInsetsDirectional.only(top: footerGap),
-                                child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 420),
-                                  child: widget.footer,
-                                ),
-                              ),
-                            ],
-                          )
-                        : SizedBox(
-                            height: contentHeight,
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                _AnimatedNovaLockup(
-                                  animation: _controller,
-                                  dark: dark,
-                                ),
-                                Align(
-                                  alignment: AlignmentDirectional.bottomCenter,
-                                  child: ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 420),
-                                    child: widget.footer,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        NovaSpace.gutter(constraints.maxWidth),
+                        24,
+                        NovaSpace.gutter(constraints.maxWidth),
+                        32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: logoHeight,
+                          child: Center(
+                              child: _AnimatedNovaLockup(
+                                  animation: _controller, dark: dark)),
+                        ),
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(top: 32),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: widget.footer,
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -207,8 +172,8 @@ class _AnimatedNovaLockup extends StatelessWidget {
                   final wordmarkWidth = height * (553.5 / 230);
                   final wordmarkHeight = height * (124.2 / 230);
                   final glowDiameter = fittedWidth * 1.5;
-                  final glowStrongAlpha = dark ? .55 : .24;
-                  final glowSoftAlpha = dark ? .16 : .08;
+                  final glowStrongAlpha = dark ? .10 : .04;
+                  final glowSoftAlpha = dark ? .03 : .01;
 
                   return Stack(
                     clipBehavior: Clip.none,

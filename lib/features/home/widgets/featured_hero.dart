@@ -1,13 +1,14 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/featured_artwork.dart';
+import '../../../core/models/visual_preferences.dart';
+import 'hero_trailer.dart';
 import '../../../core/models/media_item.dart';
 import '../../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -15,11 +16,8 @@ import '../../../shared/widgets/image_decode.dart';
 
 const _heroSlideDuration = Duration(seconds: 6);
 
-/// The featured hero carousel (home's top slot): full-bleed autoplaying
-/// artwork with TMDB-enriched logo / portrait / landscape picks, the bottom
-/// scrim ladder, metadata row, "View details" pill and page dots — plus the
-/// geometry-matched [FeaturedSkeleton] loading state. Moved verbatim from
-/// home_page.dart (Task 121-c); visuals, keys and ordering are unchanged.
+/// Adaptive artwork, bounded trailer previews and a readable information area.
+/// Carousel work follows route visibility, lifecycle and motion preferences.
 class FeaturedHero extends StatefulWidget {
   const FeaturedHero({
     super.key,
@@ -47,6 +45,7 @@ class _FeaturedCardState extends State<FeaturedHero>
   bool _reducedMotion = false;
   bool _appActive = true;
   bool _touching = false;
+  bool _previewPlaying = false;
   String? _artworkSignature;
   final Map<String, FeaturedArtwork> _artwork = {};
 
@@ -54,12 +53,14 @@ class _FeaturedCardState extends State<FeaturedHero>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.contentVisibility.addListener(_onVisibilityChanged);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final reduceMotion = MediaQuery.disableAnimationsOf(context) ||
+        context.watch<AppState>().webSettings['reduceMotion'] == true;
     if (reduceMotion != _reducedMotion) {
       _reducedMotion = reduceMotion;
     }
@@ -70,7 +71,18 @@ class _FeaturedCardState extends State<FeaturedHero>
   @override
   void didUpdateWidget(covariant FeaturedHero oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.contentVisibility != widget.contentVisibility) {
+      oldWidget.contentVisibility.removeListener(_onVisibilityChanged);
+      widget.contentVisibility.addListener(_onVisibilityChanged);
+    }
     if (_itemsSignature(oldWidget.items) != _itemsSignature(widget.items)) {
+      final previousId = oldWidget.items.isEmpty
+          ? null
+          : oldWidget
+              .items[_activeIndex.clamp(0, oldWidget.items.length - 1)].id;
+      if (widget.items.isEmpty || widget.items.first.id != previousId) {
+        _previewPlaying = false;
+      }
       _activeIndex = 0;
       _artworkSignature = null;
       _startAutoplay();
@@ -82,6 +94,7 @@ class _FeaturedCardState extends State<FeaturedHero>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.contentVisibility.removeListener(_onVisibilityChanged);
     _autoplayTimer?.cancel();
     _touchResumeTimer?.cancel();
     super.dispose();
@@ -95,6 +108,10 @@ class _FeaturedCardState extends State<FeaturedHero>
     } else {
       _autoplayTimer?.cancel();
     }
+  }
+
+  void _onVisibilityChanged() {
+    _startAutoplay();
   }
 
   String _itemsSignature(List<MediaItem> items) =>
@@ -159,6 +176,8 @@ class _FeaturedCardState extends State<FeaturedHero>
     if (_reducedMotion ||
         !_appActive ||
         _touching ||
+        _previewPlaying ||
+        widget.contentVisibility.value < .65 ||
         !_destinationVisible ||
         widget.items.length < 2) {
       return;
@@ -203,24 +222,35 @@ class _FeaturedCardState extends State<FeaturedHero>
     final count = widget.items.length;
     final target = ((targetIndex % count) + count) % count;
     if (target == _activeIndex) return;
-    setState(() => _activeIndex = target);
+    setState(() {
+      _activeIndex = target;
+      _previewPlaying = false;
+    });
+    _startAutoplay();
     _precacheNext();
   }
 
   void _precacheNext() {
     if (!_destinationVisible || !_appActive || widget.items.isEmpty) return;
+    if (_reducedMotion || widget.contentVisibility.value < .65) return;
     final next = widget.items[(_activeIndex + 1) % widget.items.length];
-    final wide = MediaQuery.sizeOf(context).width >= 700;
+    final size = MediaQuery.sizeOf(context);
+    final wide = size.width >= 700 || size.width > size.height;
     final art = _artwork[next.id];
-    final url = wide
-        ? (art?.landscape ?? next.background ?? next.poster)
-        : (art?.portrait ?? next.poster ?? next.background);
+    final (url: url, kind: kind) = _featuredImage(next, art, wide: wide);
     if (url != null) {
+      final quality = ImageQualityPreferences.fromSettings(
+              context.read<AppState>().webSettings)
+          .hero;
+      final pixels = imageCacheWidthForQuality(
+          context, MediaQuery.sizeOf(context).width,
+          quality: quality, kind: kind);
       unawaited(precacheImage(
           ResizeImage.resizeIfNeeded(
-              imageCacheWidth(context, MediaQuery.sizeOf(context).width),
+              pixels,
               null,
-              NetworkImage(url)),
+              NetworkImage(providerSizedImageUrl(url,
+                  quality: quality, targetPixels: pixels, kind: kind))),
           context));
     }
   }
@@ -236,66 +266,104 @@ class _FeaturedCardState extends State<FeaturedHero>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.items.isEmpty) return const FeaturedSkeleton();
+    final app = context.watch<AppState>();
     final heroHeight = featuredHeroHeight(context);
-    final activeItem = widget.items[_activeIndex];
+    final activeItem =
+        widget.items[_activeIndex.clamp(0, widget.items.length - 1)];
+    final wide = MediaQuery.sizeOf(context).width >= 840;
+    final top = MediaQuery.paddingOf(context).top;
+    final gutter = wide ? 32.0 : 20.0;
     return SizedBox(
       height: heroHeight,
-      child: Listener(
-        behavior: HitTestBehavior.translucent,
-        onPointerDown: (_) => _pauseForTouch(),
-        onPointerUp: (_) => _resumeAfterTouch(),
-        onPointerCancel: (_) => _resumeAfterTouch(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (_) => _dragDistance = 0,
-          onHorizontalDragUpdate: (details) =>
-              _dragDistance += details.delta.dx,
-          onHorizontalDragEnd: (_) => _handleSwipeEnd(),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              AnimatedSwitcher(
-                duration: _reducedMotion
-                    ? Duration.zero
-                    : const Duration(milliseconds: 380),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeOutCubic,
-                child: _FeaturedArtwork(
-                  key: ValueKey(activeItem.id),
+      child: Padding(
+        padding: EdgeInsetsDirectional.fromSTEB(gutter, top + 88, gutter, 24),
+        child: ValueListenableBuilder<double>(
+          valueListenable: widget.contentVisibility,
+          builder: (context, visibility, _) {
+            final artwork = ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: HeroTrailer(
+                key: ValueKey('preview-${activeItem.id}'),
+                item: activeItem,
+                app: app,
+                active: _destinationVisible && _appActive && visibility >= .65,
+                onPlaybackChanged: (playing) {
+                  if (!mounted || playing == _previewPlaying) return;
+                  _previewPlaying = playing;
+                  _startAutoplay();
+                },
+                poster: GestureDetector(
+                  onHorizontalDragStart: (_) => _dragDistance = 0,
+                  onHorizontalDragUpdate: (details) =>
+                      _dragDistance += details.delta.dx,
+                  onHorizontalDragEnd: (_) => _handleSwipeEnd(),
+                  child: AnimatedSwitcher(
+                    duration: _reducedMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 240),
+                    child: _FeaturedArtwork(
+                        key: ValueKey(activeItem.id),
+                        item: activeItem,
+                        artwork: _artwork[activeItem.id]),
+                  ),
+                ),
+              ),
+            );
+            final interactiveArtwork = Listener(
+              onPointerDown: (_) => _pauseForTouch(),
+              onPointerUp: (_) => _resumeAfterTouch(),
+              onPointerCancel: (_) => _resumeAfterTouch(),
+              child: artwork,
+            );
+            final information = IgnorePointer(
+              key: const ValueKey('home-hero-content-ignore-pointer'),
+              ignoring: visibility <= .05,
+              child: Opacity(
+                key: const ValueKey('home-hero-content-opacity'),
+                opacity: visibility,
+                child: _FeaturedOverlay(
                   item: activeItem,
                   artwork: _artwork[activeItem.id],
+                  itemsCount: widget.items.length,
+                  activeIndex: _activeIndex,
+                  reduceMotion: _reducedMotion,
+                  onSelectPage: _goToSlide,
+                  onTap: () => widget.onTap(activeItem),
                 ),
               ),
-              const Positioned.fill(child: _FeaturedScrim()),
-              Positioned.fill(
-                child: ValueListenableBuilder<double>(
-                  valueListenable: widget.contentVisibility,
-                  child: _FeaturedOverlay(
-                    item: activeItem,
-                    artwork: _artwork[activeItem.id],
-                    itemsCount: widget.items.length,
-                    activeIndex: _activeIndex,
-                    reduceMotion: _reducedMotion,
-                    onSelectPage: _goToSlide,
-                    onTap: () => widget.onTap(activeItem),
-                  ),
-                  builder: (context, visibility, child) => IgnorePointer(
-                    key: const ValueKey('home-hero-content-ignore-pointer'),
-                    ignoring: visibility <= .05,
-                    child: Opacity(
-                      key: const ValueKey('home-hero-content-opacity'),
-                      opacity: visibility,
-                      child: child,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+            return wide
+                ? Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                        Expanded(flex: 6, child: interactiveArtwork),
+                        const SizedBox(width: 32),
+                        Expanded(flex: 5, child: information),
+                      ])
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                        Expanded(child: interactiveArtwork),
+                        const SizedBox(height: 20),
+                        information,
+                      ]);
+          },
         ),
       ),
     );
   }
+}
+
+({String? url, ProviderImageKind kind}) _featuredImage(
+    MediaItem item, FeaturedArtwork? artwork,
+    {required bool wide}) {
+  final poster = artwork?.portrait ?? item.poster;
+  final backdrop = artwork?.landscape ?? item.background;
+  if (wide && backdrop != null || poster == null) {
+    return (url: backdrop, kind: ProviderImageKind.backdrop);
+  }
+  return (url: poster, kind: ProviderImageKind.poster);
 }
 
 class _FeaturedArtwork extends StatelessWidget {
@@ -307,68 +375,24 @@ class _FeaturedArtwork extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= 700 || size.width > size.height;
-    final url = wide
-        ? (artwork?.landscape ?? item.background ?? item.poster)
-        : (artwork?.portrait ?? item.poster ?? item.background);
+    final (url: url, kind: kind) = _featuredImage(item, artwork, wide: wide);
     final scheme = Theme.of(context).colorScheme;
+    final quality = ImageQualityPreferences.fromSettings(
+            context.watch<AppState>().webSettings)
+        .hero;
+    final pixels = imageCacheWidthForQuality(context, size.width,
+        quality: quality, kind: kind);
     return SizedBox.expand(
-      child: url == null
-          ? ColoredBox(color: scheme.surfaceContainerHighest)
-          : ClipRect(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(
-                  begin: 1,
-                  end: MediaQuery.disableAnimationsOf(context) ? 1 : 1.05,
-                ),
-                duration: _heroSlideDuration,
-                curve: Curves.linear,
-                builder: (context, scale, child) => Transform.scale(
-                  scale: scale,
-                  child: child,
-                ),
-                child: NovaNetworkImage(
-                  url,
-                  width: double.infinity,
-                  height: double.infinity,
-                  fit: BoxFit.cover,
-                  cacheWidth: imageCacheWidth(context, size.width),
-                  alignment: Alignment.topCenter,
-                  excludeFromSemantics: true,
-                  frameBuilder: (context, child, frame, sync) =>
-                      AnimatedOpacity(
-                    opacity: frame == null ? 0 : 1,
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 320),
-                    child: child,
-                  ),
-                  errorBuilder: (_, __, ___) =>
-                      ColoredBox(color: scheme.surfaceContainerHighest),
-                ),
-              ),
-            ),
-    );
-  }
-}
-
-class _FeaturedScrim extends StatelessWidget {
-  const _FeaturedScrim();
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return DecoratedBox(
-        decoration: BoxDecoration(
-            gradient: LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [
-        scheme.scrim.withValues(alpha: .25),
-        scheme.scrim.withValues(alpha: .05),
-        scheme.scrim.withValues(alpha: .86),
-        scheme.scrim
-      ],
-      stops: const [0, .35, .78, 1],
-    )));
+        child: url == null
+            ? ColoredBox(color: scheme.surfaceContainerHighest)
+            : NovaNetworkImage(
+                providerSizedImageUrl(url,
+                    quality: quality, targetPixels: pixels, kind: kind),
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
+                cacheWidth: pixels,
+                excludeFromSemantics: true));
   }
 }
 
@@ -395,131 +419,102 @@ class _FeaturedOverlay extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= 700;
-    // Cinematic art always has a dark palette-derived legibility bed.
-    final foreground = Theme.of(context).brightness == Brightness.dark
-        ? scheme.onSurface
-        : scheme.surface;
-    final logo = artwork?.logo ?? item.logo;
+    // Metadata has its own theme surface, separate from artwork contrast.
+    final foreground = scheme.onSurface;
     final displayTitle = artwork?.title ?? item.name;
     final genre = artwork?.genre ?? item.genres.firstOrNull;
     final type = item.type == 'movie'
         ? (NovaStrings.lookup(english, 'message128'))
         : (NovaStrings.lookup(english, 'message129'));
-    return Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(
-          wide ? 40 : 24, 72, wide ? 40 : 24, 24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(NovaStrings.lookup(english, 'message130'),
-              style: TextStyle(
-                  color: foreground.withValues(alpha: .85),
-                  fontSize: 12,
-                  letterSpacing: english ? 2.5 : 0,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 16),
-          if (logo != null)
-            NovaNetworkImage(logo,
-                width: math.min(size.width * .65, 320),
-                height: wide ? 88 : 72,
-                fit: BoxFit.contain,
-                alignment: AlignmentDirectional.centerStart
-                    .resolve(Directionality.of(context)),
-                cacheWidth: imageCacheWidth(context, 320),
-                semanticLabel: displayTitle,
-                errorBuilder: (_, __, ___) => Text(displayTitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: foreground,
-                        fontSize: wide ? 40 : 32,
-                        fontWeight: FontWeight.w800,
-                        height: 1.2)))
-          else
-            Text(displayTitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(NovaStrings.lookup(english, 'cinemaFeatured'),
+            style: TextStyle(
+                color: foreground.withValues(alpha: .85),
+                fontSize: 12,
+                letterSpacing: english ? 2.5 : 0,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Text(displayTitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                color: foreground, fontSize: wide ? 36 : 28, height: 1.2)),
+        const SizedBox(height: 12),
+        Wrap(spacing: 12, runSpacing: 4, children: [
+          Text(type,
+              style: TextStyle(color: foreground, fontWeight: FontWeight.w700)),
+          if (item.releaseInfo?.isNotEmpty == true)
+            Text(item.releaseInfo!,
+                style: TextStyle(color: foreground.withValues(alpha: .85))),
+          if (genre != null)
+            Text(genre,
+                style: TextStyle(color: foreground.withValues(alpha: .85))),
+        ]),
+        if (wide &&
+            (artwork?.overview ?? item.description)?.isNotEmpty == true) ...[
+          const SizedBox(height: 12),
+          ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Text(artwork?.overview ?? item.description!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: foreground.withValues(alpha: .85), height: 1.6))),
+        ],
+        const SizedBox(height: 16),
+        Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilledButton.icon(
+                  onPressed: onTap,
+                  icon: const Icon(LucideIcons.play, size: 20),
+                  label: Text(NovaStrings.lookup(english, 'message131')),
+                  style:
+                      FilledButton.styleFrom(minimumSize: const Size(160, 52))),
+              IconButton.filledTonal(
+                  onPressed: () => unawaited(app.toggleWatchlist(item)),
+                  tooltip: app.contains(item)
+                      ? (NovaStrings.lookup(english, 'message132'))
+                      : (NovaStrings.lookup(english, 'message133')),
+                  icon: Icon(app.contains(item)
+                      ? LucideIcons.check
+                      : LucideIcons.plus),
+                  style:
+                      IconButton.styleFrom(minimumSize: const Size.square(52))),
+            ]),
+        if (itemsCount > 1) ...[
+          const SizedBox(height: 12),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+                onPressed: () => onSelectPage(activeIndex - 1),
+                tooltip: NovaStrings.lookup(english, 'message134'),
+                icon: Icon(
+                    Directionality.of(context) == TextDirection.rtl
+                        ? LucideIcons.chevronRight
+                        : LucideIcons.chevronLeft,
+                    color: foreground)),
+            Text('${activeIndex + 1} / $itemsCount',
+                textDirection: TextDirection.ltr,
                 style: TextStyle(
                     color: foreground,
-                    fontSize: wide ? 40 : 32,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2)),
-          const SizedBox(height: 12),
-          Wrap(spacing: 12, runSpacing: 4, children: [
-            Text(type,
-                style:
-                    TextStyle(color: foreground, fontWeight: FontWeight.w700)),
-            if (item.releaseInfo?.isNotEmpty == true)
-              Text(item.releaseInfo!,
-                  style: TextStyle(color: foreground.withValues(alpha: .85))),
-            if (genre != null)
-              Text(genre,
-                  style: TextStyle(color: foreground.withValues(alpha: .85))),
+                    fontFeatures: const [FontFeature.tabularFigures()])),
+            IconButton(
+                onPressed: () => onSelectPage(activeIndex + 1),
+                tooltip: NovaStrings.lookup(english, 'message135'),
+                icon: Icon(
+                    Directionality.of(context) == TextDirection.rtl
+                        ? LucideIcons.chevronLeft
+                        : LucideIcons.chevronRight,
+                    color: foreground)),
           ]),
-          if (wide &&
-              (artwork?.overview ?? item.description)?.isNotEmpty == true) ...[
-            const SizedBox(height: 12),
-            ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
-                child: Text(artwork?.overview ?? item.description!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: foreground.withValues(alpha: .85),
-                        height: 1.6))),
-          ],
-          const SizedBox(height: 24),
-          Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                FilledButton.icon(
-                    onPressed: onTap,
-                    icon: const Icon(LucideIcons.play, size: 20),
-                    label: Text(NovaStrings.lookup(english, 'message131')),
-                    style: FilledButton.styleFrom(
-                        minimumSize: const Size(160, 52))),
-                IconButton.filledTonal(
-                    onPressed: () => unawaited(app.toggleWatchlist(item)),
-                    tooltip: app.contains(item)
-                        ? (NovaStrings.lookup(english, 'message132'))
-                        : (NovaStrings.lookup(english, 'message133')),
-                    icon: Icon(app.contains(item)
-                        ? LucideIcons.check
-                        : LucideIcons.plus),
-                    style: IconButton.styleFrom(
-                        minimumSize: const Size.square(52))),
-              ]),
-          if (itemsCount > 1) ...[
-            const SizedBox(height: 12),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(
-                  onPressed: () => onSelectPage(activeIndex - 1),
-                  tooltip: NovaStrings.lookup(english, 'message134'),
-                  icon: Icon(
-                      Directionality.of(context) == TextDirection.rtl
-                          ? LucideIcons.chevronRight
-                          : LucideIcons.chevronLeft,
-                      color: foreground)),
-              Text('${activeIndex + 1} / $itemsCount',
-                  textDirection: TextDirection.ltr,
-                  style: TextStyle(
-                      color: foreground,
-                      fontFeatures: const [FontFeature.tabularFigures()])),
-              IconButton(
-                  onPressed: () => onSelectPage(activeIndex + 1),
-                  tooltip: NovaStrings.lookup(english, 'message135'),
-                  icon: Icon(
-                      Directionality.of(context) == TextDirection.rtl
-                          ? LucideIcons.chevronLeft
-                          : LucideIcons.chevronRight,
-                      color: foreground)),
-            ]),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
@@ -562,6 +557,8 @@ class FeaturedSkeleton extends StatelessWidget {
 double featuredHeroHeight(BuildContext context) {
   final size = MediaQuery.sizeOf(context);
   final scale = MediaQuery.textScalerOf(context).scale(16) / 16;
-  final base = size.height * .68;
-  return base + (scale - 1).clamp(0.0, 2.0) * 200;
+  final wide = size.width >= 840;
+  return (wide ? 520.0 : 720.0) +
+      MediaQuery.paddingOf(context).top +
+      (scale - 1).clamp(0.0, 3.0) * (wide ? 230 : 340);
 }

@@ -102,5 +102,8 @@ double glassDockContentClearance(BuildContext context) {
     viewport: media.size,
     safePadding: media.padding,
   );
-  return sizing.contentClearance(safeBottom: safe);
+  final legacy = sizing.contentClearance(safeBottom: safe);
+  return Theme.of(context).platform == TargetPlatform.android
+      ? legacy.clamp(80 + 12 + safe + 16, double.infinity).toDouble()
+      : legacy;
 }

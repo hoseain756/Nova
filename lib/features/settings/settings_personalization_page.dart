@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../core/state/app_state.dart';
 import 'app_icon_settings_page.dart';
+import 'card_customization_page.dart';
 import 'navigation_bar_style_page.dart';
 import 'widgets/settings_tiles.dart';
 
@@ -122,6 +123,14 @@ class SettingsPersonalizationPage extends StatelessWidget {
                                 MaterialPageRoute<void>(
                                     builder: (_) =>
                                         const NavigationBarStylePage()))),
+                        SettingsTile(
+                            icon: LucideIcons.clapperboard,
+                            title: app.tr('cardCustomizationTitle'),
+                            subtitle: app.tr('cardCustomizationDescription'),
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const CardCustomizationPage()))),
                         SettingsTile(
                             icon: LucideIcons.image,
                             title: app.tr('appIconTitle'),

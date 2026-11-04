@@ -1,103 +1,131 @@
-import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
-import '../../core/models/media_item.dart';
-import '../../shared/widgets/image_decode.dart';
-import '../../shared/widgets/media_quick_look.dart';
+import 'package:provider/provider.dart';
 
-/// NOVA's editorial ranking: clear numbered captions, consistent posters,
-/// and real title names instead of overlapping, decorative numeral artwork.
+import '../../core/models/media_item.dart';
+import '../../core/models/visual_preferences.dart';
+import '../../core/state/app_state.dart';
+import '../../shared/widgets/media_quick_look.dart';
+import '../../shared/widgets/poster_card.dart';
+
+/// Ranked rail with the same artwork geometry and quality as other media rows.
 class Top10Rail extends StatelessWidget {
-  const Top10Rail(
-      {super.key,
-      required this.title,
-      required this.items,
-      required this.onTap});
+  const Top10Rail({
+    super.key,
+    required this.title,
+    required this.items,
+    required this.onTap,
+  });
+
   final String title;
   final List<MediaItem> items;
   final ValueChanged<MediaItem> onTap;
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
-    final gutter = MediaQuery.sizeOf(context).width >= 700 ? 40.0 : 24.0;
-    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final preferences = context.select<AppState, CardPreferences>(
+        (app) => CardPreferences.fromSettings(app.webSettings));
+    final dimensions = preferences.dimensions(viewportWidth);
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final artworkHeight = preferences.isHorizontal
+        ? dimensions.horizontalExtent(dimensions.railWidth, scale)
+        : dimensions.railWidth / CardDimensions.verticalArtworkRatio;
+    final railHeight = artworkHeight + 12 + 54 * scale;
+    final wide = viewportWidth >= 700;
+    final gutter = wide ? 34.0 : 20.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
           padding: EdgeInsetsDirectional.symmetric(horizontal: gutter),
-          child: Row(children: [
-            Icon(LucideIcons.trendingUp,
-                color: Theme.of(context).colorScheme.primary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-                child:
-                    Text(title, style: Theme.of(context).textTheme.titleLarge))
-          ])),
-      const SizedBox(height: 20),
-      SizedBox(
-          height: Top10Item.itemHeight + (scale - 1) * 44,
+          child: Text(
+            title,
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: railHeight,
           child: ListView.separated(
-              padding: EdgeInsetsDirectional.symmetric(horizontal: gutter),
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length.clamp(0, 10),
-              separatorBuilder: (_, __) => const SizedBox(width: 16),
-              itemBuilder: (context, index) => Top10Item(
-                  rank: index + 1,
-                  item: items[index],
-                  onTap: () => onTap(items[index])))),
-    ]);
+            padding: EdgeInsetsDirectional.symmetric(horizontal: gutter),
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length.clamp(0, 10),
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            itemBuilder: (context, index) => Top10Item(
+              rank: index + 1,
+              item: items[index],
+              onTap: () => onTap(items[index]),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class Top10Item extends StatelessWidget {
-  const Top10Item(
-      {super.key, required this.rank, required this.item, required this.onTap});
+  const Top10Item({
+    super.key,
+    required this.rank,
+    required this.item,
+    required this.onTap,
+  });
+
   final int rank;
   final MediaItem item;
   final VoidCallback onTap;
+
+  /// Kept for older callers; the actual extent follows the card preference.
   static const double itemHeight = 288;
+
   @override
   Widget build(BuildContext context) {
+    final preferences = context.select<AppState, CardPreferences>(
+        (app) => CardPreferences.fromSettings(app.webSettings));
+    final width =
+        preferences.dimensions(MediaQuery.sizeOf(context).width).railWidth;
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-        width: 144,
-        child: InkWell(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PosterCard(
+            item: item,
+            onTap: onTap,
+            width: width,
+            showText: preferences.isHorizontal,
+          ),
+          const SizedBox(height: 12),
+          InkWell(
             onTap: onTap,
             onLongPress: () =>
                 showMediaQuickLook(context, item: item, onOpen: onTap),
-            borderRadius: BorderRadius.circular(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                      width: 144,
-                      height: 216,
-                      child: ColoredBox(
-                          color: scheme.surfaceContainerHighest,
-                          child: item.poster?.isNotEmpty == true
-                              ? NovaNetworkImage(item.poster!,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: imageCacheWidth(context, 144),
-                                  semanticLabel: item.name,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                      LucideIcons.film,
-                                      color: scheme.onSurfaceVariant))
-                              : Icon(LucideIcons.film,
-                                  color: scheme.onSurfaceVariant)))),
-              const SizedBox(height: 12),
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(rank.toString().padLeft(2, '0'),
                     textDirection: TextDirection.ltr,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: scheme.secondary, fontWeight: FontWeight.w800)),
                 const SizedBox(width: 8),
-                Expanded(
+                if (!preferences.isHorizontal)
+                  Expanded(
                     child: Text(item.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall)),
-              ]),
-            ])));
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

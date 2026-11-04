@@ -104,7 +104,7 @@ class _DownloadsPageState extends State<DownloadsPage> {
       appBar: AppBar(title: Text(s.text('downloads'))),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: AnimatedBuilder(
             animation: _manager,
             builder: (context, _) {

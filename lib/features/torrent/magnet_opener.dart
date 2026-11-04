@@ -11,6 +11,7 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
+import '../shell/nova_browse_widgets.dart';
 import '../player/playback_entry_page.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/shimmer_box.dart';
@@ -70,6 +71,78 @@ Future<void> openMagnetFlow(
   } finally {
     _flowOpen = false;
   }
+}
+
+/// File choices are real sliver children so large packs keep lazy rendering.
+class MagnetFileChoicesSliver extends StatelessWidget {
+  const MagnetFileChoicesSliver({
+    super.key,
+    required this.files,
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.sizeLabel,
+  });
+
+  final List<TorrentFileInfo> files;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final String Function(int bytes) sizeLabel;
+
+  @override
+  Widget build(BuildContext context) => SliverList.separated(
+        itemCount: files.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (context, index) {
+          final file = files[index];
+          final selected = file.index == selectedIndex;
+          return Semantics(
+            selected: selected,
+            button: true,
+            child: Material(
+              key: ValueKey('magnet-file-${file.index}'),
+              color: selected
+                  ? NovaTheme.of(context).gold.withValues(alpha: .12)
+                  : NovaTheme.of(context).raised,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                    color: selected
+                        ? NovaTheme.of(context).gold
+                        : NovaTheme.of(context).line),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => onSelected(file.index),
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(
+                      horizontal: 12, vertical: 16),
+                  child: Row(children: [
+                    Icon(
+                        selected ? LucideIcons.circleCheck : LucideIcons.circle,
+                        color: selected
+                            ? NovaTheme.of(context).gold
+                            : NovaTheme.of(context).muted,
+                        size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text(file.name,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyMedium),
+                          const SizedBox(height: 8),
+                          Text(sizeLabel(file.size),
+                              style: Theme.of(context).textTheme.bodySmall),
+                        ])),
+                  ]),
+                ),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 class _MagnetSheet extends StatefulWidget {
@@ -338,76 +411,49 @@ class _MagnetSheetState extends State<_MagnetSheet> {
       NovaStrings.lookup(english, 'message713'),
       NovaStrings.lookup(english, 'message714')
     ];
-    return SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsetsDirectional.only(
-              bottom: MediaQuery.viewInsetsOf(context).bottom),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-                maxHeight: MediaQuery.sizeOf(context).height * .88),
-            child: SingleChildScrollView(
-              padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 32),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(children: [
-                      Icon(LucideIcons.magnet,
-                          color: scheme.secondary, size: 32),
-                      const SizedBox(width: 16),
-                      Expanded(
-                          child: Text(NovaStrings.lookup(english, 'message715'),
-                              style:
-                                  Theme.of(context).textTheme.headlineSmall)),
-                      IconButton(
-                          onPressed: _cancelPreparing,
-                          tooltip: NovaStrings.lookup(english, 'close'),
-                          icon: const Icon(LucideIcons.x))
-                    ]),
-                    const SizedBox(height: 16),
-                    Text(NovaStrings.lookup(english, 'message716'),
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
-                    const SizedBox(height: 24),
-                    Wrap(spacing: 16, runSpacing: 12, children: [
-                      for (var i = 0; i < stages.length; i++)
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          CircleAvatar(
-                              radius: 14,
-                              backgroundColor: i == index
-                                  ? scheme.primary
-                                  : scheme.surfaceContainerHigh,
-                              child: Text('${i + 1}',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      color: i == index
-                                          ? scheme.onPrimary
-                                          : scheme.onSurfaceVariant))),
-                          const SizedBox(width: 8),
-                          Text(stages[i],
-                              style: TextStyle(
-                                  fontWeight: i == index
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: i == index
-                                      ? scheme.onSurface
-                                      : scheme.onSurfaceVariant))
-                        ])
-                    ]),
-                    const SizedBox(height: 32),
-                    switch (_stage) {
-                      _Stage.input => _buildInput(english),
-                      _Stage.resolving => _buildResolving(english),
-                      _Stage.files => _buildFiles(english),
-                      _Stage.preparing => _buildPreparing(english)
-                    },
-                  ]),
-            ),
-          ),
-        ));
+    return NovaBrowseSheet(slivers: [
+      SliverToBoxAdapter(
+          child: NovaBrowseSheetHeading(
+        title: NovaStrings.lookup(english, 'message715'),
+        subtitle: NovaStrings.lookup(english, 'message716'),
+        closeLabel: NovaStrings.lookup(english, 'close'),
+        onClose: _cancelPreparing,
+      )),
+      SliverPadding(
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 24),
+        sliver: SliverToBoxAdapter(
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(spacing: 24, runSpacing: 12, children: [
+              for (var i = 0; i < stages.length; i++)
+                Text('${i + 1}. ${stages[i]}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: i == index
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
+                          fontWeight:
+                              i == index ? FontWeight.w700 : FontWeight.w400,
+                        )),
+            ]),
+            const Divider(height: 40),
+          ],
+        )),
+      ),
+      if (_stage == _Stage.files)
+        ..._buildFileSlivers(english)
+      else
+        SliverPadding(
+          padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
+          sliver: SliverToBoxAdapter(
+              child: switch (_stage) {
+            _Stage.input => _buildInput(english),
+            _Stage.resolving => _buildResolving(english),
+            _Stage.preparing => _buildPreparing(english),
+            _Stage.files => const SizedBox.shrink(),
+          }),
+        ),
+    ]);
   }
 
   Widget _buildInput(bool english) {
@@ -420,7 +466,7 @@ class _MagnetSheetState extends State<_MagnetSheet> {
           maxLines: 4,
           textDirection: TextDirection.ltr,
           minLines: 1,
-          style: const TextStyle(fontSize: 13.5, height: 1.35),
+          style: Theme.of(context).textTheme.bodyMedium,
           decoration: InputDecoration(
             hintText: NovaStrings.lookup(english, 'message717'),
             hintStyle:
@@ -534,20 +580,20 @@ class _MagnetSheetState extends State<_MagnetSheet> {
     );
   }
 
-  Widget _buildFiles(bool english) {
+  List<Widget> _buildFileSlivers(bool english) {
     final meta = _meta;
-    if (meta == null) return const SizedBox.shrink();
+    if (meta == null) return const [];
     final videos = _videoFiles(meta);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
+    return [
+      SliverPadding(
+        padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 12),
+        sliver: SliverToBoxAdapter(
+            child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: NovaTheme.of(context).raised,
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(color: NovaTheme.of(context).line),
-          ),
+              border: BorderDirectional(
+                  start: BorderSide(
+                      color: Theme.of(context).colorScheme.primary, width: 2))),
           child: Row(
             children: [
               Icon(LucideIcons.film,
@@ -566,74 +612,21 @@ class _MagnetSheetState extends State<_MagnetSheet> {
               ),
             ],
           ),
+        )),
+      ),
+      SliverPadding(
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 24),
+        sliver: MagnetFileChoicesSliver(
+          files: videos,
+          selectedIndex: _selectedFile,
+          onSelected: (index) => setState(() => _selectedFile = index),
+          sizeLabel: _formatSize,
         ),
-        const SizedBox(height: 12),
-        ConstrainedBox(
-          constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * .42),
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: videos.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, i) {
-              final file = videos[i];
-              final selected = file.index == _selectedFile;
-              return Material(
-                color: selected
-                    ? NovaTheme.of(context).gold.withValues(alpha: .12)
-                    : NovaTheme.of(context).raised,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: selected
-                        ? NovaTheme.of(context).gold
-                        : NovaTheme.of(context).line,
-                  ),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => setState(() => _selectedFile = file.index),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    child: Row(
-                      children: [
-                        Icon(
-                          selected
-                              ? LucideIcons.circleCheck
-                              : LucideIcons.circle,
-                          color: selected
-                              ? NovaTheme.of(context).gold
-                              : NovaTheme.of(context).muted,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            file.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatSize(file.size),
-                          style: TextStyle(
-                            color: NovaTheme.of(context).muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 14),
-        FilledButton.icon(
+      ),
+      SliverPadding(
+        padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 24, 32),
+        sliver: SliverToBoxAdapter(
+            child: FilledButton.icon(
           style: FilledButton.styleFrom(
             backgroundColor: Theme.of(context).colorScheme.primary,
             foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -648,9 +641,9 @@ class _MagnetSheetState extends State<_MagnetSheet> {
             NovaStrings.lookup(english, 'message722'),
             style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
           ),
-        ),
-      ],
-    );
+        )),
+      ),
+    ];
   }
 
   Widget _buildPreparing(bool english) {

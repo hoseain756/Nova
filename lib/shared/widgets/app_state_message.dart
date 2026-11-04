@@ -29,7 +29,7 @@ class AppStateMessage extends StatelessWidget {
         child: SingleChildScrollView(
             padding: padding,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: const BoxConstraints(maxWidth: 480),
               child: Semantics(
                   liveRegion: true,
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -37,16 +37,17 @@ class AppStateMessage extends StatelessWidget {
                       const ShimmerBox(width: 64, height: 64)
                     else
                       Container(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
-                              color: scheme.surfaceContainerHigh,
-                              shape: BoxShape.circle),
+                              color: scheme.secondaryContainer,
+                              borderRadius: BorderRadius.circular(24)),
                           child: Icon(icon,
-                              size: iconSize, color: scheme.secondary)),
+                              size: iconSize,
+                              color: scheme.onSecondaryContainer)),
                     const SizedBox(height: 24),
                     Text(message,
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge),
+                        style: Theme.of(context).textTheme.titleMedium),
                     if (loading) ...[
                       const SizedBox(height: 24),
                       const ShimmerBox(width: 160, height: 6)

@@ -141,29 +141,28 @@ class PlayerSidePanel extends StatelessWidget {
                     selected: currentKind == PlayerPanelKind.streams,
                     onTap: onOpenStreams),
             ];
+            final close = _PanelIconButton(
+                icon: LucideIcons.x,
+                semanticLabel: NovaStrings.lookup(english, 'close'),
+                onTap: onClose);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(children: [
                   Expanded(
                       child: Text(title,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge)),
                   if (!compact) ...utilityActions,
-                  ...navigation,
-                  _PanelIconButton(
-                      icon: LucideIcons.x,
-                      semanticLabel: NovaStrings.lookup(english, 'close'),
-                      onTap: onClose),
+                  if (!compact) ...navigation,
+                  close,
                 ]),
-                if (compact && utilityActions.isNotEmpty)
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: utilityActions,
-                    ),
+                if (compact &&
+                    (utilityActions.isNotEmpty || navigation.isNotEmpty))
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    children: [...navigation, ...utilityActions],
                   ),
               ],
             );

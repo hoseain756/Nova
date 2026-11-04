@@ -389,6 +389,70 @@ query ($weekStart: Int!, $weekEnd: Int!) {
     }
   }
 
+  final Map<String, Future<String?>> _heroTrailers = {};
+
+  /// A single active Hero can request a trailer without loading credits,
+  /// seasons, or episodes. The caller gates this on network/power/visibility.
+  Future<String?> heroTrailer(MediaItem item, {String language = 'en-US'}) {
+    if (_supportedHeroTrailer(item.trailerUrl)) {
+      return Future.value(item.trailerUrl);
+    }
+    if (!_tmdbOption('tmdbUseTrailers')) return Future.value(null);
+    final key = '${item.type}:${item.id}:$language';
+    final request = _heroTrailers.putIfAbsent(key, () async {
+      try {
+        if (!_detailEnrichmentCache.containsKey(key)) {
+          await featuredArtwork(item, language: language, uiLanguage: language);
+        }
+        final details = _detailEnrichmentCache[key];
+        if (details?['id'] == null) return null;
+        final response = await api.tmdbGet(
+          '/${item.type == 'series' ? 'tv' : 'movie'}/${details!['id']}/videos',
+          language: language,
+        );
+        final videos = (response['results'] as List? ?? const [])
+            .whereType<Map>()
+            .where((video) =>
+                video['site'] == 'YouTube' &&
+                const {'Trailer', 'Teaser'}.contains(video['type']) &&
+                RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch('${video['key']}'))
+            .toList();
+        videos.sort((a, b) => (b['official'] == true ? 1 : 0)
+            .compareTo(a['official'] == true ? 1 : 0));
+        return videos.isEmpty
+            ? null
+            : 'https://www.youtube.com/watch?v=${videos.first['key']}';
+      } catch (_) {
+        // An unavailable preview never interrupts browsing.
+        return null;
+      }
+    });
+    return request.then((url) {
+      if (url == null && identical(_heroTrailers[key], request)) {
+        _heroTrailers.remove(key);
+      }
+      return url;
+    });
+  }
+
+  static bool _supportedHeroTrailer(String? value) {
+    final uri = Uri.tryParse(value ?? '');
+    if (uri?.scheme != 'https') return false;
+    final host = uri!.host.toLowerCase();
+    String? id;
+    if (host == 'youtu.be') {
+      id = uri.pathSegments.firstOrNull;
+    } else if (const {'youtube.com', 'www.youtube.com', 'm.youtube.com'}
+        .contains(host)) {
+      id = uri.path == '/watch'
+          ? uri.queryParameters['v']
+          : uri.pathSegments.length == 2 && uri.pathSegments.first == 'embed'
+              ? uri.pathSegments.last
+              : null;
+    }
+    return id != null && RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(id);
+  }
+
   /// Reuses the artwork response for genuine people, production and metadata.
   /// The detail page renders its warm item before this optional enrichment.
   Future<MediaItem> detailEnrichment(MediaItem item,

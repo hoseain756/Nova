@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/models/media_item.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../l10n/nova_strings.dart';
+import '../shell/nova_browse_widgets.dart';
 
 /// Adds an existing catalog title without changing its playback identity.
 Future<void> showSharedCollectionPicker(
@@ -48,60 +49,46 @@ Future<void> showSharedCollectionPicker(
     isScrollControlled: true,
     showDragHandle: true,
     constraints: const BoxConstraints(maxWidth: 720),
-    builder: (sheetContext) => SizedBox(
-      height: MediaQuery.sizeOf(sheetContext).height * .65,
-      child: SafeArea(
-        top: false,
-        child: Column(children: [
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 16),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(strings.text('sharedAddToCollection'),
-                      style: Theme.of(sheetContext).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text(item.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
+    builder: (sheetContext) => NovaBrowseSheet(slivers: [
+      SliverToBoxAdapter(
+          child: NovaBrowseSheetHeading(
+        title: strings.text('sharedAddToCollection'),
+        subtitle: item.name,
+        closeLabel: strings.text('close'),
+        onClose: () => Navigator.pop(sheetContext),
+      )),
+      if (collections.isEmpty)
+        SliverToBoxAdapter(
+            child: Padding(
+          padding: const EdgeInsets.all(24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(LucideIcons.usersRound, size: 40),
+            const SizedBox(height: 20),
+            Text(strings.text('sharedNoWritableCollections')),
+          ]),
+        ))
+      else
+        SliverPadding(
+          padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
+          sliver: SliverList.separated(
+            itemCount: collections.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final collection = collections[index];
+              return ListTile(
+                minTileHeight: 88,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(LucideIcons.usersRound),
+                title: Text(collection.name,
+                    maxLines: 3, overflow: TextOverflow.ellipsis),
+                trailing: const Icon(LucideIcons.plus),
+                onTap: () => Navigator.pop(sheetContext, collection),
+              );
+            },
           ),
-          Expanded(
-            child: collections.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(LucideIcons.usersRound, size: 40),
-                        const SizedBox(height: 12),
-                        Text(strings.text('sharedNoWritableCollections'),
-                            textAlign: TextAlign.center),
-                      ]),
-                    ),
-                  )
-                : ListView.separated(
-                    padding:
-                        const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
-                    itemCount: collections.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final collection = collections[index];
-                      return ListTile(
-                        minTileHeight: 64,
-                        leading: const Icon(LucideIcons.usersRound),
-                        title: Text(collection.name,
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                        trailing: const Icon(LucideIcons.plus),
-                        onTap: () => Navigator.pop(sheetContext, collection),
-                      );
-                    },
-                  ),
-          ),
-        ]),
-      ),
-    ),
+        ),
+    ]),
   );
   if (selection == null || !context.mounted) return;
   final mediaType = item.hasAnimeIds ||

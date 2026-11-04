@@ -3,12 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/models/visual_preferences.dart';
+import '../../core/state/app_state.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/nova_network_image.dart';
+import '../../shared/widgets/image_decode.dart';
 import '../media/media_detail_page.dart';
+import '../shell/nova_browse_widgets.dart';
 import 'shared_collection_control_page.dart';
 import 'shared_collections_panel.dart';
 
@@ -241,7 +246,7 @@ class _SharedCollectionDetailPageState extends State<SharedCollectionDetailPage>
     final canDelete = _isOwner || (_permissions?.deleteItems ?? false);
     return Scaffold(
       appBar: AppBar(
-        title: Text(collection?.name ?? strings.text('sharedCollections')),
+        title: Text(strings.text('sharedCollections')),
         actions: [
           if (_isOwner ||
               (_permissions?.manageInvites ?? false) ||
@@ -286,80 +291,76 @@ class _SharedCollectionDetailPageState extends State<SharedCollectionDetailPage>
                 ]))
               : Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 900),
-                    child: ListView(
-                      padding: EdgeInsetsDirectional.fromSTEB(
-                          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                          16,
-                          MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
-                          48),
-                      children: [
-                        if (collection.description.isNotEmpty) ...[
-                          Text(collection.description,
-                              style: Theme.of(context).textTheme.bodyLarge),
-                          const SizedBox(height: 16),
+                    constraints: const BoxConstraints(maxWidth: 1200),
+                    child: CustomScrollView(slivers: [
+                      SliverToBoxAdapter(
+                          child: NovaBrowseHeader(
+                        compact: true,
+                        title: collection.name,
+                        subtitle: collection.description.isNotEmpty
+                            ? collection.description
+                            : strings.text('sharedCollectionsDescription'),
+                        eyebrow: strings.text(
+                            'sharedMemberCount', {'count': _members.length}),
+                        actions: [
+                          if (canAdd)
+                            FilledButton.icon(
+                                onPressed: _busy ? null : _addItem,
+                                icon: const Icon(LucideIcons.plus),
+                                label: Text(strings.text('sharedAddItem'))),
                         ],
-                        Wrap(
-                            spacing: 16,
-                            runSpacing: 12,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(LucideIcons.usersRound,
-                                    size: 18, color: scheme.onSurfaceVariant),
-                                const SizedBox(width: 8),
-                                Text(strings.text('sharedMemberCount',
-                                    {'count': _members.length})),
-                              ]),
-                              if (canAdd)
-                                FilledButton.icon(
-                                  onPressed: _busy ? null : _addItem,
-                                  icon: const Icon(LucideIcons.plus),
-                                  label: Text(strings.text('sharedAddItem')),
-                                ),
-                            ]),
-                        const SizedBox(height: 16),
-                        if (_items.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 48),
-                            child: Column(children: [
-                              Icon(LucideIcons.film,
-                                  size: 48, color: scheme.onSurfaceVariant),
-                              const SizedBox(height: 16),
-                              Text(strings.text('sharedNoItems'),
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(height: 8),
-                              Text(strings.text('sharedNoItemsDescription'),
-                                  textAlign: TextAlign.center),
-                            ]),
-                          )
-                        else
-                          for (final item in _items) ...[
-                            _CollectionItemRow(
-                              item: item,
-                              addedBy: item.addedByName.isEmpty ||
-                                      item.addedByName == 'Member'
-                                  ? strings.text('sharedUnnamedMember')
-                                  : item.addedByName,
-                              canEdit: canEdit,
-                              canDelete: canDelete,
-                              busy: _busy,
-                              onEdit: () => _editItem(item),
-                              onDelete: () => _deleteItem(item),
-                            ),
-                            const Divider(height: 1),
-                          ],
-                      ],
-                    ),
+                      )),
+                      if (_items.isEmpty)
+                        SliverToBoxAdapter(
+                            child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(children: [
+                            Icon(LucideIcons.film,
+                                size: 48, color: scheme.onSurfaceVariant),
+                            const SizedBox(height: 20),
+                            Text(strings.text('sharedNoItems'),
+                                style: Theme.of(context).textTheme.titleLarge,
+                                textAlign: TextAlign.center),
+                            const SizedBox(height: 8),
+                            Text(strings.text('sharedNoItemsDescription'),
+                                textAlign: TextAlign.center),
+                          ]),
+                        ))
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                              24, 0, 24, 48),
+                          sliver: SliverList.separated(
+                            itemCount: _items.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final item = _items[index];
+                              return SharedCollectionItemRow(
+                                item: item,
+                                addedBy: item.addedByName.isEmpty ||
+                                        item.addedByName == 'Member'
+                                    ? strings.text('sharedUnnamedMember')
+                                    : item.addedByName,
+                                canEdit: canEdit,
+                                canDelete: canDelete,
+                                busy: _busy,
+                                onEdit: () => _editItem(item),
+                                onDelete: () => _deleteItem(item),
+                              );
+                            },
+                          ),
+                        ),
+                    ]),
                   ),
                 ),
     );
   }
 }
 
-class _CollectionItemRow extends StatelessWidget {
-  const _CollectionItemRow({
+class SharedCollectionItemRow extends StatelessWidget {
+  const SharedCollectionItemRow({
+    super.key,
     required this.item,
     required this.addedBy,
     required this.canEdit,
@@ -389,12 +390,12 @@ class _CollectionItemRow extends StatelessWidget {
             name: item.title,
             poster: item.posterUrl,
           );
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      minTileHeight: 80,
-      leading: SizedBox(
-        width: 48,
-        height: 64,
+    final quality = context.select<AppState?, ImageQuality>((app) =>
+        ImageQualityPreferences.fromSettings(app?.webSettings ?? const {})
+            .card);
+    final artwork = SizedBox(
+        width: 64,
+        height: 88,
         child: item.posterUrl == null
             ? ColoredBox(
                 color: scheme.surfaceContainerHigh,
@@ -405,45 +406,71 @@ class _CollectionItemRow extends StatelessWidget {
                 child: NovaNetworkImage(
                   item.posterUrl!,
                   fit: BoxFit.cover,
+                  quality: quality,
+                  cacheWidth: imageCacheWidth(context, 64),
                   errorBuilder: (_, __, ___) => ColoredBox(
                     color: scheme.surfaceContainerHigh,
                     child: Icon(LucideIcons.film, color: scheme.primary),
                   ),
                 ),
-              ),
+              ));
+    final description = [
+      strings.text('sharedType${switch (item.mediaType) {
+        'anime' => 'Anime',
+        'series' => 'Series',
+        _ => 'Movie',
+      }}'),
+      if (addedBy != null) strings.text('sharedAddedBy', {'name': addedBy}),
+    ].join(' · ');
+    final menu = canEdit || canDelete
+        ? PopupMenuButton<String>(
+            tooltip: strings.text('more'),
+            enabled: !busy,
+            onSelected: (action) {
+              if (action == 'edit') onEdit();
+              if (action == 'delete') onDelete();
+            },
+            itemBuilder: (_) => [
+              if (canEdit)
+                PopupMenuItem(value: 'edit', child: Text(strings.text('edit'))),
+              if (canDelete)
+                PopupMenuItem(
+                    value: 'delete', child: Text(strings.text('delete'))),
+            ],
+          )
+        : null;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: mediaItem == null
+            ? null
+            : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => MediaDetailPage(item: mediaItem),
+                )),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(vertical: 16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            artwork,
+            const SizedBox(width: 16),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(item.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  Text(description,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
+                ])),
+            if (menu != null) ...[const SizedBox(width: 8), menu],
+          ]),
+        ),
       ),
-      title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text([
-        strings.text('sharedType${switch (item.mediaType) {
-          'anime' => 'Anime',
-          'series' => 'Series',
-          _ => 'Movie',
-        }}'),
-        if (addedBy != null) strings.text('sharedAddedBy', {'name': addedBy}),
-      ].join(' · ')),
-      onTap: mediaItem == null
-          ? null
-          : () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => MediaDetailPage(item: mediaItem),
-              )),
-      trailing: canEdit || canDelete
-          ? PopupMenuButton<String>(
-              tooltip: strings.text('more'),
-              enabled: !busy,
-              onSelected: (action) {
-                if (action == 'edit') onEdit();
-                if (action == 'delete') onDelete();
-              },
-              itemBuilder: (_) => [
-                if (canEdit)
-                  PopupMenuItem(
-                      value: 'edit', child: Text(strings.text('edit'))),
-                if (canDelete)
-                  PopupMenuItem(
-                      value: 'delete', child: Text(strings.text('delete'))),
-              ],
-            )
-          : null,
     );
   }
 }
@@ -467,8 +494,7 @@ Future<(String, String)?> showSharedCollectionItemForm(
         content: Form(
           key: formKey,
           child: SizedBox(
-            width: (MediaQuery.sizeOf(dialogContext).width - 128)
-                .clamp(0.0, 420.0),
+            width: 420,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextFormField(
                 initialValue: title,
@@ -483,6 +509,7 @@ Future<(String, String)?> showSharedCollectionItemForm(
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: selected,
                 decoration:
                     InputDecoration(labelText: strings.text('sharedItemType')),

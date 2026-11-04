@@ -6,7 +6,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 void main() {
   for (final direction in [TextDirection.ltr, TextDirection.rtl]) {
-    testWidgets('panel navigation stays beside close at 320dp in $direction',
+    testWidgets(
+        'panel navigation wraps below title and close at 320dp in $direction',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -38,7 +39,11 @@ void main() {
         LucideIcons.audioLines,
         LucideIcons.arrowLeftRight,
       ]) {
-        expect(tester.getTopLeft(find.byIcon(icon)).dy, close.dy);
+        final rect = tester.getRect(find.byIcon(icon));
+        expect(rect.top, greaterThan(close.dy));
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(320));
+        expect(find.byIcon(icon).hitTestable(), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
       await tester.tap(find.byIcon(LucideIcons.audioLines));

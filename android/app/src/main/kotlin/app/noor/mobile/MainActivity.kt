@@ -1,6 +1,11 @@
 package app.noor.mobile
 
 import android.content.Intent
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.PowerManager
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -212,6 +217,30 @@ class MainActivity :
             flutterEngine.plugins.add(NovaMedia3Plugin())
         }
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(messenger, "nova/appearance").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "environment" -> {
+                    val network = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                    val capabilities = network.getNetworkCapabilities(network.activeNetwork)
+                    val wifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                    val restricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        network.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+                    } else false
+                    val power = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    result.success(mapOf(
+                        "wifi" to wifi,
+                        "lowPower" to power.isPowerSaveMode,
+                        "dataSaver" to (capabilities == null || restricted)
+                    ))
+                }
+                "palette" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        result.success(mapOf("seed" to getColor(android.R.color.system_accent1_500)))
+                    } else result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(messenger, METHOD_CHANNEL).setMethodCallHandler(this)
         NativeDownloads.register(this, messenger)
         NativeTorrentDownloads.register(this, messenger)

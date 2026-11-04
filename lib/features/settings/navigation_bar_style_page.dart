@@ -8,10 +8,11 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/nova_theme.dart';
 import '../shell/dock_tab.dart';
 import '../shell/glass_dock.dart';
+import '../shell/material_floating_dock.dart';
 import '../shell/noor_dock_tabs.dart';
 import 'widgets/settings_tiles.dart';
 
-/// Appearance sub-page for the phone/tablet-width horizontal glass dock.
+/// Appearance sub-page for the compact-window bottom navigation.
 class NavigationBarStylePage extends StatelessWidget {
   const NavigationBarStylePage({super.key});
 
@@ -22,6 +23,8 @@ class NavigationBarStylePage extends StatelessWidget {
       app.webSettings['navigationBarStyle'],
     );
     final reduceTransparency = app.webSettings['reduceTransparency'] == true;
+    final android = Theme.of(context).platform == TargetPlatform.android;
+    final tabs = noorDockTabsFor(rtl: !app.english);
 
     return Scaffold(
       appBar: AppBar(title: Text(app.tr('navigationBarStyle'))),
@@ -36,6 +39,10 @@ class NavigationBarStylePage extends StatelessWidget {
                 description: app.tr('navigationBarStyleDescription'),
                 icon: LucideIcons.layoutGrid,
               ),
+              SettingsInfoBanner(
+                message: app.tr('navigationBarPhoneStylesHint'),
+                icon: LucideIcons.info,
+              ),
               SettingsContentSection(
                 title: app.tr('navigationBarPreview'),
                 children: [
@@ -45,17 +52,29 @@ class NavigationBarStylePage extends StatelessWidget {
                     child: SizedBox(
                       height: 132,
                       child: RepaintBoundary(
-                        child: GlassDock(
-                          key: const ValueKey('navigation-style-preview-bar'),
-                          tabs: noorDockTabsFor(rtl: !app.english),
-                          activeId: DockTab.animeId,
-                          onTabSelected: (_) {},
-                          languageCode: app.english ? 'en' : 'ar',
-                          style: style,
-                          previewMode: true,
-                          reduceMotion: true,
-                          reduceTransparency: reduceTransparency,
-                        ),
+                        child: android
+                            ? MaterialFloatingDock(
+                                key: const ValueKey(
+                                    'navigation-style-preview-bar'),
+                                tabs: tabs,
+                                activeId: DockTab.animeId,
+                                onTabSelected: (_) {},
+                                arabic: !app.english,
+                                style: style,
+                                previewMode: true,
+                              )
+                            : GlassDock(
+                                key: const ValueKey(
+                                    'navigation-style-preview-bar'),
+                                tabs: tabs,
+                                activeId: DockTab.animeId,
+                                onTabSelected: (_) {},
+                                languageCode: app.english ? 'en' : 'ar',
+                                style: style,
+                                previewMode: true,
+                                reduceMotion: true,
+                                reduceTransparency: reduceTransparency,
+                              ),
                       ),
                     ),
                   ),

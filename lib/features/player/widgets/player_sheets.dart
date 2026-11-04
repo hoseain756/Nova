@@ -1,5 +1,6 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -86,6 +87,16 @@ Future<T?> showPlayerSheet<T>(
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
         final curved =
             CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+        final media = MediaQuery.of(dialogContext);
+        final edge = EdgeInsets.fromLTRB(
+            18 + media.padding.left,
+            18 + media.padding.top,
+            18 + media.padding.right,
+            18 + math.max(media.padding.bottom, media.viewInsets.bottom));
+        final availableWidth =
+            math.max(0.0, media.size.width - edge.horizontal);
+        final availableHeight =
+            math.max(0.0, media.size.height - edge.vertical);
         return FadeTransition(
           opacity: curved,
           child: SlideTransition(
@@ -98,7 +109,7 @@ Future<T?> showPlayerSheet<T>(
             child: Align(
               alignment: AlignmentDirectional.centerEnd,
               child: Padding(
-                padding: const EdgeInsets.all(18),
+                padding: edge,
                 child: Material(
                   color: Theme.of(context)
                       .colorScheme
@@ -112,8 +123,10 @@ Future<T?> showPlayerSheet<T>(
                       .shadow
                       .withValues(alpha: .32),
                   child: SizedBox(
-                    width: (size.width * .48).clamp(360.0, 560.0),
-                    height: size.height - 32,
+                    width: (size.width * .48)
+                        .clamp(360.0, 560.0)
+                        .clamp(0.0, availableWidth),
+                    height: availableHeight,
                     child: builder(dialogContext),
                   ),
                 ),

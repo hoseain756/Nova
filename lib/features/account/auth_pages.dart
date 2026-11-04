@@ -22,61 +22,80 @@ class AccountEntryLayout extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
-          child: LayoutBuilder(builder: (context, constraints) {
-            return Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsetsDirectional.fromSTEB(
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: LayoutBuilder(builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 900;
+          final intro = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const NovaBrand(width: 152),
+              SizedBox(height: wide ? 56 : 32),
+              Semantics(
+                header: true,
+                child: Text(title,
+                    style: wide
+                        ? theme.textTheme.displayMedium
+                        : theme.textTheme.headlineLarge),
+              ),
+              if (description != null) ...[
+                const SizedBox(height: NovaSpace.md),
+                Text(description!,
+                    style: theme.textTheme.bodyLarge
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ],
+              const SizedBox(height: NovaSpace.xl),
+              Divider(height: 1, color: theme.colorScheme.outlineVariant),
+            ],
+          );
+          final form = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          );
+          return Center(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsetsDirectional.fromSTEB(
                   NovaSpace.gutter(constraints.maxWidth),
-                  NovaSpace.xl,
+                  24,
                   NovaSpace.gutter(constraints.maxWidth),
-                  NovaSpace.xl + MediaQuery.viewInsetsOf(context).bottom,
-                ),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (leading != null) ...[
-                        Align(
+                  48),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: wide ? 1120 : 480),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (leading != null) ...[
+                      Align(
                           alignment: AlignmentDirectional.centerStart,
-                          child: leading,
-                        ),
-                        const SizedBox(height: NovaSpace.xl),
-                      ],
-                      const Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: NovaBrand(width: 148),
-                      ),
-                      const SizedBox(height: NovaSpace.xxl),
-                      Semantics(
-                        header: true,
-                        child: Text(title,
-                            style: Theme.of(context).textTheme.headlineMedium),
-                      ),
-                      if (description != null) ...[
-                        const SizedBox(height: NovaSpace.sm),
-                        Text(description!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                )),
-                      ],
-                      const SizedBox(height: NovaSpace.xl),
-                      ...children,
+                          child: leading),
+                      const SizedBox(height: NovaSpace.lg),
                     ],
-                  ),
+                    if (wide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: intro),
+                          const SizedBox(width: 80),
+                          Expanded(
+                              child: Padding(
+                            padding: const EdgeInsetsDirectional.only(top: 8),
+                            child: form,
+                          )),
+                        ],
+                      )
+                    else ...[intro, const SizedBox(height: NovaSpace.xl), form],
+                  ],
                 ),
               ),
-            );
-          }),
-        ),
-      );
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }
 
 class AccountWelcomePage extends StatefulWidget {
@@ -398,6 +417,7 @@ class _AccountSignUpPageState extends State<AccountSignUpPage> {
               decoration: InputDecoration(
                 labelText: s.text('accountPassword'),
                 helperText: s.text('accountPasswordRule'),
+                helperMaxLines: 8,
                 prefixIcon: const Icon(LucideIcons.lockKeyhole),
                 suffixIcon: IconButton(
                   tooltip: s.text(_showPassword
@@ -598,6 +618,7 @@ class _AccountNewPasswordPageState extends State<AccountNewPasswordPage> {
               decoration: InputDecoration(
                 labelText: s.text('accountPassword'),
                 helperText: s.text('accountPasswordRule'),
+                helperMaxLines: 8,
               ),
               validator: (value) {
                 final password = value ?? '';
@@ -803,6 +824,7 @@ class _GuestUpgradePageState extends State<GuestUpgradePage> {
                     decoration: InputDecoration(
                       labelText: s.text('accountPassword'),
                       helperText: s.text('accountPasswordRule'),
+                      helperMaxLines: 8,
                     ),
                     validator: (value) {
                       final password = value ?? '';

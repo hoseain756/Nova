@@ -209,7 +209,7 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
       appBar: AppBar(title: const Text('Letterboxd')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 1000),
           child: ListView(
             padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 48),
             children: [
@@ -279,7 +279,8 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
                         ],
                       ),
                     Padding(
-                      padding: const EdgeInsets.all(20),
+                      padding:
+                          const EdgeInsetsDirectional.symmetric(vertical: 20),
                       child: Align(
                         alignment: AlignmentDirectional.centerStart,
                         child: FilledButton.icon(
@@ -298,17 +299,42 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
                       ),
                     ),
                     if (session != null)
-                      ListTile(
-                        leading: const Icon(LucideIcons.circleCheck),
-                        title: Text(app.tr('letterboxdSignedIn')),
-                        subtitle: Text(session.displayName == null
-                            ? '@${session.username}'
-                            : '${session.displayName} (@${session.username})'),
-                        trailing: TextButton(
-                          onPressed: () =>
-                              unawaited(app.disconnectLetterboxd()),
-                          child: Text(app.tr('letterboxdDisconnect')),
-                        ),
+                      Padding(
+                        padding:
+                            const EdgeInsetsDirectional.symmetric(vertical: 20),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(LucideIcons.circleCheck,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                          Text(app.tr('letterboxdSignedIn'),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium),
+                                          const SizedBox(height: 8),
+                                          Text(session.displayName == null
+                                              ? '@${session.username}'
+                                              : '${session.displayName} (@${session.username})'),
+                                        ])),
+                                  ]),
+                              const SizedBox(height: 12),
+                              TextButton.icon(
+                                  onPressed: () =>
+                                      unawaited(app.disconnectLetterboxd()),
+                                  icon: const Icon(LucideIcons.unlink),
+                                  label: Text(app.tr('letterboxdDisconnect'))),
+                            ]),
                       ),
                     SettingsTile(
                       icon: LucideIcons.externalLink,
@@ -419,7 +445,8 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
                   children: [
                     if (ordered.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.all(20),
+                        padding:
+                            const EdgeInsetsDirectional.symmetric(vertical: 20),
                         child: Text(app.tr('letterboxdNoRows')),
                       ),
                     for (var index = 0; index < ordered.length; index++)
@@ -461,29 +488,25 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
   }
 
   Widget _modeSelector(AppState app, LetterboxdSettings settings) => Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsetsDirectional.symmetric(vertical: 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(app.tr('letterboxdMode'),
               style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 12),
-          SegmentedButton<String>(
-            segments: [
-              ButtonSegment<String>(
-                value: LetterboxdSettings.publicMode,
-                label: Text(app.tr('letterboxdPublic')),
+          Wrap(spacing: 12, runSpacing: 12, children: [
+            for (final mode in [
+              (LetterboxdSettings.publicMode, app.tr('letterboxdPublic')),
+              (LetterboxdSettings.fullMode, app.tr('letterboxdFull')),
+            ])
+              ChoiceChip(
+                label: Text(mode.$2),
+                selected: settings.mode == mode.$1,
+                onSelected: (_) {
+                  _feedbackKey = null;
+                  _update(app, settings.copyWith(mode: mode.$1));
+                },
               ),
-              ButtonSegment<String>(
-                value: LetterboxdSettings.fullMode,
-                label: Text(app.tr('letterboxdFull')),
-              ),
-            ],
-            selected: {settings.mode},
-            showSelectedIcon: false,
-            onSelectionChanged: (selection) {
-              _feedbackKey = null;
-              _update(app, settings.copyWith(mode: selection.first));
-            },
-          ),
+          ]),
           const SizedBox(height: 12),
           Text(app.tr(settings.isPublic
               ? 'letterboxdPublicDescription'
@@ -512,7 +535,7 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
     List<TextInputFormatter>? inputFormatters,
   }) =>
       Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsetsDirectional.symmetric(vertical: 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
@@ -522,6 +545,7 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
           const SizedBox(height: 12),
           TextField(
             controller: controller,
+            enabled: !_connecting,
             obscureText: obscure,
             autocorrect: false,
             enableSuggestions: false,
@@ -568,7 +592,7 @@ class _LetterboxdSettingsPageState extends State<LetterboxdSettingsPage> {
     final id = ordered[index];
     final hidden = settings.hiddenCatalogs.contains(id);
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 12, 12),
+      padding: const EdgeInsetsDirectional.symmetric(vertical: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(_catalogLabel(app, settings, id),
             style: Theme.of(context).textTheme.titleSmall),

@@ -415,6 +415,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                           decoration: InputDecoration(
                             labelText: s.text('profileImageUrl'),
                             helperText: s.text('profileImageUrlHint'),
+                            helperMaxLines: 8,
                             prefixIcon: const Icon(LucideIcons.link),
                           ),
                           validator: (value) {
@@ -443,11 +444,11 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 8,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 1.1,
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 120,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 1,
                           ),
                           itemCount: novaAvatarPackKeys.length,
                           itemBuilder: (context, index) {
@@ -476,9 +477,13 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                                           : scheme.outlineVariant,
                                     ),
                                   ),
-                                  child: Center(
-                                      child: ProfileAvatar(
-                                          packKey: key, size: 64)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: FittedBox(
+                                      child:
+                                          ProfileAvatar(packKey: key, size: 64),
+                                    ),
+                                  ),
                                 ),
                               ),
                             );
@@ -497,6 +502,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                               ? 'profileChangePin'
                               : 'profileOptionalPin'),
                           helperText: s.text('profilePinHint'),
+                          helperMaxLines: 8,
                           prefixIcon: const Icon(LucideIcons.lockKeyhole),
                         ),
                         validator: (value) {
@@ -626,7 +632,7 @@ class _ProfilePickerPageState extends State<ProfilePickerPage> {
             child: SingleChildScrollView(
               padding: EdgeInsets.all(NovaSpace.gutter(constraints.maxWidth)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
+                constraints: const BoxConstraints(maxWidth: 900),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -639,29 +645,62 @@ class _ProfilePickerPageState extends State<ProfilePickerPage> {
                           style: TextStyle(color: scheme.error)),
                       const SizedBox(height: NovaSpace.md),
                     ],
-                    for (final profile in widget.profiles)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(bottom: 8),
-                        child: SettingsTile(
-                          icon: LucideIcons.userRound,
-                          title: profile.name,
-                          subtitle: profile.isDefault
-                              ? s.text('profileDefault')
-                              : null,
-                          trailing:
-                              Row(mainAxisSize: MainAxisSize.min, children: [
-                            if (profile.hasPin)
-                              const Icon(LucideIcons.lockKeyhole, size: 18),
-                            const SizedBox(width: 12),
-                            ProfileAvatar(
-                              packKey: profile.avatarPackKey,
-                              url: profile.avatarUrl,
-                              size: 48,
+                    LayoutBuilder(builder: (context, constraints) {
+                      final columns =
+                          (constraints.maxWidth / 180).floor().clamp(1, 3);
+                      final width =
+                          (constraints.maxWidth - (columns - 1) * 20) / columns;
+                      return Wrap(spacing: 20, runSpacing: 24, children: [
+                        for (final profile in widget.profiles)
+                          SizedBox(
+                            width: width,
+                            child: Semantics(
+                              button: true,
+                              enabled: !_busy,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: _busy ? null : () => _select(profile),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(children: [
+                                      ProfileAvatar(
+                                        packKey: profile.avatarPackKey,
+                                        url: profile.avatarUrl,
+                                        size: 88,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(profile.name,
+                                          textAlign: TextAlign.center,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge),
+                                      if (profile.isDefault) ...[
+                                        const SizedBox(height: 8),
+                                        Text(s.text('profileDefault'),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelMedium
+                                                ?.copyWith(
+                                                    color: scheme.primary)),
+                                      ],
+                                      if (profile.hasPin) ...[
+                                        const SizedBox(height: 8),
+                                        Icon(LucideIcons.lockKeyhole,
+                                            size: 18,
+                                            semanticLabel:
+                                                s.text('profileEnterPin'),
+                                            color: scheme.onSurfaceVariant),
+                                      ],
+                                    ]),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ]),
-                          onTap: _busy ? null : () => _select(profile),
-                        ),
-                      ),
+                          ),
+                      ]);
+                    }),
                     if (widget.onManage != null) ...[
                       const SizedBox(height: NovaSpace.md),
                       OutlinedButton.icon(
@@ -845,7 +884,7 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
                   ProfileAvatar(
                     packKey: profile.avatarPackKey,
                     url: profile.avatarUrl,
-                    size: 56,
+                    size: 72,
                   ),
                   const SizedBox(width: NovaSpace.md),
                   Expanded(
@@ -936,6 +975,7 @@ class _ProfilePinDialogState extends State<_ProfilePinDialog> {
     final s = NovaStrings.of(context);
     return AlertDialog(
       title: Text(widget.profileName),
+      scrollable: true,
       content: TextField(
         controller: _controller,
         autofocus: true,

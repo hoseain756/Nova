@@ -40,7 +40,7 @@ class IntegrationsPage extends StatelessWidget {
         appBar: AppBar(title: Text(app.tr('message252'))),
         body: Center(
             child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
+          constraints: const BoxConstraints(maxWidth: 1100),
           child: ListView(
               padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 48),
               children: [
@@ -49,29 +49,43 @@ class IntegrationsPage extends StatelessWidget {
                     description: app.tr('message254'),
                     icon: LucideIcons.orbit),
                 SettingsContentSection(title: app.tr('message255'), children: [
-                  for (final service in [
-                    'trakt',
-                    'simkl',
-                    'anilist',
-                    'mal',
-                    'mdblist'
-                  ])
-                    _ServiceDestination(
-                        service: service,
-                        connected: linked[service] != null,
-                        subtitle: linked[service]?['username']?.toString()),
-                  SettingsTile(
-                    icon: LucideIcons.film,
-                    title: 'Letterboxd',
-                    subtitle: letterboxdConnected
-                        ? '@${letterboxd.username}'
-                        : app.tr('letterboxdServiceDescription'),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const LetterboxdSettingsPage(),
-                      ),
-                    ),
-                  ),
+                  LayoutBuilder(builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 700 &&
+                        MediaQuery.textScalerOf(context).scale(16) <= 24;
+                    final width = wide
+                        ? (constraints.maxWidth - 32) / 2
+                        : constraints.maxWidth;
+                    return Wrap(spacing: 32, children: [
+                      for (final service in [
+                        'trakt',
+                        'simkl',
+                        'anilist',
+                        'mal',
+                        'mdblist'
+                      ])
+                        SizedBox(
+                            width: width,
+                            child: _ServiceDestination(
+                              service: service,
+                              connected: linked[service] != null,
+                              subtitle:
+                                  linked[service]?['username']?.toString(),
+                            )),
+                      SizedBox(
+                          width: width,
+                          child: SettingsTile(
+                            icon: LucideIcons.film,
+                            title: 'Letterboxd',
+                            subtitle: letterboxdConnected
+                                ? '@${letterboxd.username}'
+                                : app.tr('letterboxdServiceDescription'),
+                            onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const LetterboxdSettingsPage())),
+                          )),
+                    ]);
+                  }),
                 ]),
                 const _TrackingSourceSettings(),
                 SettingsContentSection(title: app.tr('message256'), children: [
@@ -673,12 +687,11 @@ class _TmdbKeyCardState extends State<_TmdbKeyCard> {
               app.webSettings['tmdbEnabled'] != false,
             ));
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 28),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
+          border: Border(
+              bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -690,8 +703,7 @@ class _TmdbKeyCardState extends State<_TmdbKeyCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('TMDB',
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Text('TMDB', style: Theme.of(context).textTheme.titleLarge),
                     SizedBox(height: 3),
                     Text(
                       NovaStrings.lookup(english, 'message287'),
@@ -943,6 +955,7 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
   // Paste fallback shared by every browser-OAuth service (Trakt/AniList/MAL).
   final TextEditingController _codeCtrl = TextEditingController();
   bool _submittingCode = false;
+  String? _codeError;
 
   @override
   void initState() {
@@ -991,7 +1004,10 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
   Future<void> _submitCode() async {
     final code = _codeCtrl.text.trim();
     if (code.isEmpty || _submittingCode) return;
-    setState(() => _submittingCode = true);
+    setState(() {
+      _submittingCode = true;
+      _codeError = null;
+    });
     final app = context.read<AppState>();
     try {
       final Map<String, dynamic> result;
@@ -1018,19 +1034,12 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
         }
         NoorToast.show(context, NovaStrings.lookup(english, 'message296'));
       } else {
-        NoorToast.show(
-          context,
-          _oauthFailureText(english, result['reason']?.toString()),
-          error: true,
-        );
+        setState(() => _codeError =
+            _oauthFailureText(english, result['reason']?.toString()));
       }
     } catch (_) {
       if (!mounted) return;
-      NoorToast.show(
-        context,
-        _oauthFailureText(app.english, null),
-        error: true,
-      );
+      setState(() => _codeError = _oauthFailureText(app.english, null));
     } finally {
       if (mounted) setState(() => _submittingCode = false);
     }
@@ -1329,12 +1338,11 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
             (app) => (app.english, app.linkedServices[widget.service]));
     final waiting = _flow?['status'] == 'waiting';
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 28),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
+          border: Border(
+              bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1347,7 +1355,7 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.title,
-                        style: Theme.of(context).textTheme.titleMedium),
+                        style: Theme.of(context).textTheme.titleLarge),
                     SizedBox(height: 3),
                     Text(widget.subtitle,
                         style: Theme.of(context).textTheme.bodySmall),
@@ -1486,25 +1494,26 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             SizedBox(height: 6),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _codeCtrl,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: NovaStrings.lookup(english, 'message320'),
-                      border: const OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => unawaited(_submitCode()),
+                TextField(
+                  controller: _codeCtrl,
+                  textAlign: TextAlign.start,
+                  textDirection: TextDirection.ltr,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: NovaStrings.lookup(english, 'message320'),
+                    errorText: _codeError,
+                    errorMaxLines: 4,
+                    border: const OutlineInputBorder(),
                   ),
+                  onSubmitted: (_) => unawaited(_submitCode()),
                 ),
-                SizedBox(width: 8),
+                SizedBox(height: 12),
                 FilledButton(
                   onPressed: _submittingCode ? null : _submitCode,
                   child: _submittingCode
@@ -1562,25 +1571,26 @@ class _LinkedServiceCardState extends State<_LinkedServiceCard> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             SizedBox(height: 6),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _codeCtrl,
-                    textAlign: TextAlign.start,
-                    textDirection: TextDirection.ltr,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: NovaStrings.lookup(english, 'message320'),
-                      border: const OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => unawaited(_submitCode()),
+                TextField(
+                  controller: _codeCtrl,
+                  textAlign: TextAlign.start,
+                  textDirection: TextDirection.ltr,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: NovaStrings.lookup(english, 'message320'),
+                    errorText: _codeError,
+                    errorMaxLines: 4,
+                    border: const OutlineInputBorder(),
                   ),
+                  onSubmitted: (_) => unawaited(_submitCode()),
                 ),
-                SizedBox(width: 8),
+                SizedBox(height: 12),
                 FilledButton(
                   onPressed: _submittingCode ? null : _submitCode,
                   child: _submittingCode
@@ -1843,12 +1853,11 @@ class _DebridCardState extends State<_DebridCard> {
                   app.debridUser,
                 ));
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 28),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
+          border: Border(
+              bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1861,7 +1870,7 @@ class _DebridCardState extends State<_DebridCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Debrid',
-                        style: Theme.of(context).textTheme.titleMedium),
+                        style: Theme.of(context).textTheme.titleLarge),
                     SizedBox(height: 3),
                     Text(
                       NovaStrings.lookup(english, 'message340'),
@@ -1899,6 +1908,7 @@ class _DebridCardState extends State<_DebridCard> {
             ),
           ] else ...[
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _service,
               decoration: InputDecoration(
                   labelText: NovaStrings.lookup(english, 'message342')),
@@ -1952,8 +1962,8 @@ class _ServiceIcon extends StatelessWidget {
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.secondary.withValues(alpha: .11),
-          borderRadius: BorderRadius.circular(13),
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(icon, color: Theme.of(context).colorScheme.secondary),
       );

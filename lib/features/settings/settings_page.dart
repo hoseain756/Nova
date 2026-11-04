@@ -11,6 +11,7 @@ import 'settings_data_page.dart';
 import 'settings_display_page.dart';
 import 'settings_personalization_page.dart';
 import 'catalog_settings_page.dart';
+import 'card_customization_page.dart';
 import 'widgets/settings_tiles.dart';
 
 class _Destination {
@@ -85,6 +86,13 @@ class _SettingsPageState extends State<SettingsPage> {
             app.tr('message457'),
             app.tr('settingsSearchAppearanceKeywords'),
             const SettingsPersonalizationPage(section: 'appearance')),
+        _Destination(
+            'cards',
+            LucideIcons.clapperboard,
+            app.tr('cardCustomizationTitle'),
+            app.tr('cardCustomizationDescription'),
+            app.tr('settingsSearchVisualKeywords'),
+            const CardCustomizationPage()),
         _Destination(
             'display',
             LucideIcons.layoutGrid,
@@ -197,6 +205,7 @@ class _SettingsPageState extends State<SettingsPage> {
           app.tr('settingsGroupAppPersonalization'),
           app.tr('settingsGroupAppPersonalizationDescription'), [
         byId['appearance']!,
+        byId['cards']!,
         byId['language']!,
         byId['notifications']!,
         byId['about']!,
@@ -233,12 +242,10 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     ];
     return Padding(
-      padding: const EdgeInsetsDirectional.only(bottom: 12),
-      child: Material(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        clipBehavior: Clip.antiAlias,
-        child: ExpansionTile(
+      padding: const EdgeInsetsDirectional.only(bottom: 8),
+      child: Column(children: [
+        Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+        ExpansionTile(
           key: ValueKey('settings-group-${group.id}'),
           initiallyExpanded: wide && group.id == 'app',
           leading: Icon(group.icon,
@@ -251,13 +258,14 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: Text(group.description,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          tilePadding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 12),
+          tilePadding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
           childrenPadding: const EdgeInsetsDirectional.only(bottom: 8),
           shape: const Border(),
           collapsedShape: const Border(),
           children: entries,
         ),
-      ),
+        Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+      ]),
     );
   }
 
@@ -310,15 +318,11 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 24),
             if (widget.onOpenLibrary != null && query.isEmpty)
               Padding(
-                  padding: const EdgeInsetsDirectional.only(bottom: 12),
-                  child: Material(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(24),
-                      clipBehavior: Clip.antiAlias,
-                      child: SettingsTile(
-                          icon: LucideIcons.bookmark,
-                          title: app.tr('message474'),
-                          onTap: widget.onOpenLibrary))),
+                  padding: const EdgeInsetsDirectional.only(bottom: 20),
+                  child: SettingsTile(
+                      icon: LucideIcons.bookmark,
+                      title: app.tr('message474'),
+                      onTap: widget.onOpenLibrary)),
             if (query.isEmpty)
               for (final group in groups)
                 _groupTile(context, group, wide, _selected),
@@ -330,20 +334,24 @@ class _SettingsPageState extends State<SettingsPage> {
                       message: app.tr('message475'))),
             for (final (destination, group) in results)
               Padding(
-                  padding: const EdgeInsetsDirectional.only(bottom: 4),
-                  child: DecoratedBox(
-                      decoration: BoxDecoration(
-                          color: wide && destination.id == _selected
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsetsDirectional.only(bottom: 2),
+                  child: Column(children: [
+                    Divider(
+                        height: 1,
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                    ColoredBox(
+                      color: wide && destination.id == _selected
+                          ? Theme.of(context).colorScheme.surfaceContainerLow
+                          : Colors.transparent,
                       child: SettingsTile(
                           icon: destination.icon,
                           title: destination.title,
                           subtitle:
                               '${group.title} · ${destination.description}',
                           onTap: () =>
-                              _openDestination(context, destination, wide)))),
+                              _openDestination(context, destination, wide)),
+                    ),
+                  ])),
           ]);
       return Scaffold(
           appBar: AppBar(title: Text(app.tr('settings'))),

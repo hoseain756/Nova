@@ -42,6 +42,34 @@ void main() {
     });
   }
 
+  test('dynamic tonal surfaces retain readable text and OLED stays black', () {
+    for (final brightness in Brightness.values) {
+      for (final seed in [
+        Colors.blue,
+        Colors.yellow,
+        Colors.purple,
+        Colors.green
+      ]) {
+        final theme = NovaTheme.build(brightness, dynamicSeed: seed);
+        for (final surface in [
+          theme.colorScheme.surfaceContainerLow,
+          theme.colorScheme.surfaceContainer,
+          theme.colorScheme.surfaceContainerHigh
+        ]) {
+          expect(contrast(theme.colorScheme.onSurface, surface),
+              greaterThanOrEqualTo(4.5));
+          expect(contrast(theme.colorScheme.onSurfaceVariant, surface),
+              greaterThanOrEqualTo(4.5));
+        }
+      }
+    }
+    expect(
+        NovaTheme.build(Brightness.dark, oled: true, dynamicSeed: Colors.blue)
+            .colorScheme
+            .surfaceContainerLow,
+        NovaColors.oledBlack);
+  });
+
   test('poster badge stays readable over the brightest possible image', () {
     final background = Color.alphaBlend(
         NovaColors.ink.withValues(alpha: .72), NovaColors.white);

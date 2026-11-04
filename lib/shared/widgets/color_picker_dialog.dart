@@ -96,7 +96,7 @@ class _NovaColorPickerState extends State<_NovaColorPicker> {
                             Text(NovaStrings.lookup(english, 'message725'),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                    color: scheme.onInverseSurface,
+                                    color: NovaColors.white,
                                     fontSize: 20,
                                     fontWeight: FontWeight.w600)),
                           ])

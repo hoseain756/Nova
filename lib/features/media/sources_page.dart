@@ -381,8 +381,8 @@ class _SourcesPageState extends State<SourcesPage> {
           onTap: onTap,
           borderRadius: BorderRadius.circular(999),
           child: Container(
-            height: 38,
-            padding: const EdgeInsetsDirectional.fromSTEB(13, 0, 15, 0),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsetsDirectional.fromSTEB(13, 8, 15, 8),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -414,7 +414,8 @@ class _SourcesPageState extends State<SourcesPage> {
 
   Widget _filterBar(bool english) {
     return SizedBox(
-      height: 40,
+      height:
+          (MediaQuery.textScalerOf(context).scale(16) + 28).clamp(48.0, 96.0),
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsetsDirectional.fromSTEB(20, 1, 20, 1),
@@ -855,9 +856,8 @@ class _SourceRow extends StatelessWidget {
         padding: EdgeInsetsDirectional.only(bottom: condensed ? 8 : 16),
         child: Material(
           color: scheme.surfaceContainerLow,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: scheme.outlineVariant)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
               onTap: onTap,

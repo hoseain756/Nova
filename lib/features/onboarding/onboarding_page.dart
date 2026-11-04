@@ -16,7 +16,7 @@ class OnboardingPage extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
         body: SafeArea(child: LayoutBuilder(builder: (context, constraints) {
-      final wide = constraints.maxWidth >= 840;
+      final wide = constraints.maxWidth >= 900;
       final intro =
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const NovaBrand(width: 160),
@@ -24,7 +24,7 @@ class OnboardingPage extends StatelessWidget {
         Semantics(
             header: true,
             child: Text(s.text('welcomeTitle'),
-                style: Theme.of(context).textTheme.displaySmall)),
+                style: Theme.of(context).textTheme.displayMedium)),
         const SizedBox(height: 24),
         Text(s.text('welcomeBody'),
             style: Theme.of(context)
@@ -32,21 +32,7 @@ class OnboardingPage extends StatelessWidget {
                 .bodyLarge
                 ?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 32),
-        Wrap(spacing: 16, runSpacing: 16, children: [
-          for (final icon in [
-            LucideIcons.film,
-            LucideIcons.tv,
-            LucideIcons.sparkles
-          ])
-            DecoratedBox(
-                decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(20)),
-                child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child:
-                        Icon(icon, color: scheme.onPrimaryContainer, size: 32)))
-        ]),
+        Divider(height: 1, color: scheme.outlineVariant),
       ]);
       final choices =
           Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -55,25 +41,33 @@ class OnboardingPage extends StatelessWidget {
             child: Text(s.text('language'),
                 style: Theme.of(context).textTheme.titleLarge)),
         const SizedBox(height: 16),
-        SegmentedButton<bool>(segments: [
-          ButtonSegment(value: false, label: Text(s.text('arabicLanguage'))),
-          ButtonSegment(value: true, label: Text(s.text('englishLanguage')))
-        ], selected: {
-          app.english
-        }, onSelectionChanged: (value) => app.setLanguage(value.first)),
+        for (final language in [
+          (false, s.text('arabicLanguage')),
+          (true, s.text('englishLanguage')),
+        ])
+          _OnboardingChoice(
+            title: language.$2,
+            icon: LucideIcons.languages,
+            selected: app.english == language.$1,
+            onTap: () => app.setLanguage(language.$1),
+          ),
         const SizedBox(height: 32),
         Semantics(
             header: true,
             child: Text(s.text('appearance'),
                 style: Theme.of(context).textTheme.titleLarge)),
         const SizedBox(height: 16),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final mode in ['dark', 'light', 'system'])
-            ChoiceChip(
-                label: Text(s.text(mode)),
-                selected: (app.webSettings['themeMode'] ?? 'dark') == mode,
-                onSelected: (_) => app.setSetting('themeMode', mode))
-        ]),
+        for (final mode in [
+          ('dark', LucideIcons.moon),
+          ('light', LucideIcons.sun),
+          ('system', LucideIcons.monitor),
+        ])
+          _OnboardingChoice(
+            title: s.text(mode.$1),
+            icon: mode.$2,
+            selected: (app.webSettings['themeMode'] ?? 'dark') == mode.$1,
+            onTap: () => app.setSetting('themeMode', mode.$1),
+          ),
         const SizedBox(height: 32),
         FilledButton.icon(
             onPressed: onComplete,
@@ -91,7 +85,7 @@ class OnboardingPage extends StatelessWidget {
                     EdgeInsets.all(NovaSpace.gutter(constraints.maxWidth) + 8),
                 child: wide
                     ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                             Expanded(child: intro),
                             const SizedBox(width: 64),
@@ -102,5 +96,53 @@ class OnboardingPage extends StatelessWidget {
                         children: [intro, const SizedBox(height: 48), choices]),
               )));
     })));
+  }
+}
+
+class _OnboardingChoice extends StatelessWidget {
+  const _OnboardingChoice(
+      {required this.title,
+      required this.icon,
+      required this.selected,
+      required this.onTap});
+  final String title;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 72),
+            padding: const EdgeInsetsDirectional.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+                border: Border(
+                    bottom:
+                        BorderSide(color: theme.colorScheme.outlineVariant))),
+            child: Row(children: [
+              Icon(icon,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant),
+              const SizedBox(width: 16),
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+              const SizedBox(width: 16),
+              Icon(selected ? LucideIcons.circleCheck : LucideIcons.circle,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant),
+            ]),
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
 
-/// Only colours supplied in the NOVA identity, including its companion palette.
+/// Cinema palette: warm neutrals and a restrained vermilion action color.
 abstract final class NovaColors {
-  static const red = Color(0xFFD13B47);
-  static const redDeep = Color(0xFF9E2A34);
-  static const redSoft = Color(0xFFE8858D);
-  static const blush = Color(0xFFF9E4E6);
-  static const ink = Color(0xFF141417);
+  static const red = Color(0xFFB93529);
+  static const redDeep = Color(0xFF8D281F);
+  static const redSoft = Color(0xFFF19A87);
+  static const blush = Color(0xFFF8E1D9);
+  static const ink = Color(0xFF191715);
   static const oledBlack = Color(0xFF000000);
-  static const graphite = Color(0xFF232329);
-  static const surfaceHigh = Color(0xFF2E2E35);
-  static const divider = Color(0xFF3A3A42);
+  static const graphite = Color(0xFF282522);
+  static const surfaceHigh = Color(0xFF34302C);
+  static const divider = Color(0xFF4A443E);
   static const white = Color(0xFFFFFFFF);
-  static const mist = Color(0xFFA4A4AC);
+  static const mist = Color(0xFFC5BBB1);
   static const textDisabled = Color(0xFF6E6E78);
   static const success = Color(0xFF3FB27F);
   static const warning = Color(0xFFE8A93B);
   static const info = Color(0xFF4C8DE0);
   static const error = Color(0xFFE5484D);
   static const rating = Color(0xFFF5C451);
-  static const lightBackground = Color(0xFFF6F6F7);
+  static const lightBackground = Color(0xFFF6F1E9);
   static const lightSurface = white;
   static const lightText = ink;
-  static const lightTextSecondary = Color(0xFF585862);
-  static const lightAccent = Color(0xFFB82C39);
-  static const lightDivider = Color(0xFFDCDCE0);
+  static const lightTextSecondary = Color(0xFF625C55);
+  static const lightAccent = Color(0xFFA32E23);
+  static const lightDivider = Color(0xFFD8CFC3);
   static const scrim = Color(0x99000000);
 }
 
@@ -67,7 +67,7 @@ abstract final class NovaTheme {
   static final light = build(Brightness.light);
 
   static ThemeData build(Brightness brightness,
-      {bool arabic = false, bool oled = false}) {
+      {bool arabic = false, bool oled = false, Color? dynamicSeed}) {
     final dark = brightness == Brightness.dark;
     final oledDark = dark && oled;
     final canvas = oledDark ? NovaColors.oledBlack : NovaColors.ink;
@@ -75,6 +75,12 @@ abstract final class NovaTheme {
     final text = dark ? NovaColors.white : NovaColors.ink;
     final muted = dark ? NovaColors.mist : NovaColors.lightTextSecondary;
     final accent = dark ? NovaColors.redSoft : NovaColors.lightAccent;
+    final dynamic = dynamicSeed == null
+        ? null
+        : ColorScheme.fromSeed(seedColor: dynamicSeed, brightness: brightness);
+    Color tone(Color base, Color? system) => system == null || oledDark
+        ? base
+        : Color.alphaBlend(system.withValues(alpha: .25), base);
     final scheme = ColorScheme(
       brightness: brightness,
       primary: NovaColors.red,
@@ -94,12 +100,16 @@ abstract final class NovaTheme {
       surface: dark ? surface : NovaColors.white,
       onSurface: text,
       surfaceContainerLowest: dark ? canvas : NovaColors.white,
-      surfaceContainerLow: dark ? surface : NovaColors.lightBackground,
-      surfaceContainer: dark
-          ? (oledDark ? NovaColors.ink : NovaColors.graphite)
-          : NovaColors.lightBackground,
-      surfaceContainerHigh:
-          dark ? NovaColors.surfaceHigh : NovaColors.lightBackground,
+      surfaceContainerLow: tone(dark ? surface : NovaColors.lightBackground,
+          dynamic?.surfaceContainerLow),
+      surfaceContainer: tone(
+          dark
+              ? (oledDark ? NovaColors.ink : NovaColors.graphite)
+              : NovaColors.lightBackground,
+          dynamic?.surfaceContainer),
+      surfaceContainerHigh: tone(
+          dark ? NovaColors.surfaceHigh : const Color(0xFFEDE6DC),
+          dynamic?.surfaceContainerHigh),
       // Keep small accent text AA-readable even on the highest surface.
       // Divider tokens alone miss 4.5:1 against redSoft / lightAccent.
       surfaceContainerHighest: Color.alphaBlend(
@@ -144,7 +154,7 @@ abstract final class NovaTheme {
       labelSmall: type(11, FontWeight.w500, height: 1.3),
     );
     final shape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
     final button = ButtonStyle(
       minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
       padding: const WidgetStatePropertyAll(
@@ -160,7 +170,7 @@ abstract final class NovaTheme {
     );
     final border = OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: scheme.outline));
+        borderSide: BorderSide(color: scheme.outlineVariant));
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -216,7 +226,7 @@ abstract final class NovaTheme {
               foregroundColor: WidgetStatePropertyAll(text))),
       inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: scheme.surfaceContainerHigh,
+          fillColor: scheme.surfaceContainerLow,
           contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
           labelStyle: textTheme.bodyMedium?.copyWith(color: muted),
           hintStyle: textTheme.bodyMedium?.copyWith(color: muted),

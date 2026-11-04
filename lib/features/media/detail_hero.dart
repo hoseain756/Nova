@@ -3,9 +3,12 @@ import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/models/visual_preferences.dart';
+import '../../core/state/app_state.dart';
 import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/shimmer_box.dart';
 export '../../shared/widgets/shimmer_box.dart';
@@ -56,15 +59,24 @@ class DetailHero extends StatelessWidget {
         ? scheme.onSurface
         : scheme.surface;
     final url = backdropUrl?.isNotEmpty == true ? backdropUrl : item.poster;
+    final settings =
+        context.watch<AppState?>()?.webSettings ?? const <String, dynamic>{};
+    final quality = ImageQualityPreferences.fromSettings(settings).hero;
+    final imageKind = backdropUrl?.isNotEmpty == true
+        ? ProviderImageKind.backdrop
+        : ProviderImageKind.poster;
     return RepaintBoundary(
         child: Stack(fit: StackFit.expand, children: [
       ColoredBox(color: scheme.surfaceContainerHighest),
       if (url?.isNotEmpty == true)
         NovaNetworkImage(url!,
+            quality: quality,
+            providerKind: imageKind,
             fit: BoxFit.cover,
             width: double.infinity,
             height: double.infinity,
-            cacheWidth: imageCacheWidth(context, viewportWidth),
+            cacheWidth: imageCacheWidthForQuality(context, viewportWidth,
+                quality: quality, kind: imageKind),
             excludeFromSemantics: true,
             frameBuilder: (context, child, frame, sync) => AnimatedOpacity(
                 opacity: frame == null ? 0 : 1,

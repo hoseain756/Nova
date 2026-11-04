@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../core/data/custom_list_share.dart';
 import '../../core/models/custom_list.dart';
 import '../../core/models/media_item.dart';
+import '../../core/models/visual_preferences.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../shared/widgets/image_decode.dart';
@@ -46,20 +47,20 @@ class CustomListsPanel extends StatelessWidget {
             padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
             sliver: SliverList.separated(
                 itemCount: app.customLists.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final list = app.customLists[index];
                   return Material(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(24),
+                    color: Colors.transparent,
                     child: InkWell(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(12),
                         onTap: () => Navigator.of(context).push(
                             MaterialPageRoute<void>(
                                 builder: (_) =>
                                     CustomListDetailPage(listId: list.id))),
                         child: Padding(
-                            padding: const EdgeInsets.all(20),
+                            padding: const EdgeInsetsDirectional.fromSTEB(
+                                0, 20, 0, 20),
                             child: Row(children: [
                               SizedBox(
                                   width: 88,
@@ -137,6 +138,8 @@ class CustomListDetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final cards = CardPreferences.fromSettings(app.webSettings);
+    final dimensions = cards.dimensions(MediaQuery.sizeOf(context).width);
     final list =
         app.customLists.where((entry) => entry.id == listId).firstOrNull;
     return Scaffold(
@@ -198,21 +201,27 @@ class CustomListDetailPage extends StatelessWidget {
                             const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
                         sliver: SliverLayoutBuilder(
                             builder: (context, constraints) {
-                          final columns = (constraints.crossAxisExtent / 190)
-                              .floor()
-                              .clamp(2, 7);
-                          final width = (constraints.crossAxisExtent -
-                                  (columns - 1) * 20) /
-                              columns;
+                          final columns = dimensions
+                              .gridColumns(constraints.crossAxisExtent);
+                          final width = dimensions.gridCellWidth(
+                              constraints.crossAxisExtent, columns);
                           return SliverGrid.builder(
                               itemCount: list.items.length,
                               gridDelegate:
                                   SliverGridDelegateWithFixedCrossAxisCount(
                                       crossAxisCount: columns,
-                                      mainAxisExtent: width / .72 +
-                                          78 *
+                                      mainAxisExtent: cards.isHorizontal
+                                          ? dimensions.horizontalExtent(
+                                              width,
                                               MediaQuery.textScalerOf(context)
-                                                  .scale(1),
+                                                  .scale(1))
+                                          : width /
+                                                  CardDimensions
+                                                      .verticalArtworkRatio +
+                                              78 *
+                                                  MediaQuery.textScalerOf(
+                                                          context)
+                                                      .scale(1),
                                       crossAxisSpacing: 20,
                                       mainAxisSpacing: 24),
                               itemBuilder: (_, index) {
@@ -456,6 +465,7 @@ class _ImportListDialogState extends State<_ImportListDialog> {
   Widget build(BuildContext context) => AlertDialog(
         icon: const Icon(LucideIcons.import, size: 32),
         title: Text(NovaStrings.lookup(widget.english, 'message624')),
+        scrollable: true,
         content: TextField(
           controller: _code,
           minLines: 2,
@@ -519,9 +529,9 @@ class _CollectionEmpty extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: NovaTheme.of(context).surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: NovaTheme.of(context).line),
+          border: BorderDirectional(
+              start: BorderSide(
+                  color: Theme.of(context).colorScheme.primary, width: 2)),
         ),
         child: Text(
           NovaStrings.lookup(english, 'message630'),
@@ -541,8 +551,16 @@ class _ListArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final poster = item?.poster;
+    final (quality, radius) =
+        context.select<AppState, (ImageQuality, double)>((app) {
+      final settings = app.webSettings;
+      return (
+        ImageQualityPreferences.fromSettings(settings).card,
+        CardPreferences.fromSettings(settings).radius,
+      );
+    });
     return ClipRRect(
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(radius),
       child: SizedBox(
         width: 42,
         height: 58,
@@ -554,8 +572,12 @@ class _ListArtwork extends StatelessWidget {
               )
             : NovaNetworkImage(poster,
                 fit: BoxFit.cover,
-                // Task 136: decode at the 42px list thumbnail size.
-                cacheWidth: imageCacheWidth(context, 42),
+                cacheWidth: imageCacheWidthForQuality(
+                  context,
+                  42,
+                  quality: quality,
+                ),
+                quality: quality,
                 errorBuilder: (_, __, ___) => ColoredBox(
                     color: NovaTheme.of(context).raised,
                     child: Icon(LucideIcons.film,
