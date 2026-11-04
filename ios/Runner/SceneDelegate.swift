@@ -60,7 +60,8 @@ class SceneDelegate: FlutterSceneDelegate {
 
     var canPresentChrome: Bool {
         if #available(iOS 26.0, *) {
-            return window?.rootViewController is FlutterViewController
+            return UIDevice.current.userInterfaceIdiom == .phone
+                && window?.rootViewController is FlutterViewController
         }
         return false
     }
@@ -128,11 +129,6 @@ class SceneDelegate: FlutterSceneDelegate {
 /// all other touches pass through to Flutter. No native destination owns content.
 private final class NovaChromeOverlay: UIView, UITabBarDelegate {
     private let bar = UITabBar()
-    private var sidebar: UIVisualEffectView?
-    private let sidebarScroll = UIScrollView()
-    private let sidebarStack = UIStackView()
-    private var sidebarMode = false
-    private var rightToLeft = false
     private let searchButton = UIButton(type: .system)
     private let detailBackButton = UIButton(type: .system)
     private let detailShareButton = UIButton(type: .system)
@@ -205,13 +201,6 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if let sidebar {
-            let outerInset = rightToLeft ? safeAreaInsets.right : safeAreaInsets.left
-            let sideWidth = max(0, 212 - outerInset)
-            let x = rightToLeft ? bounds.width - outerInset - sideWidth - 8 : outerInset + 8
-            sidebar.frame = CGRect(x: x, y: safeAreaInsets.top + 8, width: sideWidth,
-                                   height: max(0, bounds.height - safeAreaInsets.top - safeAreaInsets.bottom - 16))
-        }
         let height = bar.sizeThatFits(CGSize(width: bounds.width, height: 0)).height
         bar.frame = CGRect(x: 0, y: bounds.height - height, width: bounds.width, height: height)
     }
@@ -225,9 +214,6 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
         }
         if !searchButton.isHidden, searchButton.frame.contains(point) {
             return searchButton.hitTest(convert(point, to: searchButton), with: event)
-        }
-        if let sidebar, !sidebar.isHidden, sidebar.frame.contains(point) {
-            return sidebar.hitTest(convert(point, to: sidebar), with: event)
         }
         guard !bar.isHidden, bar.frame.contains(point) else { return nil }
         return bar.hitTest(convert(point, to: bar), with: event)
@@ -248,8 +234,6 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
               let searchLabel = state["searchLabel"] as? String,
               let active = state["active"] as? Bool else { return }
         revision = nextRevision
-        sidebarMode = state["sidebar"] as? Bool ?? false
-        rightToLeft = rtl
         confirmedId = selected
         self.onIntent = onSelect
         self.onAction = onAction
@@ -283,10 +267,8 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
         ids = entries.map { $0.0 }
         bar.setItems(entries.map { $0.1 }, animated: false)
         bar.selectedItem = bar.items?[safe: ids.firstIndex(of: selected)]
-        bar.isHidden = !visible || !active || sidebarMode
-        searchButton.isHidden = !visible || !active || !searchVisible || sidebarMode
-        updateSidebar(tabs: tabs, selected: selected, visible: visible && active && sidebarMode,
-                      searchVisible: searchVisible, searchLabel: searchLabel, dark: dark, revision: nextRevision)
+        bar.isHidden = !visible || !active
+        searchButton.isHidden = !visible || !active || !searchVisible
         searchButton.accessibilityLabel = searchLabel
         searchButton.overrideUserInterfaceStyle = dark ? .dark : .light
         let detail = state["detail"] as? [String: Any]
@@ -335,73 +317,6 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
             detailMoreButton.menu = nil
         }
         setNeedsLayout()
-    }
-
-
-    private func updateSidebar(tabs: [[String: Any]], selected: String, visible: Bool,
-                               searchVisible: Bool, searchLabel: String, dark: Bool, revision: Int) {
-        guard #available(iOS 26.0, *) else { return }
-        if sidebar == nil {
-            let effect = UIGlassEffect(style: .regular)
-            let view = UIVisualEffectView(effect: effect)
-            view.layer.cornerRadius = 28
-            view.clipsToBounds = true
-            sidebarScroll.translatesAutoresizingMaskIntoConstraints = false
-            sidebarStack.translatesAutoresizingMaskIntoConstraints = false
-            sidebarStack.axis = .vertical
-            sidebarStack.spacing = 4
-            view.contentView.addSubview(sidebarScroll)
-            sidebarScroll.addSubview(sidebarStack)
-            NSLayoutConstraint.activate([
-                sidebarScroll.leadingAnchor.constraint(equalTo: view.contentView.leadingAnchor),
-                sidebarScroll.trailingAnchor.constraint(equalTo: view.contentView.trailingAnchor),
-                sidebarScroll.topAnchor.constraint(equalTo: view.contentView.topAnchor),
-                sidebarScroll.bottomAnchor.constraint(equalTo: view.contentView.bottomAnchor),
-                sidebarStack.leadingAnchor.constraint(equalTo: sidebarScroll.contentLayoutGuide.leadingAnchor, constant: 10),
-                sidebarStack.trailingAnchor.constraint(equalTo: sidebarScroll.contentLayoutGuide.trailingAnchor, constant: -10),
-                sidebarStack.topAnchor.constraint(equalTo: sidebarScroll.contentLayoutGuide.topAnchor, constant: 16),
-                sidebarStack.bottomAnchor.constraint(equalTo: sidebarScroll.contentLayoutGuide.bottomAnchor, constant: -16),
-                sidebarStack.widthAnchor.constraint(equalTo: sidebarScroll.frameLayoutGuide.widthAnchor, constant: -20)
-            ])
-            addSubview(view)
-            sidebar = view
-        }
-        guard let sidebar else { return }
-        sidebar.isHidden = !visible
-        sidebar.overrideUserInterfaceStyle = dark ? .dark : .light
-        sidebar.semanticContentAttribute = semanticContentAttribute
-        sidebarStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        func addButton(id: String, label: String, symbol: String, enabled: Bool, selected: Bool, action: @escaping () -> Void) {
-            var config = UIButton.Configuration.plain()
-            config.title = label
-            config.image = UIImage(systemName: symbol)
-            config.imagePadding = 12
-            config.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
-            config.baseForegroundColor = selected ? .systemRed : .label
-            config.background.backgroundColor = selected ? UIColor.systemRed.withAlphaComponent(0.14) : .clear
-            config.background.cornerRadius = 14
-            let button = UIButton(configuration: config, primaryAction: UIAction { _ in action() })
-            button.contentHorizontalAlignment = .leading
-            button.isEnabled = enabled
-            button.accessibilityIdentifier = id
-            if selected { button.accessibilityTraits.insert(.selected) }
-            button.titleLabel?.numberOfLines = 2
-            button.titleLabel?.adjustsFontForContentSizeCategory = true
-            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
-            sidebarStack.addArrangedSubview(button)
-        }
-        if searchVisible {
-            addButton(id: "search", label: searchLabel, symbol: "magnifyingglass", enabled: true, selected: false) { [weak self] in
-                self?.onAction?("search", revision)
-            }
-        }
-        let symbols = ["home": "house", "anime": "sparkles", "kids": "figure.child", "library": "books.vertical", "settings": "gearshape"]
-        for tab in tabs {
-            guard let id = tab["id"] as? String, let label = tab["label"] as? String, let symbol = symbols[id] else { continue }
-            addButton(id: id, label: label, symbol: symbol, enabled: tab["enabled"] as? Bool ?? true, selected: id == selected) { [weak self] in
-                self?.onIntent?(id, revision)
-            }
-        }
     }
 
     @objc private func searchTapped() {

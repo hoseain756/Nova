@@ -1,10 +1,9 @@
+import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/models/visual_preferences.dart';
 import '../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'card_customization_page.dart';
 import 'widgets/settings_tiles.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
 
@@ -64,16 +63,7 @@ class SettingsDisplayPage extends StatelessWidget {
                           _SettingToggle(
                               settingKey: 'hidePosterTitles',
                               title: app.tr('message431')),
-                          SettingsTile(
-                            icon: LucideIcons.clapperboard,
-                            title: app.tr('cardCustomizationTitle'),
-                            subtitle: app.tr('cardCustomizationDescription'),
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const CardCustomizationPage(),
-                              ),
-                            ),
-                          ),
+                          const _PosterRadiusRow(),
                           _SettingToggle(
                               settingKey: 'blurEpisodeThumbnails',
                               title: app.tr('message432')),
@@ -99,53 +89,22 @@ class SettingsDisplayPage extends StatelessWidget {
                                 'title': app.tr('message440'),
                                 'year': app.tr('message441')
                               }),
+                          _SettingToggle(
+                              settingKey: 'dockAutoHide',
+                              onWhenAbsent: true,
+                              title: app.tr('message442')),
                         ]),
-                    SettingsContentSection(
-                      title: app.tr('imageQualityTitle'),
-                      description: app.tr('imageQualityDescription'),
-                      children: const [
-                        _ImageQualityRow(
-                          settingKey: 'heroImageQuality',
-                          titleKey: 'heroImageQualityTitle',
-                        ),
-                        _ImageQualityRow(
-                          settingKey: 'cardImageQuality',
-                          titleKey: 'cardImageQualityTitle',
-                        ),
-                      ],
-                    ),
-                    SettingsContentSection(
-                      title: app.tr('heroTrailerAutoplayTitle'),
-                      description: app.tr('heroTrailerAutoplayDescription'),
-                      children: [
-                        _SettingSelect(
-                          settingKey: 'heroTrailerAutoplay',
-                          fallback: 'wifi',
-                          title: app.tr('heroTrailerAutoplayTitle'),
-                          options: {
-                            'always': app.tr('heroTrailerAlways'),
-                            'wifi': app.tr('heroTrailerWifi'),
-                            'never': app.tr('heroTrailerNever'),
-                          },
-                        ),
-                      ],
-                    ),
-                    SettingsInfoBanner(
-                      icon: LucideIcons.accessibility,
-                      message: app.tr('heroTrailerCaveat'),
-                    ),
                   ],
                   SettingsContentSection(
                       title: app.tr('message443'),
                       children: [
                         _SettingSelect(
                             settingKey: 'kidsCardSize',
-                            fallback: 'inherit',
+                            fallback: 'medium',
                             title: app.tr('message444'),
                             options: {
-                              'inherit': app.tr('kidsCardSizeInherit'),
                               'large': app.tr('message445'),
-                              'mediumOverride': app.tr('message446'),
+                              'medium': app.tr('message446'),
                               'small': app.tr('message447')
                             }),
                         if (kidsOnly)
@@ -163,6 +122,37 @@ class SettingsDisplayPage extends StatelessWidget {
               ))),
     );
   }
+}
+
+class _RadiusSlider extends StatefulWidget {
+  const _RadiusSlider({required this.value, required this.onChangeEnd});
+  final double value;
+  final ValueChanged<double> onChangeEnd;
+
+  @override
+  State<_RadiusSlider> createState() => _RadiusSliderState();
+}
+
+class _RadiusSliderState extends State<_RadiusSlider> {
+  late double _value = widget.value;
+
+  @override
+  void didUpdateWidget(covariant _RadiusSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) _value = widget.value;
+  }
+
+  @override
+  Widget build(BuildContext context) => Slider.adaptive(
+        value: _value.clamp(0, 28),
+        min: 0,
+        max: 28,
+        divisions: 14,
+        label: NovaStrings.of(context)
+            .text('logicalPixelValue', {'value': _value.round()}),
+        onChanged: (value) => setState(() => _value = value),
+        onChangeEnd: widget.onChangeEnd,
+      );
 }
 
 /// Task 122-c: content-language row — a [_SelectRow] reading ONLY
@@ -250,48 +240,35 @@ class _SettingSelect extends StatelessWidget {
   }
 }
 
-class _ImageQualityRow extends StatelessWidget {
-  const _ImageQualityRow({
-    required this.settingKey,
-    required this.titleKey,
-  });
-
-  final String settingKey;
-  final String titleKey;
+/// Task 122-c F4: poster-radius block lifted out of the page build —
+/// selects (english, radius) so only this block rebuilds on its change.
+class _PosterRadiusRow extends StatelessWidget {
+  const _PosterRadiusRow();
 
   @override
   Widget build(BuildContext context) {
-    final (_, quality) =
-        context.select<AppState, (bool, ImageQuality)>((app) => (
+    final (english, radius) =
+        context.select<AppState, (bool, double)>((app) => (
               app.english,
-              ImageQuality.fromValue(app.webSettings[settingKey]),
+              (app.webSettings['posterRadius'] as num?)?.toDouble() ?? 12,
             ));
-    final app = context.read<AppState>();
-    final options = {
-      ImageQuality.auto: app.tr('imageQualityAuto'),
-      ImageQuality.low: app.tr('imageQualityLow'),
-      ImageQuality.medium: app.tr('imageQualityMedium'),
-      ImageQuality.high: app.tr('imageQualityHigh'),
-      ImageQuality.original: app.tr('imageQualityOriginal'),
-    };
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(app.tr(titleKey), style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 4),
-          SettingsLanguageDropdown(
-            expanded: true,
-            value: quality.name,
-            items: [
-              for (final entry in options.entries)
-                DropdownMenuItem(
-                  value: entry.key.name,
-                  child: Text(entry.value),
-                ),
-            ],
-            onChanged: (value) => app.setSetting(settingKey, value),
+          Text(NovaStrings.lookup(english, 'message451')),
+          SizedBox(height: 3),
+          Text(
+            '${radius.round()} px',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+          _RadiusSlider(
+            value: radius,
+            onChangeEnd: (value) => context
+                .read<AppState>()
+                .setSetting('posterRadius', value.round()),
           ),
         ],
       ),

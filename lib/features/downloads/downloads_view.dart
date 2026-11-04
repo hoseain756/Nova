@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/downloads/download_manager.dart';
-import '../../core/models/visual_preferences.dart';
-import '../../core/state/app_state.dart';
 import '../../core/theme/nova_theme.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/nova_network_image.dart';
-import '../shell/nova_browse_widgets.dart';
 
 /// The download library's presentation. Transfer ownership stays in
 /// [DownloadManager]; actions are supplied by the route.
@@ -61,44 +57,51 @@ class DownloadsView extends StatelessWidget {
       final gutter = NovaSpace.gutter(constraints.maxWidth);
       return CustomScrollView(
         slivers: [
-          SliverToBoxAdapter(
-              child: NovaBrowseHeader(
-            compact: true,
-            title: s.text('downloads'),
-            subtitle: s.text('downloadIntro'),
-            eyebrow: s.text('downloadLibrarySummary', {
-              'ready': ready.length,
-              'active': active.length,
-            }),
-          )),
-          if (savedBytes > 0 || storageError != null)
-            SliverPadding(
-              padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, 24),
-              sliver: SliverToBoxAdapter(
-                  child: Column(
+          SliverPadding(
+            padding: EdgeInsetsDirectional.fromSTEB(
+                gutter, NovaSpace.lg, gutter, NovaSpace.lg),
+            sliver: SliverToBoxAdapter(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (savedBytes > 0)
+                  Text(s.text('downloadIntro'),
+                      style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: NovaSpace.sm),
+                  Text(
+                    s.text('downloadLibrarySummary', {
+                      'ready': ready.length,
+                      'active': active.length,
+                    }),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                  if (savedBytes > 0) ...[
+                    const SizedBox(height: NovaSpace.xs),
                     Text(
-                        s.text(
-                            'downloadSavedSize', {'size': _size(savedBytes)}),
-                        style: Theme.of(context).textTheme.titleMedium),
+                      s.text('downloadSavedSize', {'size': _size(savedBytes)}),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                   if (storageError != null) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: NovaSpace.md),
                     Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(LucideIcons.circleAlert,
-                              size: 20, color: scheme.error),
-                          const SizedBox(width: 8),
-                          Expanded(
-                              child: Text(s.text('downloadStorageError'),
-                                  style: TextStyle(color: scheme.error))),
-                        ]),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(LucideIcons.circleAlert,
+                            size: 20, color: scheme.error),
+                        const SizedBox(width: NovaSpace.sm),
+                        Expanded(
+                          child: Text(s.text('downloadStorageError'),
+                              style: TextStyle(color: scheme.error)),
+                        ),
+                      ],
+                    ),
                   ],
                 ],
-              )),
+              ),
             ),
+          ),
           if (jobs.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -117,7 +120,7 @@ class DownloadsView extends StatelessWidget {
                   sliver: SliverToBoxAdapter(
                     child: Semantics(
                       header: true,
-                      child: Text('${section.$1} · ${section.$2.length}',
+                      child: Text(section.$1,
                           style: Theme.of(context).textTheme.titleLarge),
                     ),
                   ),
@@ -217,11 +220,13 @@ class DownloadRow extends StatelessWidget {
     final actionSuffix = ': ${job.title}';
 
     return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
-        padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 24),
+      color: scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(NovaSpace.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -237,7 +242,7 @@ class DownloadRow extends StatelessWidget {
                       Text(job.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge),
+                          style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: NovaSpace.sm),
                       Row(
                         children: [
@@ -358,10 +363,6 @@ class _DownloadPoster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final settings =
-        context.watch<AppState?>()?.webSettings ?? const <String, dynamic>{};
-    final quality = ImageQualityPreferences.fromSettings(settings).card;
-    final radius = CardPreferences.fromSettings(settings).radius;
     final url = job.poster?.trim();
     final uri = url == null ? null : Uri.tryParse(url);
     final displayImage = uri != null &&
@@ -376,22 +377,17 @@ class _DownloadPoster extends StatelessWidget {
         );
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(12),
       child: SizedBox(
-        width: 88,
-        height: 128,
+        width: 64,
+        height: 96,
         child: displayImage
             ? NovaNetworkImage(
                 url!,
-                width: 88,
-                height: 128,
+                width: 64,
+                height: 96,
                 fit: BoxFit.cover,
-                cacheWidth: imageCacheWidthForQuality(
-                  context,
-                  88,
-                  quality: quality,
-                ),
-                quality: quality,
+                cacheWidth: imageCacheWidth(context, 64),
                 excludeFromSemantics: true,
                 errorBuilder: (_, __, ___) => fallback(),
               )

@@ -1,4 +1,3 @@
-import 'package:nova_mobile/features/shell/material_floating_dock.dart';
 // Task 136 perf contracts — regression guards for the "app feels heavy" fix:
 //
 //  1. PERSISTENT CHROME CARRIES NO LIVE BLUR: the glass dock, the glass
@@ -112,14 +111,8 @@ void _setShellTestViewport(WidgetTester tester) {
 }
 
 void _activateDockTab(WidgetTester tester, String id) {
-  final material = find.byType(MaterialFloatingDock);
-  if (material.evaluate().isNotEmpty) {
-    final dock = tester.widget<MaterialFloatingDock>(material);
-    dock.onTabSelected(dock.tabs.singleWhere((tab) => tab.id == id));
-  } else {
-    final dock = tester.widget<GlassDock>(find.byType(GlassDock));
-    dock.onTabSelected(dock.tabs.singleWhere((tab) => tab.id == id));
-  }
+  final dock = tester.widget<GlassDock>(find.byType(GlassDock));
+  dock.onTabSelected(dock.tabs.singleWhere((tab) => tab.id == id));
 }
 
 void main() {
@@ -283,7 +276,7 @@ void main() {
           reason: 'offscreen Anime tickers stay paused');
 
       // The dock is still mounted exactly once after the rebuild.
-      expect(find.byType(MaterialFloatingDock), findsOneWidget);
+      expect(find.byType(GlassDock), findsOneWidget);
     });
   });
 

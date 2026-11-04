@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/shared_collections/invite_link.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../l10n/nova_strings.dart';
-import '../shell/nova_browse_widgets.dart';
 import 'shared_collection_detail_page.dart';
 
 /// Server-backed collections are separate from the profile's private lists.
@@ -102,7 +101,6 @@ class _SharedCollectionsPanelState extends State<SharedCollectionsPanel>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(strings.text('sharedJoinTitle')),
-        scrollable: true,
         content: TextField(
           onChanged: (value) => input = value,
           autofocus: true,
@@ -164,21 +162,35 @@ class _SharedCollectionsPanelState extends State<SharedCollectionsPanel>
     final scheme = Theme.of(context).colorScheme;
     return SliverMainAxisGroup(slivers: [
       SliverToBoxAdapter(
-          child: NovaBrowseHeader(
-        compact: true,
-        title: strings.text('sharedCollections'),
-        subtitle: strings.text('sharedCollectionsDescription'),
-        actions: [
-          FilledButton.icon(
-              onPressed: _busy ? null : _create,
-              icon: const Icon(LucideIcons.plus),
-              label: Text(strings.text('sharedCreate'))),
-          OutlinedButton.icon(
-              onPressed: _busy ? null : _join,
-              icon: const Icon(LucideIcons.link),
-              label: Text(strings.text('sharedJoin'))),
-        ],
-      )),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(strings.text('sharedCollections'),
+                  style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 8),
+              Text(strings.text('sharedCollectionsDescription'),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      )),
+              const SizedBox(height: 16),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                FilledButton.icon(
+                  onPressed: _busy ? null : _create,
+                  icon: const Icon(LucideIcons.plus),
+                  label: Text(strings.text('sharedCreate')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _join,
+                  icon: const Icon(LucideIcons.link),
+                  label: Text(strings.text('sharedJoin')),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
       if (_loading)
         const SliverToBoxAdapter(
           child: Padding(
@@ -214,13 +226,11 @@ class _SharedCollectionsPanelState extends State<SharedCollectionsPanel>
               final collection = _collections[index];
               final isOwner = collection.ownerId == _service.currentUserId;
               return ListTile(
-                minTileHeight: 96,
+                minTileHeight: 72,
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(LucideIcons.usersRound, color: scheme.primary),
                 title: Text(collection.name,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(isOwner
                     ? strings.text('sharedOwner')
                     : strings.text('sharedMember')),
@@ -268,7 +278,8 @@ Future<(String, String?)?> showSharedCollectionForm(
       content: Form(
         key: formKey,
         child: SizedBox(
-          width: 420,
+          width:
+              (MediaQuery.sizeOf(dialogContext).width - 128).clamp(0.0, 420.0),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             TextFormField(
               initialValue: initialName,

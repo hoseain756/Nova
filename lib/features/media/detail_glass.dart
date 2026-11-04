@@ -16,7 +16,6 @@
 library;
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -144,13 +143,16 @@ class _GlassMenuRouteState<T> extends State<_GlassMenuRoute<T>> {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final screen = media.size;
+    const edge = 12.0;
+    // Start-align with the anchor, clamped inside the viewport.
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    final safe = EdgeInsets.fromLTRB(
-      math.max(media.viewPadding.left, media.viewInsets.left) + 12,
-      math.max(media.viewPadding.top, media.viewInsets.top) + 12,
-      math.max(media.viewPadding.right, media.viewInsets.right) + 12,
-      math.max(media.viewPadding.bottom, media.viewInsets.bottom) + 12,
-    );
+    final double start =
+        (rtl ? screen.width - widget.anchor.right : widget.anchor.left).clamp(
+            edge,
+            (screen.width - edge - widget.width).clamp(edge, double.infinity));
+    final top = (widget.anchor.bottom + widget.gap)
+        .clamp(edge, (screen.height - edge).clamp(edge, double.infinity));
     return Stack(
       children: [
         // Outside tap closes (barrier over the whole app below the panel).
@@ -161,92 +163,22 @@ class _GlassMenuRouteState<T> extends State<_GlassMenuRoute<T>> {
             child: const SizedBox.expand(),
           ),
         ),
-        Positioned.fill(
-          child: CustomSingleChildLayout(
-            delegate: _GlassMenuLayout(
-                anchor: widget.anchor,
-                width: widget.width,
-                gap: widget.gap,
-                maxHeight: widget.maxHeight,
-                safe: safe,
-                rtl: rtl),
-            child: Focus(
-              focusNode: _escapeNode,
-              onKeyEvent: _onKey,
-              child: _GlassMenuPanel(
-                maxHeight: widget.maxHeight,
-                child: widget.builder(widget.onClose),
-              ),
+        PositionedDirectional(
+          start: start,
+          top: top,
+          width: widget.width,
+          child: Focus(
+            focusNode: _escapeNode,
+            onKeyEvent: _onKey,
+            child: _GlassMenuPanel(
+              maxHeight: widget.maxHeight,
+              child: widget.builder(widget.onClose),
             ),
           ),
         ),
       ],
     );
   }
-}
-
-/// Constrains the actual panel to the usable viewport, then positions it
-/// using its measured height so a short menu does not float above its anchor.
-class _GlassMenuLayout extends SingleChildLayoutDelegate {
-  _GlassMenuLayout(
-      {required this.anchor,
-      required this.width,
-      required this.gap,
-      required this.maxHeight,
-      required this.safe,
-      required this.rtl});
-  final Rect anchor;
-  final double width;
-  final double gap;
-  final double maxHeight;
-  final EdgeInsets safe;
-  final bool rtl;
-
-  Rect _usable(Size size) => Rect.fromLTRB(
-      safe.left.clamp(0, size.width),
-      safe.top.clamp(0, size.height),
-      (size.width - safe.right)
-          .clamp(safe.left.clamp(0, size.width), size.width),
-      (size.height - safe.bottom)
-          .clamp(safe.top.clamp(0, size.height), size.height));
-
-  bool _above(Rect area) {
-    final below = math.max(0.0, area.bottom - (anchor.bottom + gap));
-    final above = math.max(0.0, anchor.top - gap - area.top);
-    return below < maxHeight && above > below;
-  }
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
-    final area = _usable(constraints.biggest);
-    final space = _above(area)
-        ? math.max(0.0, anchor.top - gap - area.top)
-        : math.max(0.0, area.bottom - anchor.bottom - gap);
-    final height = math.min(maxHeight, space > 0 ? space : area.height);
-    return BoxConstraints.tightFor(width: math.min(width, area.width))
-        .copyWith(maxHeight: height);
-  }
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) {
-    final area = _usable(size);
-    final left = (rtl ? anchor.right - childSize.width : anchor.left)
-        .clamp(area.left, math.max(area.left, area.right - childSize.width));
-    final top = (_above(area)
-            ? anchor.top - gap - childSize.height
-            : anchor.bottom + gap)
-        .clamp(area.top, math.max(area.top, area.bottom - childSize.height));
-    return Offset(left.toDouble(), top.toDouble());
-  }
-
-  @override
-  bool shouldRelayout(covariant _GlassMenuLayout old) =>
-      anchor != old.anchor ||
-      width != old.width ||
-      gap != old.gap ||
-      maxHeight != old.maxHeight ||
-      safe != old.safe ||
-      rtl != old.rtl;
 }
 
 class _GlassMenuPanel extends StatelessWidget {

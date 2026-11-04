@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/media_item.dart';
-import '../../core/models/visual_preferences.dart';
 import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/image_decode.dart';
 
@@ -27,11 +26,7 @@ class NovaBrowseHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(
-          NovaSpace.gutter(MediaQuery.sizeOf(context).width),
-          compact ? 20 : 40,
-          NovaSpace.gutter(MediaQuery.sizeOf(context).width),
-          28),
+      padding: EdgeInsetsDirectional.fromSTEB(24, compact ? 16 : 32, 24, 24),
       child: LayoutBuilder(builder: (context, constraints) {
         final copy =
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -42,27 +37,18 @@ class NovaBrowseHeader extends StatelessWidget {
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
           ],
-          Semantics(
-            header: true,
-            child: Text(title,
-                style: (compact
-                        ? theme.textTheme.headlineLarge
-                        : theme.textTheme.displaySmall)
-                    ?.copyWith(height: 1.18)),
-          ),
+          Text(title,
+              style: theme.textTheme.headlineLarge
+                  ?.copyWith(fontWeight: FontWeight.w800, height: 1.2)),
           const SizedBox(height: 8),
           ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: Text(subtitle,
                   style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      height: 1.55))),
-          const SizedBox(height: 24),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant),
+                      height: 1.65))),
         ]);
-        if (constraints.maxWidth < 840 ||
-            MediaQuery.textScalerOf(context).scale(16) > 24 ||
-            actions.isEmpty) {
+        if (constraints.maxWidth < 680 || actions.isEmpty) {
           return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -127,108 +113,117 @@ class NovaBrowseSkeleton extends StatelessWidget {
   }
 }
 
-/// An artwork-led spread. Copy flows beneath the image on phones and beside it
-/// on tablets, so large type never competes with a fixed-height image overlay.
+/// A landscape feature card that keeps the same 16:9 artwork frame on phones
+/// and tablets. Text stays outside the image semantics; the whole card opens.
 class NovaBrowseFeature extends StatelessWidget {
   const NovaBrowseFeature(
       {super.key,
       required this.item,
       required this.label,
       required this.actionLabel,
-      required this.onOpen,
-      this.quality = ImageQuality.auto});
+      required this.onOpen});
   final MediaItem item;
   final String label;
   final String actionLabel;
   final VoidCallback onOpen;
-  final ImageQuality quality;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final gutter = NovaSpace.gutter(MediaQuery.sizeOf(context).width);
     return Padding(
-      padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, 40),
+      padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
       child: LayoutBuilder(builder: (context, constraints) {
         final hasLandscapeArtwork = item.background?.trim().isNotEmpty == true;
         final artworkUrl = hasLandscapeArtwork ? item.background : item.poster;
-        final wide = constraints.maxWidth >= 760;
-        final artworkWidth =
-            wide ? constraints.maxWidth * .62 : constraints.maxWidth;
-        final artwork = ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: ColoredBox(
-              color: theme.colorScheme.surfaceContainerHighest,
-              child: artworkUrl != null && artworkUrl.trim().isNotEmpty
-                  ? NovaNetworkImage(
+        final width = constraints.maxWidth;
+        final compact = width < 600;
+        final showLabel = width * 9 / 16 >= 180 ||
+            MediaQuery.textScalerOf(context).scale(16) <= 22;
+        return AspectRatio(
+          key: const ValueKey('nova-browse-hero'),
+          aspectRatio: 16 / 9,
+          child: Material(
+            color: theme.colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(24),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onOpen,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (artworkUrl != null && artworkUrl.trim().isNotEmpty)
+                    NovaNetworkImage(
                       artworkUrl,
                       width: double.infinity,
                       height: double.infinity,
                       fit: hasLandscapeArtwork ? BoxFit.cover : BoxFit.contain,
-                      cacheWidth: imageCacheWidth(context, artworkWidth),
-                      quality: quality,
-                      providerKind: hasLandscapeArtwork
-                          ? ProviderImageKind.backdrop
-                          : ProviderImageKind.poster,
+                      cacheWidth: imageCacheWidth(context, width),
                       excludeFromSemantics: true,
                     )
-                  : Icon(LucideIcons.film,
-                      size: 64, color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ),
-        );
-        final copy = Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(
-              wide ? 28 : 0, wide ? 8 : 20, 0, 8),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label,
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: theme.colorScheme.primary)),
-            const SizedBox(height: 12),
-            Text(item.name, style: theme.textTheme.headlineMedium),
-            if (item.releaseInfo?.isNotEmpty == true) ...[
-              const SizedBox(height: 12),
-              Text(item.releaseInfo!,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            ],
-            const SizedBox(height: 20),
-            Row(children: [
-              Expanded(
-                  child: Text(actionLabel, style: theme.textTheme.labelLarge)),
-              const SizedBox(width: 12),
-              Icon(
-                  Directionality.of(context) == TextDirection.rtl
-                      ? LucideIcons.arrowUpLeft
-                      : LucideIcons.arrowUpRight,
-                  color: theme.colorScheme.primary),
-            ]),
-          ]),
-        );
-        return Semantics(
-          key: const ValueKey('nova-browse-hero'),
-          button: true,
-          onTap: onOpen,
-          label: '$actionLabel: ${item.name}',
-          excludeSemantics: true,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onOpen,
-              borderRadius: BorderRadius.circular(12),
-              child: wide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                  else
+                    Center(
+                      child: Icon(LucideIcons.film,
+                          size: 64, color: theme.colorScheme.secondary),
+                    ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          NovaColors.ink.withValues(alpha: .72),
+                          NovaColors.ink.withValues(alpha: .08),
+                          NovaColors.ink.withValues(alpha: .92),
+                        ],
+                        stops: const [0, .35, 1],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(compact ? 16 : 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                          Expanded(flex: 62, child: artwork),
-                          Expanded(flex: 38, child: copy),
-                        ])
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [artwork, copy]),
+                        if (showLabel)
+                          Text(label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: NovaColors.white,
+                                fontWeight: FontWeight.w700,
+                              )),
+                        const Spacer(),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Text(item.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: (compact
+                                          ? theme.textTheme.titleLarge
+                                          : theme.textTheme.headlineLarge)
+                                      ?.copyWith(
+                                          color: NovaColors.white,
+                                          fontWeight: FontWeight.w800)),
+                            ),
+                            const SizedBox(width: 12),
+                            Tooltip(
+                              message: actionLabel,
+                              child: CircleAvatar(
+                                radius: 24,
+                                backgroundColor: theme.colorScheme.primary,
+                                child: Icon(LucideIcons.arrowUpRight,
+                                    color: theme.colorScheme.onPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -251,11 +246,13 @@ class NovaBrowseDestination extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-        color: Colors.transparent,
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
           onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 20),
+              padding: const EdgeInsets.all(20),
               child: Row(children: [
                 Icon(icon,
                     color: Theme.of(context).colorScheme.secondary, size: 24),
@@ -279,67 +276,5 @@ class NovaBrowseDestination extends StatelessWidget {
                     color: Theme.of(context).colorScheme.onSurfaceVariant),
               ])),
         ),
-      );
-}
-
-/// All sheet content shares one scroll owner, including title and actions.
-/// Padding consumes the actual keyboard inset; a short window never leaves a
-/// fixed header above an unusably small list.
-class NovaBrowseSheet extends StatelessWidget {
-  const NovaBrowseSheet({super.key, required this.slivers});
-  final List<Widget> slivers;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsetsDirectional.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom),
-        child: SafeArea(
-          top: false,
-          child: CustomScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            slivers: slivers,
-          ),
-        ),
-      );
-}
-
-class NovaBrowseSheetHeading extends StatelessWidget {
-  const NovaBrowseSheetHeading({
-    super.key,
-    required this.title,
-    required this.closeLabel,
-    required this.onClose,
-    this.subtitle,
-  });
-  final String title, closeLabel;
-  final String? subtitle;
-  final VoidCallback? onClose;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(24, 20, 12, 20),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Semantics(
-                  header: true,
-                  child: Text(title,
-                      style: MediaQuery.sizeOf(context).height -
-                                  MediaQuery.viewInsetsOf(context).bottom <
-                              500
-                          ? Theme.of(context).textTheme.titleLarge
-                          : Theme.of(context).textTheme.headlineMedium)),
-              if (subtitle != null) ...[
-                const SizedBox(height: 8),
-                Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
-              ],
-            ]),
-          ),
-          IconButton(
-              tooltip: closeLabel,
-              onPressed: onClose,
-              icon: const Icon(LucideIcons.x)),
-        ]),
       );
 }

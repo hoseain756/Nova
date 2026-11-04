@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,21 +29,6 @@ class NovaApp extends StatelessWidget {
   final AppUpdateService? updateService;
   final AccountController? account;
   final bool requireAccount;
-  static final Future<Color?> _dynamicSeed = _readDynamicSeed();
-  static Future<Color?> _readDynamicSeed() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
-    try {
-      final palette = await const MethodChannel('nova/appearance')
-          .invokeMapMethod<String, dynamic>('palette');
-      final seed = palette?['seed'];
-      return seed is int ? Color(seed) : null;
-    } on PlatformException {
-      return null;
-    } on MissingPluginException {
-      return null;
-    }
-  }
-
   static final _darkArabic = NovaTheme.build(Brightness.dark, arabic: true);
   static final _darkOledArabic =
       NovaTheme.build(Brightness.dark, arabic: true, oled: true);
@@ -62,55 +45,41 @@ class NovaApp extends StatelessWidget {
                 app.webSettings['reduceMotion'] == true,
                 app.webSettings['oledMode'] == true
               ),
-              builder: (context, value, _) => FutureBuilder<Color?>(
-                future: _dynamicSeed,
-                builder: (context, snapshot) {
-                  final seed = snapshot.data;
-                  return MaterialApp(
-                    navigatorObservers: [shellChromeRouteObserver],
-                    onGenerateTitle: (context) =>
-                        NovaStrings.of(context).text('appName'),
-                    debugShowCheckedModeBanner: false,
-                    theme: seed == null
-                        ? (value.$1 ? NovaTheme.light : _lightArabic)
-                        : NovaTheme.build(Brightness.light,
-                            arabic: !value.$1, dynamicSeed: seed),
-                    darkTheme: seed == null
-                        ? (value.$1
-                            ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
-                            : (value.$4 ? _darkOledArabic : _darkArabic))
-                        : NovaTheme.build(Brightness.dark,
-                            arabic: !value.$1,
-                            oled: value.$4,
-                            dynamicSeed: seed),
-                    themeMode: switch (value.$2) {
-                      'light' => ThemeMode.light,
-                      'system' => ThemeMode.system,
-                      _ => ThemeMode.dark
-                    },
-                    themeAnimationDuration:
-                        value.$3 ? Duration.zero : NovaMotion.state,
-                    locale: Locale(value.$1 ? 'en' : 'ar'),
-                    supportedLocales: const [Locale('ar'), Locale('en')],
-                    localizationsDelegates: const [
-                      NovaStrings.delegate,
-                      ...GlobalMaterialLocalizations.delegates
-                    ],
-                    builder: (context, child) {
-                      final media = MediaQuery.of(context);
-                      return MediaQuery(
-                          data: media.copyWith(
-                              disableAnimations:
-                                  media.disableAnimations || value.$3),
-                          child: child!);
-                    },
-                    home: IncomingLinkListener(
-                        child: _LaunchGate(
-                            updateService: updateService,
-                            account: account,
-                            requireAccount: requireAccount)),
-                  );
+              builder: (context, value, _) => MaterialApp(
+                navigatorObservers: [shellChromeRouteObserver],
+                onGenerateTitle: (context) =>
+                    NovaStrings.of(context).text('appName'),
+                debugShowCheckedModeBanner: false,
+                theme: value.$1 ? NovaTheme.light : _lightArabic,
+                darkTheme: value.$1
+                    ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
+                    : (value.$4 ? _darkOledArabic : _darkArabic),
+                themeMode: switch (value.$2) {
+                  'light' => ThemeMode.light,
+                  'system' => ThemeMode.system,
+                  _ => ThemeMode.dark
                 },
+                themeAnimationDuration:
+                    value.$3 ? Duration.zero : NovaMotion.state,
+                locale: Locale(value.$1 ? 'en' : 'ar'),
+                supportedLocales: const [Locale('ar'), Locale('en')],
+                localizationsDelegates: const [
+                  NovaStrings.delegate,
+                  ...GlobalMaterialLocalizations.delegates
+                ],
+                builder: (context, child) {
+                  final media = MediaQuery.of(context);
+                  return MediaQuery(
+                      data: media.copyWith(
+                          disableAnimations:
+                              media.disableAnimations || value.$3),
+                      child: child!);
+                },
+                home: IncomingLinkListener(
+                    child: _LaunchGate(
+                        updateService: updateService,
+                        account: account,
+                        requireAccount: requireAccount)),
               ),
             )),
       );

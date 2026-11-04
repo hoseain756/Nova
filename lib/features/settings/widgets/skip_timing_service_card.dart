@@ -221,14 +221,17 @@ class _SkipTimingServiceCardState extends State<SkipTimingServiceCard> {
     final scheme = Theme.of(context).colorScheme;
     final provider = _provider;
     return Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(0, 20, 0, 28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: scheme.outlineVariant))),
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(skipTimingServiceName(widget.service),
-              style: Theme.of(context).textTheme.headlineSmall),
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(strings.text(_descriptionKey(widget.service)),
               style: Theme.of(context).textTheme.bodyMedium),
@@ -268,7 +271,6 @@ class _SkipTimingServiceCardState extends State<SkipTimingServiceCard> {
             const SizedBox(height: 10),
             TextField(
               controller: _key,
-              enabled: !_busy,
               obscureText: true,
               autocorrect: false,
               enableSuggestions: false,

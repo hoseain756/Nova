@@ -26,7 +26,6 @@ import '../settings/settings_page.dart';
 import '../settings/stats_page.dart';
 import 'dock_tab.dart';
 import 'glass_dock.dart';
-import 'material_floating_dock.dart';
 import 'noor_dock_tabs.dart';
 import 'search_sheet.dart';
 
@@ -102,8 +101,6 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   final IosChromeBridge _iosChrome = IosChromeBridge();
   bool _nativeChrome = false;
-  bool _capabilityRefreshRunning = false;
-  bool _capabilityRefreshPending = false;
   bool _iosPhone = false;
   String? _lastChromeSignature;
   bool _appActive = true;
@@ -113,6 +110,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   bool _chromeVisible = true;
   bool _checkingGate = false;
   bool _changingTab = false;
+  double _scrollDelta = 0;
   late final Widget _animePage =
       const SafeArea(bottom: false, child: AnimePage());
   late final Widget _kidsPage =
@@ -145,7 +143,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     shellRouteVisible.addListener(_onRouteVisibility);
     shellTopRoute.addListener(_onRouteVisibility);
     detailChromeRegistry.addListener(_onRouteVisibility);
-    _initializeIosChrome();
+    unawaited(_initializeIosChrome());
   }
 
   void _onRouteVisibility() {
@@ -157,14 +155,22 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final active = state == AppLifecycleState.resumed;
     if (active && !_appActive && mounted) {
       unawaited(context.read<AppState>().refreshAutomaticSync());
-      unawaited(_refreshIosChromeCapabilities());
     }
     if (_appActive != active && mounted) {
       setState(() => _appActive = active);
     }
   }
 
-  void _initializeIosChrome() {
+  Future<void> _initializeIosChrome() async {
+    final capabilities = await _iosChrome.capabilities();
+    if (!mounted) return;
+    setState(() => _iosPhone = capabilities.phoneIdiom);
+    if (!capabilities.phoneIdiom ||
+        !capabilities.systemGlassAvailable ||
+        !capabilities.nativeChromeAvailable ||
+        capabilities.osMajor < 26) {
+      return;
+    }
     _iosChrome.onSelectIntent = (id, _) {
       if (!_chromeVisible ||
           !shellRouteVisible.value ||
@@ -179,7 +185,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     };
     _iosChrome.onActionIntent = (id, _) {
       if (id == 'search' &&
-          (_iosPhone ? _selected == 0 : _selected != 2) &&
+          _selected == 0 &&
           _chromeVisible &&
           shellRouteVisible.value) {
         unawaited(_openSearch());
@@ -187,58 +193,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         detailChromeRegistry.dispatch(shellTopRoute.value, id);
       }
     };
-    _iosChrome.onCapabilitiesChanged = () {
-      _chromeRevision++;
-      _lastChromeSignature = null;
-      detailChromeRegistry.nativeRoute.value = null;
-      unawaited(_refreshIosChromeCapabilities());
-    };
-    // Listen even when currently unavailable so the system accessibility
-    // notification can enable native chrome later.
     _iosChrome.listenForIntents();
-    unawaited(_refreshIosChromeCapabilities());
-  }
-
-  Future<void> _refreshIosChromeCapabilities() async {
-    _capabilityRefreshPending = true;
-    if (_capabilityRefreshRunning) return;
-    _capabilityRefreshRunning = true;
-    try {
-      while (_capabilityRefreshPending && mounted) {
-        _capabilityRefreshPending = false;
-        final capabilities = await _iosChrome.capabilities();
-        if (!mounted) return;
-        final available = capabilities.systemGlassAvailable &&
-            capabilities.nativeChromeAvailable &&
-            capabilities.osMajor >= 26;
-        if (!available && _nativeChrome) {
-          // Stop new publishes and invalidate any in-flight completion before
-          // removing the native overlay. Flutter takes over after retirement.
-          _nativeChrome = false;
-          _chromeRevision++;
-          _lastChromeSignature = null;
-          detailChromeRegistry.nativeRoute.value = null;
-          await _iosChrome.retire();
-          if (!mounted) return;
-          setState(() => _iosPhone = capabilities.phoneIdiom);
-        } else if (available && !_nativeChrome) {
-          setState(() {
-            _iosPhone = capabilities.phoneIdiom;
-            _nativeChrome = true;
-          });
-          _lastChromeSignature = null;
-          await _publishIosChrome();
-        } else {
-          if (_iosPhone != capabilities.phoneIdiom) {
-            setState(() => _iosPhone = capabilities.phoneIdiom);
-          }
-          if (available && _lastChromeSignature == null) {
-            await _publishIosChrome();
-          }
-        }
-      }
-    } finally {
-      _capabilityRefreshRunning = false;
+    setState(() => _nativeChrome = true);
+    if (!await _publishIosChrome() && mounted) {
+      setState(() => _nativeChrome = false);
     }
   }
 
@@ -249,7 +207,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final routeState = resolveShellChromeRoute(
       topRoute: topRoute,
       shellVisible: _chromeVisible,
-      phone: true,
+      phone: _iosPhone,
       shellRouteCurrent: ModalRoute.of(context)?.isCurrent ?? true,
       reduceTransparency: app.webSettings['reduceTransparency'] == true,
     );
@@ -268,11 +226,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       rtl: !app.english,
       dark: Theme.of(context).brightness == Brightness.dark,
       active: _appActive,
-      sidebar: usesTabletNavigation(MediaQuery.sizeOf(context).width,
-          iosPhone: _iosPhone),
-      searchVisible: (_iosPhone ? _selected == 0 : _selected != 2) &&
-          shellVisible &&
-          detail == null,
+      searchVisible: _selected == 0 && shellVisible && detail == null,
       searchLabel: app.tr('message679'),
       detail: detail,
     );
@@ -286,9 +240,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           published && _appActive && detail != null ? topRoute : null;
       if (!published) {
         _lastChromeSignature = null;
-        _nativeChrome = false;
-        unawaited(_iosChrome.retire());
-        setState(() {});
+        unawaited(_iosChrome.dispose());
+        setState(() => _nativeChrome = false);
       }
     }
     return published;
@@ -344,6 +297,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         _selected = index;
         _visited.add(index);
         _chromeVisible = true;
+        _scrollDelta = 0;
         if ((index == 0) != _homePage.active) {
           _homePage = HomePage(active: index == 0);
         }
@@ -351,6 +305,39 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     } finally {
       _changingTab = false;
     }
+  }
+
+  bool _onScroll(ScrollNotification event) {
+    if (event.depth > 0 ||
+        event.metrics.axis != Axis.vertical ||
+        event is! ScrollUpdateNotification) {
+      return false;
+    }
+    final app = context.read<AppState>();
+    if (_selected == 2 ||
+        app.webSettings['dockAutoHide'] == false ||
+        usesTabletNavigation(MediaQuery.sizeOf(context).width,
+            iosPhone: _iosPhone) ||
+        MediaQuery.accessibleNavigationOf(context)) {
+      if (!_chromeVisible) setState(() => _chromeVisible = true);
+      return false;
+    }
+    if (event.metrics.pixels <= event.metrics.minScrollExtent + 24) {
+      _scrollDelta = 0;
+      if (!_chromeVisible) setState(() => _chromeVisible = true);
+      return false;
+    }
+    final delta = event.scrollDelta ?? 0;
+    _scrollDelta =
+        delta.sign == _scrollDelta.sign ? _scrollDelta + delta : delta;
+    if (_scrollDelta >= 40 && _chromeVisible) {
+      setState(() => _chromeVisible = false);
+      _scrollDelta = 0;
+    } else if (_scrollDelta <= -16 && !_chromeVisible) {
+      setState(() => _chromeVisible = true);
+      _scrollDelta = 0;
+    }
+    return false;
   }
 
   Future<void> _openSearch() => showModalBottomSheet<void>(
@@ -413,9 +400,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         value: noorSystemBarOverlayStyle(Theme.of(context).brightness),
         child: Scaffold(
             body: Row(children: [
-          if (tablet && useNativeChrome)
-            const SizedBox(width: 228)
-          else if (tablet)
+          if (tablet)
             _TabletNavigation(
                 selected: _selected,
                 onTabSelected: (i) => unawaited(_selectTab(i)),
@@ -423,7 +408,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 onSearch: _selected == 2 ? null : _openSearch),
           Expanded(
               child: Stack(children: [
-            Positioned.fill(child: pages),
+            Positioned.fill(
+                child: NotificationListener<ScrollNotification>(
+                    onNotification: _onScroll, child: pages)),
             if (!tablet && !useNativeChrome && _selected == 0)
               PositionedDirectional(
                   end: 20,
@@ -441,25 +428,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   start: 0,
                   end: 0,
                   bottom: 0,
-                  child: Theme.of(context).platform == TargetPlatform.android
-                      ? MaterialFloatingDock(
-                          tabs: noorDockTabsFor(rtl: !english),
-                          activeId: noorDockTabIdForIndex(_selected),
-                          onTabSelected: (tab) => unawaited(
-                              _selectTab(noorDockIndexForTabId(tab.view))),
-                          arabic: !english,
-                          hidden: !_chromeVisible,
-                          style: navigationBarStyle)
-                      : GlassDock(
-                          tabs: noorDockTabsFor(rtl: !english),
-                          activeId: noorDockTabIdForIndex(_selected),
-                          onTabSelected: (DockTab tab) => unawaited(
-                              _selectTab(noorDockIndexForTabId(tab.view))),
-                          languageCode: english ? 'en' : 'ar',
-                          style: navigationBarStyle,
-                          hidden: !_chromeVisible,
-                          reduceMotion: reduce,
-                          reduceTransparency: reduceTransparency)),
+                  child: GlassDock(
+                      tabs: noorDockTabsFor(rtl: !english),
+                      activeId: noorDockTabIdForIndex(_selected),
+                      onTabSelected: (DockTab tab) => unawaited(
+                          _selectTab(noorDockIndexForTabId(tab.view))),
+                      languageCode: english ? 'en' : 'ar',
+                      style: navigationBarStyle,
+                      hidden: !_chromeVisible,
+                      reduceMotion: reduce,
+                      reduceTransparency: reduceTransparency)),
           ])),
         ])),
       ),
@@ -519,22 +497,10 @@ class _TabletNavigation extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(16),
                 onTap: onTap,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: Padding(
-                    padding:
-                        const EdgeInsetsDirectional.fromSTEB(14, 10, 14, 10),
-                    child: Row(children: [
-                      Icon(icon, size: 22, color: foreground),
-                      const SizedBox(width: 14),
-                      Expanded(
-                          child: Text(label,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelLarge
-                                  ?.copyWith(color: foreground))),
-                    ]),
-                  ),
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Icon(icon, size: 24, color: foreground),
                 ),
               ),
             ),
@@ -544,7 +510,7 @@ class _TabletNavigation extends StatelessWidget {
     }
 
     return SizedBox(
-      width: 228,
+      width: 72,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLow,

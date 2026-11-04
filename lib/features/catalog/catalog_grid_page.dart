@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
-import '../../core/models/visual_preferences.dart';
 import '../../core/state/app_state.dart';
 import '../shell/nova_browse_widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -96,8 +95,6 @@ class _CatalogGridPageState extends State<CatalogGridPage>
   @override
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
-    final cardPreferences = context.select<AppState, CardPreferences>(
-        (app) => CardPreferences.fromSettings(app.webSettings));
     final app = context.read<AppState>();
     final items = _items ?? const <MediaItem>[];
     return Scaffold(
@@ -140,21 +137,17 @@ class _CatalogGridPageState extends State<CatalogGridPage>
             SliverPadding(
                 padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
                 sliver: SliverLayoutBuilder(builder: (context, constraints) {
-                  final dimensions = cardPreferences
-                      .dimensions(MediaQuery.sizeOf(context).width);
                   final columns =
-                      dimensions.gridColumns(constraints.crossAxisExtent);
-                  final width = dimensions.gridCellWidth(
-                      constraints.crossAxisExtent, columns);
-                  final textScale = MediaQuery.textScalerOf(context).scale(1);
+                      (constraints.crossAxisExtent / 190).floor().clamp(2, 7);
+                  final width =
+                      (constraints.crossAxisExtent - (columns - 1) * 20) /
+                          columns;
                   return SliverGrid.builder(
                       itemCount: items.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: columns,
-                          mainAxisExtent: cardPreferences.isHorizontal
-                              ? dimensions.horizontalExtent(width, textScale)
-                              : width / CardDimensions.verticalArtworkRatio +
-                                  78 * textScale,
+                          mainAxisExtent: width / .72 +
+                              78 * MediaQuery.textScalerOf(context).scale(1),
                           crossAxisSpacing: 20,
                           mainAxisSpacing: 24),
                       itemBuilder: (context, index) => PosterCard(

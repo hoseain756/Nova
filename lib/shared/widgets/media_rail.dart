@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/models/media_item.dart';
-import '../../core/models/visual_preferences.dart';
 import 'poster_card.dart';
 
 class MediaRail extends StatelessWidget {
@@ -42,19 +41,16 @@ class MediaRail extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final wide = viewportWidth >= 700;
-    final (preferences, showTitle) =
-        context.select<AppState, (CardPreferences, bool)>((app) => (
-              CardPreferences.fromSettings(app.webSettings),
-              app.webSettings['hidePosterTitles'] != true,
-            ));
-    final dimensions = preferences.dimensions(viewportWidth);
+    // Task 122-b (F5): the rail used to `watch` AppState (rebuilding the
+    // whole rail on any notification) for a single setting — select exactly
+    // that field instead (identical value, identical UI).
+    final showTitle = context.select<AppState, bool>(
+      (app) => app.webSettings['hidePosterTitles'] != true,
+    );
     final showRelease =
         showTitle && items.any((item) => item.releaseInfo != null);
-    final posterWidth = dimensions.railWidth;
-    final posterHeight = preferences.isHorizontal
-        ? dimensions.horizontalExtent(
-            posterWidth, MediaQuery.textScalerOf(context).scale(1))
-        : posterWidth / CardDimensions.verticalArtworkRatio;
+    final posterWidth = wide ? 138.0 : 122.0;
+    final posterHeight = posterWidth / .72;
     final titleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w600,
           height: 1.3,
@@ -78,8 +74,7 @@ class MediaRail extends StatelessWidget {
                     )
                 : 0)
         : 0.0;
-    final railHeight =
-        posterHeight + (preferences.isHorizontal ? 0 : cardTextHeight);
+    final railHeight = posterHeight + cardTextHeight;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -87,13 +82,20 @@ class MediaRail extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: wide ? 34 : 20),
           child: Row(
             children: [
+              Container(
+                width: 3,
+                height: 19,
+                decoration: BoxDecoration(
+                  color: NovaTheme.of(context).gold,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: subtitle == null
                     ? Text(
                         title,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,10 +103,7 @@ class MediaRail extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w700),
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 1),
                           Text(

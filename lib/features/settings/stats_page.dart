@@ -76,53 +76,42 @@ class StatsPage extends StatelessWidget {
                                           label: metric.$3)),
                               ])),
                       SettingsSectionTitle(title: app.tr('message515')),
-                      Padding(
-                        padding:
-                            const EdgeInsetsDirectional.symmetric(vertical: 8),
-                        child: Column(children: [
-                          for (var i = 0; i < days.length; i++)
-                            Padding(
-                              padding: const EdgeInsetsDirectional.symmetric(
-                                  vertical: 12),
-                              child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                              child: Text(
-                                                  MaterialLocalizations.of(
-                                                          context)
-                                                      .formatShortDate(days[i]),
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .bodyMedium)),
-                                          const SizedBox(width: 16),
-                                          Flexible(
-                                              child: Text(
-                                                  app.tr('message516',
-                                                      {'p0': counts[i]}),
-                                                  textAlign: TextAlign.end,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .labelLarge)),
-                                        ]),
-                                    const SizedBox(height: 12),
-                                    LinearProgressIndicator(
-                                      value: counts[i] / peak,
-                                      minHeight: 4,
-                                      semanticsLabel:
-                                          '${MaterialLocalizations.of(context).formatShortDate(days[i])}: ${app.tr('message516', {
-                                            'p0': counts[i]
-                                          })}',
-                                    ),
-                                  ]),
-                            ),
-                        ]),
-                      ),
+                      Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(24)),
+                          child: Column(children: [
+                            for (var i = 0; i < days.length; i++)
+                              Padding(
+                                  padding:
+                                      const EdgeInsetsDirectional.symmetric(
+                                          vertical: 8),
+                                  child: Row(children: [
+                                    SizedBox(
+                                        width: 80,
+                                        child: Text(
+                                            MaterialLocalizations.of(context)
+                                                .formatShortDate(days[i]),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall)),
+                                    Expanded(
+                                        child: Semantics(
+                                            label: app.tr('message516',
+                                                {'p0': counts[i]}),
+                                            child: LinearProgressIndicator(
+                                                value: counts[i] / peak,
+                                                minHeight: 8,
+                                                borderRadius:
+                                                    BorderRadius.circular(4)))),
+                                    const SizedBox(width: 16),
+                                    SizedBox(
+                                        width: 24,
+                                        child: Text('${counts[i]}',
+                                            textAlign: TextAlign.end)),
+                                  ])),
+                          ])),
                       SettingsSectionTitle(title: app.tr('message517')),
                       if (history.isEmpty)
                         SettingsInfoBanner(
@@ -146,8 +135,7 @@ class StatsPage extends StatelessWidget {
                                   color:
                                       Theme.of(context).colorScheme.secondary,
                                   size: 20)),
-                          title: Text(entry.item.name,
-                              maxLines: 3, overflow: TextOverflow.ellipsis),
+                          title: Text(entry.item.name),
                           subtitle: Text(MaterialLocalizations.of(context)
                               .formatMediumDate(
                                   DateTime.fromMillisecondsSinceEpoch(
@@ -181,11 +169,10 @@ class _Metric extends StatelessWidget {
   final String value, label;
   @override
   Widget build(BuildContext context) => Container(
-      padding: const EdgeInsetsDirectional.fromSTEB(0, 24, 16, 24),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-          border: Border(
-              bottom: BorderSide(
-                  color: Theme.of(context).colorScheme.outlineVariant))),
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(24)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, color: Theme.of(context).colorScheme.secondary, size: 24),
         const SizedBox(height: 24),

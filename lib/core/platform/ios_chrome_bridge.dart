@@ -121,7 +121,6 @@ class IosChromePresentation {
     required this.rtl,
     required this.dark,
     required this.active,
-    this.sidebar = false,
     this.searchVisible = false,
     this.searchLabel = '',
     this.detail,
@@ -135,7 +134,6 @@ class IosChromePresentation {
   final bool rtl;
   final bool dark;
   final bool active;
-  final bool sidebar;
   final bool searchVisible;
   final String searchLabel;
   final IosDetailChrome? detail;
@@ -149,7 +147,6 @@ class IosChromePresentation {
         'rtl': rtl,
         'dark': dark,
         'active': active,
-        'sidebar': sidebar,
         'searchVisible': searchVisible,
         'searchLabel': searchLabel,
         'detail': detail?.toMap(),
@@ -175,7 +172,6 @@ class IosChromeBridge {
   IosChromeCapabilities? _capabilities;
   void Function(String id, int revision)? onSelectIntent;
   void Function(String id, int revision)? onActionIntent;
-  void Function()? onCapabilitiesChanged;
 
   Future<IosChromeCapabilities> capabilities() async {
     if (!_isIOS || _disposed) return IosChromeCapabilities.unsupported;
@@ -183,7 +179,6 @@ class IosChromeBridge {
       final result = await _channel.invokeMapMethod<Object?, Object?>(
         'getCapabilities',
       );
-      if (_disposed) return IosChromeCapabilities.unsupported;
       _capabilities = result == null
           ? IosChromeCapabilities.unsupported
           : IosChromeCapabilities.fromMap(result);
@@ -239,13 +234,10 @@ class IosChromeBridge {
   }
 
   void listenForIntents() {
-    if (!_isIOS || _disposed) return;
+    if (!_isIOS || _disposed || _capabilities?.nativeChromeAvailable != true) {
+      return;
+    }
     _channel.setMethodCallHandler((call) async {
-      if (call.method == 'capabilitiesChanged') {
-        _clearFailedRevision(_latestRevision);
-        onCapabilitiesChanged?.call();
-        return;
-      }
       if (call.method != 'selectIntent' && call.method != 'actionIntent') {
         return;
       }
@@ -270,27 +262,11 @@ class IosChromeBridge {
     });
   }
 
-  /// Removes the current native overlay without disposing this reusable bridge.
-  /// Keep the revision monotonic so late native intents remain invalid.
-  Future<void> retire() async {
-    _clearFailedRevision(_latestRevision);
-    if (!_isIOS || _disposed) return;
-    try {
-      await _channel.invokeMethod<void>('dispose');
-    } on MissingPluginException {
-      // No native presenter is installed.
-    } on PlatformException {
-      // The caller still falls back to Flutter; native also retires on a
-      // system Reduce Transparency notification.
-    }
-  }
-
   Future<void> dispose() async {
     if (_disposed) return;
     _disposed = true;
     onSelectIntent = null;
     onActionIntent = null;
-    onCapabilitiesChanged = null;
     if (!_isIOS) return;
     _channel.setMethodCallHandler(null);
     try {

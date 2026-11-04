@@ -84,7 +84,7 @@ class _AddonsPageState extends State<AddonsPage> {
         appBar: AppBar(title: Text(app.tr('message220'))),
         body: Center(
             child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1100),
+          constraints: const BoxConstraints(maxWidth: 900),
           child: CustomScrollView(slivers: [
             SliverPadding(
                 padding: const EdgeInsetsDirectional.fromSTEB(24, 8, 24, 0),
@@ -101,7 +101,6 @@ class _AddonsPageState extends State<AddonsPage> {
                     const SizedBox(height: 16),
                     TextField(
                         controller: _url,
-                        enabled: !_busy,
                         keyboardType: TextInputType.url,
                         textDirection: TextDirection.ltr,
                         autocorrect: false,
@@ -190,12 +189,14 @@ class _AddonRow extends StatelessWidget {
     return Padding(
         padding: const EdgeInsetsDirectional.only(bottom: 12),
         child: Material(
-          color: Colors.transparent,
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => _AddonDetailsPage(addonId: addon.id))),
               child: Padding(
-                padding: const EdgeInsetsDirectional.symmetric(vertical: 20),
+                padding: const EdgeInsets.all(16),
                 child: Column(children: [
                   Row(children: [
                     ClipRRect(
@@ -220,7 +221,7 @@ class _AddonRow extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Text(addon.name,
-                              style: Theme.of(context).textTheme.titleLarge),
+                              style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 4),
                           Text(
                               app.tr('message230', {
@@ -236,7 +237,7 @@ class _AddonRow extends StatelessWidget {
                             onChanged: (v) =>
                                 app.setAddonEnabled(addon.id, v))),
                   ]),
-                  const Divider(height: 28),
+                  const SizedBox(height: 12),
                   Row(children: [
                     Expanded(
                         child: Text(

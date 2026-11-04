@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
-import '../shell/nova_browse_widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/track/track_link.dart';
 import '../../shared/widgets/image_decode.dart';
@@ -167,140 +166,175 @@ class _TrackerSheetState extends State<_TrackerSheet> {
       (AnimeTrackStatus.dropped, app.tr('message552'), LucideIcons.x),
       (AnimeTrackStatus.rewatching, app.tr('message553'), LucideIcons.repeat),
     ];
-    return NovaBrowseSheet(slivers: [
-      SliverToBoxAdapter(
-          child: NovaBrowseSheetHeading(
-        title: app.tr('message554'),
-        closeLabel: app.tr('close'),
-        onClose: _saving ? null : () => Navigator.pop(context),
-      )),
-      SliverPadding(
-        padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
-        sliver: SliverToBoxAdapter(
-            child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (widget.item.poster != null) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: NovaNetworkImage(widget.item.poster!,
-                      width: 80,
-                      height: 112,
-                      fit: BoxFit.cover,
-                      cacheWidth: imageCacheWidth(context, 80),
-                      errorBuilder: (_, __, ___) =>
-                          const SizedBox(width: 80, height: 112)),
-                ),
-                const SizedBox(width: 20),
-              ],
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(widget.item.name,
-                        style: theme.textTheme.headlineSmall),
-                    const SizedBox(height: 12),
-                    Text(app.tr('message555'),
-                        style: theme.textTheme.bodyMedium),
-                  ])),
-            ]),
-            const Divider(height: 48),
-            if (_loading)
-              const LinearProgressIndicator()
-            else if (_loadFailed) ...[
-              Text(app.tr('message556')),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                  onPressed: _preload,
-                  icon: const Icon(LucideIcons.refreshCw),
-                  label: Text(app.tr('message174'))),
-            ] else ...[
-              Text(app.tr('message557'), style: theme.textTheme.titleLarge),
-              const SizedBox(height: 16),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final entry in statuses)
-                  ChoiceChip(
-                    avatar: Icon(entry.$3, size: 18),
-                    label: Text(entry.$2),
-                    selected: _status == entry.$1,
-                    onSelected: _saving
-                        ? null
-                        : (_) => setState(() => _status = entry.$1),
-                  ),
-              ]),
-              const Divider(height: 48),
-              if (_status != null && _status != AnimeTrackStatus.completed) ...[
-                Text(app.tr('message558'), style: theme.textTheme.titleLarge),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    IconButton.filledTonal(
-                        tooltip: app.tr('message559'),
-                        onPressed: _saving || _progress <= 0
-                            ? null
-                            : () => setState(() => _progress--),
-                        icon: const Icon(LucideIcons.minus)),
-                    Semantics(
-                        liveRegion: true,
-                        child: Text('$_progress',
-                            style: theme.textTheme.headlineLarge)),
-                    IconButton.filledTonal(
-                        tooltip: app.tr('message560'),
+    return SizedBox(
+        height: MediaQuery.sizeOf(context).height * .88,
+        child: SafeArea(
+            top: false,
+            child: Column(children: [
+              Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(24, 16, 16, 8),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(app.tr('message554'),
+                            style: theme.textTheme.titleLarge)),
+                    IconButton(
+                        tooltip: app.tr('close'),
                         onPressed:
-                            _saving ? null : () => setState(() => _progress++),
-                        icon: const Icon(LucideIcons.plus)),
-                  ],
-                ),
-                const Divider(height: 48),
-              ],
-              Wrap(
-                  spacing: 20,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(app.tr('message561'),
-                        style: theme.textTheme.titleLarge),
-                    Text(
-                        _score > 0
-                            ? '${_score.toStringAsFixed(0)} / 10'
-                            : app.tr('message562'),
-                        style: theme.textTheme.headlineSmall
-                            ?.copyWith(color: theme.colorScheme.primary)),
-                  ]),
-              Slider.adaptive(
-                  value: _score,
-                  min: 0,
-                  max: 10,
-                  divisions: 10,
-                  semanticFormatterCallback: (value) => '${value.toInt()} / 10',
-                  onChanged: _saving
-                      ? null
-                      : (value) => setState(() => _score = value)),
-            ],
-            const Divider(height: 48),
-            Wrap(spacing: 12, runSpacing: 12, children: [
-              FilledButton.icon(
-                onPressed: _saving || _loading || _loadFailed ? null : _save,
-                icon: _saving
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(LucideIcons.check),
-                label: Text(app.tr('message563')),
-              ),
-              TextButton.icon(
-                  onPressed:
-                      _saving || _loading || _loadFailed ? null : _remove,
-                  icon: const Icon(LucideIcons.listMinus),
-                  label: Text(app.tr('remove'))),
-            ]),
-          ],
-        )),
-      ),
-    ]);
+                            _saving ? null : () => Navigator.pop(context),
+                        icon: const Icon(LucideIcons.x)),
+                  ])),
+              Expanded(
+                  child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              if (widget.item.poster != null)
+                                ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: NovaNetworkImage(widget.item.poster!,
+                                        width: 76,
+                                        height: 108,
+                                        fit: BoxFit.cover,
+                                        cacheWidth:
+                                            imageCacheWidth(context, 76),
+                                        errorBuilder: (_, __, ___) =>
+                                            const SizedBox(
+                                                width: 76, height: 108))),
+                              const SizedBox(width: 20),
+                              Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Text(widget.item.name,
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.w800)),
+                                    const SizedBox(height: 8),
+                                    Text(app.tr('message555'),
+                                        style: theme.textTheme.bodySmall),
+                                  ])),
+                            ]),
+                            const SizedBox(height: 32),
+                            if (_loading)
+                              const LinearProgressIndicator()
+                            else if (_loadFailed)
+                              Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(app.tr('message556')),
+                                    const SizedBox(height: 16),
+                                    OutlinedButton.icon(
+                                        onPressed: _preload,
+                                        icon: const Icon(LucideIcons.refreshCw),
+                                        label: Text(app.tr('message174'))),
+                                  ])
+                            else ...[
+                              Text(app.tr('message557'),
+                                  style: theme.textTheme.titleMedium),
+                              const SizedBox(height: 12),
+                              Wrap(spacing: 8, runSpacing: 8, children: [
+                                for (final entry in statuses)
+                                  ChoiceChip(
+                                      avatar: Icon(entry.$3, size: 18),
+                                      label: Text(entry.$2),
+                                      selected: _status == entry.$1,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 12),
+                                      onSelected: _saving
+                                          ? null
+                                          : (_) => setState(
+                                              () => _status = entry.$1))
+                              ]),
+                              const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Divider()),
+                              if (_status != null &&
+                                  _status != AnimeTrackStatus.completed) ...[
+                                Text(app.tr('message558'),
+                                    style: theme.textTheme.titleMedium),
+                                const SizedBox(height: 16),
+                                Row(mainAxisSize: MainAxisSize.min, children: [
+                                  IconButton.filledTonal(
+                                      tooltip: app.tr('message559'),
+                                      onPressed: _saving || _progress <= 0
+                                          ? null
+                                          : () => setState(() => _progress--),
+                                      icon: const Icon(LucideIcons.minus)),
+                                  Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 24),
+                                      child: Semantics(
+                                          liveRegion: true,
+                                          child: Text('$_progress',
+                                              style: theme
+                                                  .textTheme.headlineMedium
+                                                  ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w800)))),
+                                  IconButton.filledTonal(
+                                      tooltip: app.tr('message560'),
+                                      onPressed: _saving
+                                          ? null
+                                          : () => setState(() => _progress++),
+                                      icon: const Icon(LucideIcons.plus)),
+                                ]),
+                                const SizedBox(height: 24),
+                              ],
+                              Row(children: [
+                                Expanded(
+                                    child: Text(app.tr('message561'),
+                                        style: theme.textTheme.titleMedium)),
+                                Text(
+                                    _score > 0
+                                        ? '${_score.toStringAsFixed(0)} / 10'
+                                        : app.tr('message562'),
+                                    style: theme.textTheme.titleLarge?.copyWith(
+                                        color: theme.colorScheme.secondary))
+                              ]),
+                              Slider.adaptive(
+                                  value: _score,
+                                  min: 0,
+                                  max: 10,
+                                  divisions: 10,
+                                  semanticFormatterCallback: (value) =>
+                                      '${value.toInt()} / 10',
+                                  onChanged: _saving
+                                      ? null
+                                      : (value) =>
+                                          setState(() => _score = value)),
+                            ],
+                          ]))),
+              const Divider(height: 1),
+              Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.end,
+                      children: [
+                        TextButton.icon(
+                            onPressed: _saving || _loading || _loadFailed
+                                ? null
+                                : _remove,
+                            icon: const Icon(LucideIcons.listMinus),
+                            label: Text(app.tr('remove'))),
+                        FilledButton.icon(
+                            onPressed: _saving || _loading || _loadFailed
+                                ? null
+                                : _save,
+                            icon: _saving
+                                ? const SizedBox.square(
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : const Icon(LucideIcons.check),
+                            label: Text(app.tr('message563'))),
+                      ])),
+            ])));
   }
 }

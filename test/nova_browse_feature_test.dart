@@ -6,9 +6,7 @@ import 'package:nova_mobile/features/shell/nova_browse_widgets.dart';
 
 void main() {
   for (final size in [const Size(390, 800), const Size(1024, 768)]) {
-    testWidgets(
-        'browse story adapts artwork and information at ${size.width}dp',
-        (tester) async {
+    testWidgets('browse hero stays 16:9 at ${size.width}dp', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = size;
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -35,13 +33,10 @@ void main() {
 
       final hero = find.byKey(const ValueKey('nova-browse-hero'));
       final cardSize = tester.getSize(hero);
-      expect(cardSize.width, lessThanOrEqualTo(size.width));
-      final artwork =
-          find.descendant(of: hero, matching: find.byType(AspectRatio)).first;
-      expect(tester.widget<AspectRatio>(artwork).aspectRatio, 16 / 9);
+      expect(cardSize.width / cardSize.height, closeTo(16 / 9, .001));
       expect(tester.takeException(), isNull);
 
-      await tester.tap(find.text('Explore title'));
+      await tester.tap(hero);
       expect(opened, isTrue);
     });
   }
@@ -84,10 +79,7 @@ void main() {
       expect(tester.takeException(), isNull);
       final cardSize =
           tester.getSize(find.byKey(const ValueKey('nova-browse-hero')));
-      expect(cardSize.width, lessThanOrEqualTo(width));
-      final action = find.text('اكتشف العمل');
-      await tester.ensureVisible(action);
-      expect(action.hitTestable(), findsOneWidget);
+      expect(cardSize.width / cardSize.height, closeTo(16 / 9, .001));
     });
   }
 }

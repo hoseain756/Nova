@@ -14,16 +14,11 @@ class CinematicCoverScroll extends StatefulWidget {
       required this.heroBuilder,
       required this.heroHeight,
       required this.slivers,
-      this.storageKey,
-      this.scrollHero = false});
+      this.storageKey});
   final CinematicHeroBuilder heroBuilder;
   final double heroHeight;
   final List<Widget> slivers;
   final PageStorageKey<String>? storageKey;
-
-  /// Editorial heroes contain controls below artwork; scrolling those controls
-  /// into reach must not disable them as the older stationary cover does.
-  final bool scrollHero;
 
   @override
   State<CinematicCoverScroll> createState() => _CinematicCoverScrollState();
@@ -71,24 +66,6 @@ class _CinematicCoverScrollState extends State<CinematicCoverScroll> {
   Widget build(BuildContext context) {
     final heroHeight = widget.heroHeight;
     final surface = Theme.of(context).colorScheme.surface;
-    if (widget.scrollHero) {
-      return CustomScrollView(
-        key: widget.storageKey,
-        controller: _scroll,
-        slivers: [
-          SliverToBoxAdapter(
-              child: SizedBox(
-                  height: heroHeight,
-                  child: RepaintBoundary(
-                      child: widget.heroBuilder(_contentVisibility)))),
-          DecoratedSliver(
-            key: const ValueKey('cinematic-content-surface'),
-            decoration: BoxDecoration(color: surface),
-            sliver: SliverMainAxisGroup(slivers: widget.slivers),
-          ),
-        ],
-      );
-    }
     return CinematicLayerStack(
       key: const ValueKey('cinematic-layer-stack'),
       children: [

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
-import '../../core/models/visual_preferences.dart';
 import '../../core/data/catalog_repository.dart';
 import '../../core/data/content_classifier.dart';
 import '../../core/state/app_state.dart';
@@ -108,8 +107,6 @@ class _AnimePageState extends State<AnimePage>
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final english = app.english;
-    final heroQuality =
-        ImageQualityPreferences.fromSettings(app.webSettings).hero;
     // Personal lists from the LINKED AniList account — CURRENT becomes the
     // "watching" rail, PLANNING the "plan to watch" rail (the same rows the
     // home page uses, scoped here so the tab is self-sufficient).
@@ -175,7 +172,6 @@ class _AnimePageState extends State<AnimePage>
                 SliverToBoxAdapter(
                     child: NovaBrowseFeature(
                   item: featuredItem,
-                  quality: heroQuality,
                   label: app.tr('message130'),
                   actionLabel: app.tr('message527'),
                   onOpen: () => _open(featuredItem),
@@ -197,7 +193,6 @@ class _AnimePageState extends State<AnimePage>
                       if (featured == null) return const SizedBox.shrink();
                       return NovaBrowseFeature(
                         item: featured,
-                        quality: heroQuality,
                         label: app.tr('message130'),
                         actionLabel: app.tr('message527'),
                         onOpen: () => _open(featured),
@@ -454,10 +449,12 @@ class _AniListLinkPrompt extends StatelessWidget {
     return Container(
       padding: const EdgeInsetsDirectional.all(16),
       decoration: BoxDecoration(
-        border: BorderDirectional(
-          start: BorderSide(
-              color: Theme.of(context).colorScheme.primary, width: 2),
-        ),
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: NovaColors.white.withValues(alpha: .08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,7 +466,7 @@ class _AniListLinkPrompt extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                  color: NovaTheme.of(context).gold.withValues(alpha: .14),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(

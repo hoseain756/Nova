@@ -11,8 +11,6 @@
 // The shell is pumped with a REAL AppState whose CatalogRepository is an
 // offline fake (instant empty results) so no network access is needed.
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -29,7 +27,6 @@ import 'package:nova_mobile/features/kids/kids_page.dart';
 import 'package:nova_mobile/features/library/library_page.dart';
 import 'package:nova_mobile/features/settings/settings_page.dart';
 import 'package:nova_mobile/features/shell/main_shell.dart';
-import 'package:nova_mobile/features/shell/glass_dock.dart';
 import 'package:nova_mobile/shared/widgets/glass_navigation.dart';
 
 /// Offline, instant repository: every catalog source resolves empty so the
@@ -74,122 +71,26 @@ class _FakeCatalogRepository extends CatalogRepository {
       const <MediaItem>[];
 }
 
-Widget _harness(
-    {double safeTop = 44,
-    Size size = const Size(400, 860),
-    TextDirection direction = TextDirection.ltr,
-    TextScaler scaler = TextScaler.noScaling,
-    TargetPlatform? platform}) {
+Widget _harness({double safeTop = 44}) {
   final api = NoorApi();
   final app = AppState(api, _FakeCatalogRepository(api));
   return ChangeNotifierProvider<AppState>.value(
     value: app,
     child: MaterialApp(
-      theme: platform == null
-          ? HorseTheme.dark
-          : HorseTheme.dark.copyWith(platform: platform),
+      theme: HorseTheme.dark,
       home: MediaQuery(
         data: MediaQueryData(
-          size: size,
-          textScaler: scaler,
+          size: const Size(400, 860),
           padding: EdgeInsets.only(top: safeTop),
           viewPadding: EdgeInsets.only(top: safeTop),
         ),
-        child:
-            Directionality(textDirection: direction, child: const MainShell()),
+        child: const MainShell(),
       ),
     ),
   );
 }
 
 void main() {
-  for (final direction in TextDirection.values) {
-    testWidgets(
-        'tablet sidebar is at logical start with large text: $direction',
-        (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(1024, 900);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      addTearDown(tester.view.resetPhysicalSize);
-      await tester.pumpWidget(_harness(
-          size: const Size(1024, 900),
-          direction: direction,
-          scaler: const TextScaler.linear(2)));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      final home = tester.getRect(find.byType(HomePage));
-      expect(home.width, 1024 - 228);
-      expect(home.left, direction == TextDirection.ltr ? 228 : 0);
-      expect(tester.takeException(), isNull);
-    });
-  }
-  testWidgets('iOS capability changes retire and restore shell chrome',
-      (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(400, 860);
-    // Other shell tests may have initialized the cached theme on Android.
-    expect(HorseTheme.dark.brightness, Brightness.dark);
-    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-    const channel = MethodChannel('nova/ios_chrome/v1');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    var available = true;
-    var capabilitiesRead = 0;
-    var retirements = 0;
-    messenger.setMockMethodCallHandler(channel, (call) async {
-      if (call.method == 'getCapabilities') {
-        capabilitiesRead++;
-        return {
-          'osMajor': 26,
-          'systemGlassAvailable': true,
-          'nativeChromeAvailable': available,
-          'phoneIdiom': true
-        };
-      }
-      if (call.method == 'dispose') retirements++;
-      return null;
-    });
-    addTearDown(() {
-      debugDefaultTargetPlatformOverride = null;
-      messenger.setMockMethodCallHandler(channel, null);
-      tester.view.resetDevicePixelRatio();
-      tester.view.resetPhysicalSize();
-    });
-    try {
-      await tester.pumpWidget(_harness(platform: TargetPlatform.iOS));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byType(GlassDock), findsNothing);
-      available = false;
-      await messenger.handlePlatformMessage(
-          channel.name,
-          const StandardMethodCodec()
-              .encodeMethodCall(const MethodCall('capabilitiesChanged')),
-          (_) {});
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(retirements, greaterThanOrEqualTo(1));
-      expect(find.byType(GlassDock), findsOneWidget);
-      available = true;
-      await messenger.handlePlatformMessage(
-          channel.name,
-          const StandardMethodCodec()
-              .encodeMethodCall(const MethodCall('capabilitiesChanged')),
-          (_) {});
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byType(GlassDock), findsNothing);
-      final beforeResume = capabilitiesRead;
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pump();
-      expect(capabilitiesRead, greaterThan(beforeResume));
-      expect(tester.takeException(), isNull);
-    } finally {
-      debugDefaultTargetPlatformOverride = null;
-    }
-  });
-
   testWidgets('shell edge-to-edge contract (Task 119)', (tester) async {
     // Keep the RenderView's logical bounds aligned with the MediaQuery below;
     // otherwise the dock is laid out past the test view and cannot receive taps.

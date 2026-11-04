@@ -172,34 +172,15 @@ class AccountSettingsSection extends StatelessWidget {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(0, 12, 0, 24),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(LucideIcons.userRound,
-                  color: Theme.of(context).colorScheme.primary, size: 28),
-              const SizedBox(width: 16),
-              Expanded(
-                  child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                      account.isGuest
-                          ? s.text('accountGuest')
-                          : (account.username ?? s.text('accountTitle')),
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text(
-                      account.isGuest
-                          ? s.text('accountGuestDescription')
-                          : (account.user?.email ?? ''),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant)),
-                ],
-              )),
-            ]),
+          SettingsTile(
+            icon: LucideIcons.userRound,
+            title: account.isGuest
+                ? s.text('accountGuest')
+                : (account.username ?? s.text('accountTitle')),
+            subtitle: account.isGuest
+                ? s.text('accountGuestDescription')
+                : account.user?.email,
           ),
-          const Divider(height: 1),
           SettingsTile(
               icon: LucideIcons.usersRound,
               title: s.text('profileManage'),

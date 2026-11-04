@@ -172,7 +172,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     await tester.enterText(find.byType(TextField), 'oauth-code');
-    await tester.ensureVisible(find.text('Finish'));
     await tester.tap(find.text('Finish'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -187,7 +186,6 @@ void main() {
     );
     expect(finishButton.onPressed, isNotNull);
 
-    await tester.ensureVisible(find.text('Finish'));
     await tester.tap(find.text('Finish'));
     await tester.pump();
     expect(api.submitCalls, 2);

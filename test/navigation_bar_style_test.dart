@@ -10,7 +10,6 @@ import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/features/settings/navigation_bar_style_page.dart';
 import 'package:nova_mobile/features/settings/settings_personalization_page.dart';
 import 'package:nova_mobile/features/shell/glass_dock.dart';
-import 'package:nova_mobile/features/shell/material_floating_dock.dart';
 import 'package:nova_mobile/features/shell/noor_dock_tabs.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 
@@ -74,17 +73,14 @@ Widget _dockHarness({
 }
 
 Widget _settingsHarness(_TestAppState app, Widget page,
-    {required bool light,
-    double textScale = 1,
-    TargetPlatform platform = TargetPlatform.android}) {
+    {required bool light, double textScale = 1}) {
   return ChangeNotifierProvider<AppState>.value(
     value: app,
     child: Builder(
       builder: (context) {
         final english = context.watch<AppState>().english;
         return MaterialApp(
-          theme: _theme(english: english, light: light)
-              .copyWith(platform: platform),
+          theme: _theme(english: english, light: light),
           locale: Locale(english ? 'en' : 'ar'),
           supportedLocales: const [Locale('en'), Locale('ar')],
           localizationsDelegates: const [
@@ -205,25 +201,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBarStylePage), findsOneWidget);
 
+    GlassDock preview() => tester.widget<GlassDock>(
+        find.byKey(const ValueKey('navigation-style-preview-bar')));
+    expect(preview().style, NavigationBarStyle.classic);
+
+    final compactOption =
+        find.byKey(const ValueKey('navigation-style-option-compact'));
     final styleScrollable = find.descendant(
       of: find.byType(NavigationBarStylePage),
       matching: find.byType(Scrollable),
     );
-    final previewFinder =
-        find.byKey(const ValueKey('navigation-style-preview-bar'));
-    await tester.scrollUntilVisible(
-      previewFinder,
-      200,
-      scrollable: styleScrollable,
-    );
-    await tester.pumpAndSettle();
-    MaterialFloatingDock preview() =>
-        tester.widget<MaterialFloatingDock>(previewFinder);
-    expect(preview().style, NavigationBarStyle.classic);
-    expect(find.byType(GlassDock), findsNothing);
-
-    final compactOption =
-        find.byKey(const ValueKey('navigation-style-option-compact'));
     await tester.scrollUntilVisible(
       compactOption,
       200,
@@ -233,11 +220,7 @@ void main() {
     await tester.tap(compactOption);
     await tester.pumpAndSettle();
     expect(app.webSettings['navigationBarStyle'], 'compact');
-    await tester.scrollUntilVisible(
-      previewFinder,
-      -200,
-      scrollable: styleScrollable,
-    );
+    await tester.drag(styleScrollable, const Offset(0, 1200));
     await tester.pumpAndSettle();
     expect(preview().style, NavigationBarStyle.compact);
 
@@ -246,55 +229,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(app.webSettings['navigationBarStyle'], 'compact');
     expect(preview().style, NavigationBarStyle.compact);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('iOS Flutter fallback previews its glass dock', (tester) async {
-    final api = NoorApi();
-    final app = _TestAppState(api)..english = true;
-    await tester.pumpWidget(_settingsHarness(
-      app,
-      const NavigationBarStylePage(),
-      light: false,
-      platform: TargetPlatform.iOS,
-    ));
-    expect(
-      find.byKey(const ValueKey('navigation-style-preview-bar')),
-      findsOneWidget,
-    );
-    expect(find.byType(GlassDock), findsOneWidget);
-    expect(find.byType(MaterialFloatingDock), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('Android compact and mini styles keep distinct geometry',
-      (tester) async {
-    tester.view.physicalSize = phone;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final api = NoorApi();
-    final app = _TestAppState(api)..english = true;
-
-    Future<Size> previewSize(NavigationBarStyle style) async {
-      await app.setSetting('navigationBarStyle', style.name);
-      await tester.pumpWidget(_settingsHarness(
-        app,
-        const NavigationBarStylePage(),
-        light: true,
-      ));
-      await tester.pumpAndSettle();
-      return tester.getSize(find.byKey(const ValueKey('nova-material-dock')));
-    }
-
-    final classic = await previewSize(NavigationBarStyle.classic);
-    final compact = await previewSize(NavigationBarStyle.compact);
-    final mini = await previewSize(NavigationBarStyle.mini);
-    expect(classic.height, 80);
-    expect(compact.height, classic.height);
-    expect(mini.height, 64);
-    expect(compact.width, classic.width);
-    expect(mini.width, lessThan(compact.width));
     expect(tester.takeException(), isNull);
   });
 }

@@ -249,8 +249,6 @@ void main() {
 }
 
 Future<void> _loadAcceptanceFonts() async {
-  final material = FontLoader('MaterialIcons')
-    ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
   final poppins = FontLoader('Poppins');
   for (final weight in ['Regular', 'Medium', 'SemiBold', 'Bold']) {
     poppins.addFont(rootBundle.load('assets/fonts/Poppins-$weight.ttf'));
@@ -263,8 +261,7 @@ Future<void> _loadAcceptanceFonts() async {
   final lucide = FontLoader('packages/lucide_icons_flutter/Lucide')
     ..addFont(
         rootBundle.load('packages/lucide_icons_flutter/assets/lucide.ttf'));
-  await Future.wait(
-      [material.load(), poppins.load(), arabic.load(), lucide.load()]);
+  await Future.wait([poppins.load(), arabic.load(), lucide.load()]);
 }
 
 Future<void> _exercisePage(
@@ -342,7 +339,7 @@ Future<void> _exercisePage(
   expect(tester.takeException(), isNull);
   expect(Directionality.of(tester.element(find.byKey(_captureBoundary))),
       english ? TextDirection.ltr : TextDirection.rtl);
-  expect(tester.getSize(find.byType(CinematicCoverScroll)), size);
+  expect(tester.getSize(find.byType(CinematicLayerStack)), size);
   expect(
       find.byKey(const ValueKey('cinematic-content-surface'),
           skipOffstage: false),
@@ -365,19 +362,10 @@ Future<void> _exercisePage(
 
   final position = await _scrollToCoveredState(tester);
   expect(position.pixels, greaterThan(300));
-  final hero = find.byKey(heroOpacityKey);
-  if (hero.evaluate().isNotEmpty) {
-    expect(tester.widget<Opacity>(hero).opacity, lessThanOrEqualTo(.05));
-  } else {
-    expect(
-        tester
-            .widget<CinematicCoverScroll>(find.byType(CinematicCoverScroll))
-            .scrollHero,
-        isTrue,
-        reason: 'A scrolling Hero leaves the viewport and can be culled.');
-  }
+  expect(tester.widget<Opacity>(find.byKey(heroOpacityKey)).opacity,
+      lessThanOrEqualTo(.05));
   expect(tester.takeException(), isNull);
-  expect(tester.getSize(find.byType(CinematicCoverScroll)), size);
+  expect(tester.getSize(find.byType(CinematicLayerStack)), size);
 
   await _captureIfRequested(
       tester,
@@ -393,13 +381,10 @@ Future<void> _exercisePage(
 }
 
 Future<ScrollPosition> _scrollToCoveredState(WidgetTester tester) async {
-  final scroll =
-      tester.state<ScrollableState>(find.byType(Scrollable).first).position;
-  final hero =
-      tester.widget<CinematicCoverScroll>(find.byType(CinematicCoverScroll));
-  scroll.jumpTo((hero.heroHeight + 48).clamp(0.0, scroll.maxScrollExtent));
+  final scrollView = find.byType(CustomScrollView).first;
+  await tester.drag(scrollView, const Offset(0, -900));
   await _settleFrames(tester);
-  return scroll;
+  return tester.state<ScrollableState>(find.byType(Scrollable).first).position;
 }
 
 Future<void> _settleFrames(WidgetTester tester) async {

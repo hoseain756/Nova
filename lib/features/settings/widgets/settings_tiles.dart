@@ -8,12 +8,11 @@ class SettingsSectionTitle extends StatelessWidget {
   final String title;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(0, 28, 0, 12),
+        padding: const EdgeInsetsDirectional.fromSTEB(0, 24, 0, 12),
         child: Text(title,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700)),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+                fontWeight: FontWeight.w700)),
       );
 }
 
@@ -25,25 +24,25 @@ class SettingsPageIntro extends StatelessWidget {
   final IconData? icon;
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsetsDirectional.only(top: 12, bottom: 32),
+        padding: const EdgeInsetsDirectional.only(top: 8, bottom: 32),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (icon != null) ...[
             Icon(icon,
-                color: Theme.of(context).colorScheme.secondary, size: 26),
-            const SizedBox(height: 18),
+                color: Theme.of(context).colorScheme.secondary, size: 32),
+            const SizedBox(height: 20),
           ],
           Text(title,
               style: Theme.of(context)
                   .textTheme
                   .headlineMedium
                   ?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: Text(description,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.5))),
+                      height: 1.65))),
         ]),
       );
 }
@@ -65,27 +64,19 @@ class SettingsContentSection extends StatelessWidget {
           SettingsSectionTitle(title: title),
           if (description != null)
             Padding(
-                padding: const EdgeInsetsDirectional.only(bottom: 12),
+                padding: const EdgeInsetsDirectional.only(bottom: 16),
                 child: Text(description!,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color:
-                            Theme.of(context).colorScheme.onSurfaceVariant))),
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
-          ),
-          for (var i = 0; i < children.length; i++) ...[
-            children[i],
-            if (i < children.length - 1)
-              Divider(
-                  height: 1,
-                  indent: 20,
-                  endIndent: 20,
-                  color: Theme.of(context).colorScheme.outlineVariant),
-          ],
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant,
+                    style: Theme.of(context).textTheme.bodySmall)),
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            clipBehavior: Clip.antiAlias,
+            child: Column(children: [
+              for (var i = 0; i < children.length; i++) ...[
+                if (i > 0) const Divider(height: 1, indent: 20, endIndent: 20),
+                children[i],
+              ]
+            ]),
           ),
         ]),
       );
@@ -109,9 +100,9 @@ class SettingsTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(12, 16, 12, 16),
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 12, 16),
             child: Row(children: [
               Icon(icon,
                   color: Theme.of(context).colorScheme.secondary, size: 22),
@@ -161,7 +152,7 @@ class SettingsInfoBanner extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(8)),
+            borderRadius: BorderRadius.circular(16)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon,
               size: 20,

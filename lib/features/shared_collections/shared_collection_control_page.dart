@@ -289,7 +289,7 @@ class _SharedCollectionControlPageState
                 ]))
               : Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1000),
+                    constraints: const BoxConstraints(maxWidth: 760),
                     child: ListView(
                       padding: EdgeInsetsDirectional.fromSTEB(
                           MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
@@ -297,20 +297,6 @@ class _SharedCollectionControlPageState
                           MediaQuery.sizeOf(context).width < 600 ? 16 : 24,
                           48),
                       children: [
-                        Semantics(
-                            header: true,
-                            child: Text(
-                                _collection?.name ??
-                                    strings.text('sharedCollections'),
-                                style:
-                                    Theme.of(context).textTheme.headlineLarge)),
-                        const SizedBox(height: 12),
-                        Text(strings.text('sharedMembersDescription'),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyLarge
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
-                        const Divider(height: 48),
                         if (_owner) ...[
                           Text(strings.text('sharedCollectionSettings'),
                               style: Theme.of(context).textTheme.titleLarge),
@@ -387,8 +373,7 @@ class _SharedCollectionControlPageState
                         const SizedBox(height: 8),
                         for (final member in _members) ...[
                           ExpansionTile(
-                            tilePadding: const EdgeInsetsDirectional.symmetric(
-                                vertical: 12),
+                            tilePadding: EdgeInsets.zero,
                             childrenPadding:
                                 const EdgeInsetsDirectional.fromSTEB(
                                     8, 0, 8, 16),
@@ -400,8 +385,7 @@ class _SharedCollectionControlPageState
                                   ? scheme.primary
                                   : scheme.onSurfaceVariant,
                             ),
-                            title: Text(member.username ?? member.accountId,
-                                style: Theme.of(context).textTheme.titleMedium),
+                            title: Text(member.username ?? member.accountId),
                             subtitle: Text(strings.text(member.isOwner
                                 ? 'sharedOwner'
                                 : 'sharedMember')),

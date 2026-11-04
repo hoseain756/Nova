@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
-import '../../core/models/visual_preferences.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
@@ -38,8 +37,6 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final cards = CardPreferences.fromSettings(app.webSettings);
-    final dimensions = cards.dimensions(MediaQuery.sizeOf(context).width);
     final librarySort = app.webSettings['librarySort']?.toString() ?? 'recent';
     final watchlist = app.watchlist
         .where((item) => item.name.toLowerCase().contains(_query))
@@ -79,43 +76,39 @@ class _LibraryPageState extends State<LibraryPage> {
                 label: Text(app.tr('message639'))),
           ])),
       SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 28),
-          child: LayoutBuilder(builder: (context, constraints) {
-            final stacked = constraints.maxWidth < 520 ||
-                MediaQuery.textScalerOf(context).scale(16) > 24;
-            final width = stacked
-                ? constraints.maxWidth
-                : (constraints.maxWidth - 32) / 3;
-            return Wrap(spacing: 16, runSpacing: 12, children: [
-              for (final entry in [
-                (
-                  0,
-                  app.tr('message640'),
-                  watchlist.length,
-                  LucideIcons.bookmark
-                ),
-                (1, app.tr('message641'), history.length, LucideIcons.history),
-                (
-                  2,
-                  app.tr('message642'),
-                  app.customLists.length,
-                  LucideIcons.library
-                ),
-              ])
-                SizedBox(
-                    width: width,
-                    child: _LibraryIndexEntry(
-                      title: entry.$2,
-                      count: entry.$3,
-                      icon: entry.$4,
+          child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
+              child: Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final entry in [
+                  (
+                    0,
+                    app.tr('message640'),
+                    watchlist.length,
+                    LucideIcons.bookmark
+                  ),
+                  (
+                    1,
+                    app.tr('message641'),
+                    history.length,
+                    LucideIcons.history
+                  ),
+                  (
+                    2,
+                    app.tr('message642'),
+                    app.customLists.length,
+                    LucideIcons.library
+                  ),
+                ])
+                  ChoiceChip(
+                      avatar: Icon(entry.$4, size: 18),
+                      label: Text('${entry.$2} · ${entry.$3}'),
                       selected: _tab == entry.$1,
-                      onTap: () => setState(() => _tab = entry.$1),
-                    )),
-            ]);
-          }),
-        ),
-      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
+                      onSelected: (_) => setState(() {
+                            _tab = entry.$1;
+                          })),
+              ]))),
       if (_tab != 2)
         SliverToBoxAdapter(
             child: Padding(
@@ -141,22 +134,19 @@ class _LibraryPageState extends State<LibraryPage> {
               padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
               sliver: SliverLayoutBuilder(builder: (context, constraints) {
                 final columns =
-                    dimensions.gridColumns(constraints.crossAxisExtent);
-                final width = dimensions.gridCellWidth(
-                    constraints.crossAxisExtent, columns);
+                    (constraints.crossAxisExtent / 190).floor().clamp(2, 7);
+                final width =
+                    (constraints.crossAxisExtent - (columns - 1) * 20) /
+                        columns;
                 return SliverGrid.builder(
                     itemCount: watchlist.length,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: columns,
-                        mainAxisExtent: cards.isHorizontal
-                            ? dimensions.horizontalExtent(width,
-                                MediaQuery.textScalerOf(context).scale(1))
-                            : width / CardDimensions.verticalArtworkRatio +
-                                78 * MediaQuery.textScalerOf(context).scale(1),
+                        mainAxisExtent: width / .72 +
+                            78 * MediaQuery.textScalerOf(context).scale(1),
                         crossAxisSpacing: 20,
                         mainAxisSpacing: 24),
-                    itemBuilder: (_, i) =>
-                        _WatchlistCard(item: watchlist[i], width: width));
+                    itemBuilder: (_, i) => _WatchlistCard(item: watchlist[i]));
               })),
       ] else if (_tab == 1) ...[
         if (history.isEmpty)
@@ -185,73 +175,16 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 }
 
-class _LibraryIndexEntry extends StatelessWidget {
-  const _LibraryIndexEntry(
-      {required this.title,
-      required this.count,
-      required this.icon,
-      required this.selected,
-      required this.onTap});
-  final String title;
-  final int count;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-    return Semantics(
-        selected: selected,
-        button: true,
-        child: Material(
-          color: selected
-              ? theme.colorScheme.surfaceContainerLow
-              : Colors.transparent,
-          child: InkWell(
-              onTap: onTap,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                    border: Border(
-                        bottom: BorderSide(
-                            color: selected
-                                ? color
-                                : theme.colorScheme.outlineVariant,
-                            width: selected ? 2 : 1))),
-                child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(icon, size: 22, color: color),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: Text(title,
-                              style: theme.textTheme.titleMedium
-                                  ?.copyWith(color: color))),
-                      const SizedBox(width: 8),
-                      Text('$count',
-                          style: theme.textTheme.titleLarge
-                              ?.copyWith(color: color)),
-                    ]),
-              )),
-        ));
-  }
-}
-
 class _WatchlistCard extends StatelessWidget {
-  const _WatchlistCard({required this.item, required this.width});
+  const _WatchlistCard({required this.item});
   final MediaItem item;
-  final double width;
   @override
   Widget build(BuildContext context) => Stack(
         alignment: AlignmentDirectional.topEnd,
         children: [
           PosterCard(
             item: item,
-            width: width,
+            width: double.infinity,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                   builder: (_) => MediaDetailPage(item: item)),
@@ -276,7 +209,8 @@ class _WatchlistCard extends StatelessWidget {
                           label: app.tr('message618'),
                           onPressed: () => app.toggleWatchlist(item))));
                 },
-                icon: const Icon(LucideIcons.bookmark, color: NovaColors.white),
+                icon: Icon(LucideIcons.bookmark,
+                    color: NovaTheme.of(context).gold),
               ),
             ),
           ),
@@ -390,8 +324,6 @@ class _HistoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final item = entry.item as MediaItem;
     final english = context.read<AppState>().english;
-    final quality = context.select<AppState, ImageQuality>(
-        (app) => ImageQualityPreferences.fromSettings(app.webSettings).card);
     final progress = entry.durationMs > 0
         ? (entry.positionMs / entry.durationMs).clamp(0.0, 1.0)
         : 0.0;
@@ -453,7 +385,6 @@ class _HistoryRow extends StatelessWidget {
                         : NovaNetworkImage(
                             item.poster!,
                             fit: BoxFit.cover,
-                            quality: quality,
                             // Task 136: decode at the 54px history thumb.
                             cacheWidth: imageCacheWidth(context, 88),
                             errorBuilder: (_, __, ___) => ColoredBox(
@@ -473,9 +404,9 @@ class _HistoryRow extends StatelessWidget {
                 children: [
                   Text(
                     item.name,
-                    maxLines: 3,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(

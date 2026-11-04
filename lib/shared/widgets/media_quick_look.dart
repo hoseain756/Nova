@@ -7,7 +7,6 @@ import '../../core/state/app_state.dart';
 import '../../features/anime/anime_tracker_sheet.dart';
 import 'nova_network_image.dart';
 import 'image_decode.dart';
-import '../../core/models/visual_preferences.dart';
 import 'noor_toast.dart';
 
 /// Compact action sheet; no full-screen blur or oversized poster animation.
@@ -37,9 +36,6 @@ class _QuickLook extends StatelessWidget {
         (app.linkedServices['anilist']?['linked'] == true ||
             app.linkedServices['mal']?['linked'] == true);
     final scheme = Theme.of(context).colorScheme;
-    final cardPreferences = CardPreferences.fromSettings(app.webSettings);
-    final imageQuality =
-        ImageQualityPreferences.fromSettings(app.webSettings).card;
     return SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -50,8 +46,7 @@ class _QuickLook extends StatelessWidget {
               children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   ClipRRect(
-                      borderRadius:
-                          BorderRadius.circular(cardPreferences.radius),
+                      borderRadius: BorderRadius.circular(12),
                       child: SizedBox(
                           width: 96,
                           height: 144,
@@ -61,10 +56,7 @@ class _QuickLook extends StatelessWidget {
                                   child: const Icon(LucideIcons.film))
                               : NovaNetworkImage(item.poster!,
                                   fit: BoxFit.cover,
-                                  cacheWidth: imageCacheWidthForQuality(
-                                      context, 96,
-                                      quality: imageQuality),
-                                  quality: imageQuality))),
+                                  cacheWidth: imageCacheWidth(context, 96)))),
                   const SizedBox(width: 20),
                   Expanded(
                       child: Column(

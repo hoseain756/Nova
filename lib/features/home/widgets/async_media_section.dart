@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/models/media_item.dart';
-import '../../../core/models/visual_preferences.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/horse_theme.dart';
 import '../../../shared/widgets/media_rail.dart';
@@ -100,22 +99,16 @@ class RailLoadingSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (preferences, showTitle) =
-        context.select<AppState, (CardPreferences, bool)>((app) => (
-              CardPreferences.fromSettings(app.webSettings),
-              app.webSettings['hidePosterTitles'] != true,
-            ));
+    // Task 122-b (F5): select the single setting the skeleton renders — the
+    // watch used to rebuild every loading rail on ANY AppState notification.
+    final showTitle = context.select<AppState, bool>(
+      (app) => app.webSettings['hidePosterTitles'] != true,
+    );
     final width = MediaQuery.sizeOf(context).width;
-    final dimensions = preferences.dimensions(width);
-    final posterWidth = dimensions.railWidth;
-    final posterHeight = preferences.isHorizontal
-        ? dimensions.horizontalExtent(
-            posterWidth, MediaQuery.textScalerOf(context).scale(1))
-        : posterWidth / CardDimensions.verticalArtworkRatio;
-    final labelHeight = showTitle && !preferences.isHorizontal
-        ? 11 +
-            MediaQuery.textScalerOf(context).scale(14) * 1.3 * 2 +
-            MediaQuery.textScalerOf(context).scale(12) * 1.3
+    final posterWidth = width >= 700 ? 138.0 : 122.0;
+    final posterHeight = posterWidth / .72;
+    final labelHeight = showTitle
+        ? 8 + MediaQuery.textScalerOf(context).scale(14) * 1.3 * 2
         : 0.0;
     final railHeight = posterHeight + labelHeight;
     return Padding(
@@ -146,48 +139,36 @@ class RailLoadingSkeleton extends StatelessWidget {
                   children: [
                     SizedBox(
                       height: posterHeight,
-                      child: preferences.isHorizontal
-                          ? Row(children: [
-                              SizedBox(
-                                width: posterWidth *
-                                    dimensions.horizontalArtworkWidthFraction,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: NovaTheme.of(context).surface,
-                                    borderRadius: BorderRadius.circular(
-                                        preferences.radius),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsetsDirectional.all(12),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _SkeletonLine(width: 84, height: 11),
-                                      SizedBox(height: 8),
-                                      _SkeletonLine(width: 58, height: 9),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ])
-                          : DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: NovaTheme.of(context).surface,
-                                borderRadius:
-                                    BorderRadius.circular(preferences.radius),
-                              ),
-                            ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: NovaTheme.of(context).surface,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
                     ),
-                    if (showTitle && !preferences.isHorizontal) ...[
+                    if (showTitle) ...[
                       const SizedBox(height: 8),
-                      _SkeletonLine(width: 96, height: 11),
+                      SizedBox(
+                        width: 96,
+                        height: 11,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: NovaTheme.of(context).surface,
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 5),
-                      _SkeletonLine(width: 64, height: 9),
+                      SizedBox(
+                        width: 64,
+                        height: 9,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: NovaTheme.of(context).surface,
+                            borderRadius: BorderRadius.all(Radius.circular(8)),
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -198,24 +179,6 @@ class RailLoadingSkeleton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SkeletonLine extends StatelessWidget {
-  const _SkeletonLine({required this.width, required this.height});
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: width,
-        height: height,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: NovaTheme.of(context).surface,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
 }
 
 /// Rail-level error/empty message: title line, message, then the retry
