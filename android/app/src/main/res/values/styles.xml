@@ -1,38 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
-    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <!-- Show a splash screen on the activity. Automatically removed when
-             the Flutter engine draws its first frame -->
+    <!-- One native launch surface in every OS theme, until Flutter is ready. -->
+    <style name="LaunchThemeBase" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <!-- Edge-to-edge launch (Tasks 115/117): the window draws behind
-             FULLY TRANSPARENT status and navigation bars — no solid system
-             strip from the very first frame, matching the Dart-side
-             SystemUiOverlayStyle that takes over once Flutter boots.
-             Over the white splash the system icons stay DARK (readable);
-             windowLayoutInDisplayCutoutMode lets the canvas reach the notch
-             edges on cutout devices (API 27+, ignored below). -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
-    <!-- Theme applied to the Android Window as soon as the process has started.
-         This theme determines the color of the Android Window while your
-         Flutter UI initializes, as well as behind your Flutter UI while its
-         running.
-
-         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="LaunchTheme" parent="@style/LaunchThemeBase"/>
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
-        <!-- Same transparent system bars as LaunchTheme: prevents a solid
-             status-bar flash between the launch theme and Flutter's first
-             frame. -->
+        <!-- Avoid a white window behind the engine before its first frame. -->
+        <item name="android:windowBackground">@color/nova_ink</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>

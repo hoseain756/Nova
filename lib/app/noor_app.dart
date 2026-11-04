@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/data/cache_reset_service.dart';
 import '../core/auth/account_controller.dart';
 import '../core/state/app_state.dart';
@@ -12,10 +13,9 @@ import '../features/shell/main_shell.dart';
 import '../features/settings/settings_data_page.dart';
 import '../core/update/app_update_service.dart';
 import '../features/onboarding/onboarding_page.dart';
-import '../features/splash/nova_splash.dart';
 import '../features/torrent/magnet_link_handler.dart';
 import '../l10n/nova_strings.dart';
-import '../shared/widgets/shimmer_box.dart';
+import '../shared/widgets/app_state_message.dart';
 import 'account_gate.dart';
 
 class NovaApp extends StatelessWidget {
@@ -24,11 +24,15 @@ class NovaApp extends StatelessWidget {
       required this.state,
       this.updateService,
       this.account,
-      this.requireAccount = false});
+      this.requireAccount = false,
+      this.onLaunchReady});
   final AppState state;
   final AppUpdateService? updateService;
   final AccountController? account;
   final bool requireAccount;
+
+  /// Releases the native launch screen after a usable frame has been built.
+  final VoidCallback? onLaunchReady;
   static final _darkArabic = NovaTheme.build(Brightness.dark, arabic: true);
   static final _darkOledArabic =
       NovaTheme.build(Brightness.dark, arabic: true, oled: true);
@@ -79,7 +83,8 @@ class NovaApp extends StatelessWidget {
                     child: _LaunchGate(
                         updateService: updateService,
                         account: account,
-                        requireAccount: requireAccount)),
+                        requireAccount: requireAccount,
+                        onLaunchReady: onLaunchReady)),
               ),
             )),
       );
@@ -92,10 +97,14 @@ class NoorApp extends NovaApp {
 
 class _LaunchGate extends StatefulWidget {
   const _LaunchGate(
-      {this.updateService, this.account, this.requireAccount = false});
+      {this.updateService,
+      this.account,
+      this.requireAccount = false,
+      this.onLaunchReady});
   final AppUpdateService? updateService;
   final AccountController? account;
   final bool requireAccount;
+  final VoidCallback? onLaunchReady;
   @override
   State<_LaunchGate> createState() => _LaunchGateState();
 }
@@ -103,7 +112,9 @@ class _LaunchGate extends StatefulWidget {
 class _LaunchGateState extends State<_LaunchGate> {
   String? _startupError;
   bool _onboarding = false;
-  bool _splashComplete = false;
+  bool _startupReady = false;
+  bool _starting = true;
+  bool _launchReleased = false;
   AppUpdateStatus? _forcedUpdate;
   @override
   void initState() {
@@ -120,11 +131,32 @@ class _LaunchGateState extends State<_LaunchGate> {
       final app = context.read<AppState>();
       await app.initialize();
       await SubtitleFontStore.instance.initialize();
+      if (!mounted) return;
       CacheResetService.instance.start(app);
+      setState(() {
+        _startupReady = true;
+        _startupError = null;
+        _starting = false;
+      });
       unawaited(_checkForForcedUpdate());
     } catch (error) {
-      if (mounted) setState(() => _startupError = error.toString());
+      if (mounted) {
+        setState(() {
+          _startupError = error.toString();
+          _starting = false;
+        });
+      }
     }
+  }
+
+  void _releaseLaunchScreen() {
+    if (_launchReleased) return;
+    _launchReleased = true;
+    // Layout still runs while the first frame is deferred. Release only after
+    // this ready/error frame has been built, so no empty frame reaches users.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onLaunchReady?.call();
+    });
   }
 
   Future<void> _checkForForcedUpdate() async {
@@ -149,7 +181,28 @@ class _LaunchGateState extends State<_LaunchGate> {
   Widget build(BuildContext context) {
     final ready = context.select<AppState, bool>((app) => app.initialized);
     final s = NovaStrings.of(context);
-    if (ready && _splashComplete) {
+    if (_startupError != null) {
+      _releaseLaunchScreen();
+      return Scaffold(
+        body: SafeArea(
+          child: AppStateMessage(
+            icon: LucideIcons.circleAlert,
+            message:
+                '${s.text('startError')}\n\n${s.text(_starting ? 'loading' : 'errorBody')}',
+            actionLabel: s.text('retry'),
+            filledButton: true,
+            onAction: _starting
+                ? null
+                : () {
+                    setState(() => _starting = true);
+                    _initialize();
+                  },
+          ),
+        ),
+      );
+    }
+    if (ready && _startupReady) {
+      _releaseLaunchScreen();
       if (_forcedUpdate != null) {
         return SettingsAboutPage(
           updateService: widget.updateService,
@@ -171,45 +224,8 @@ class _LaunchGateState extends State<_LaunchGate> {
           ? const MainShell()
           : AccountGate(account: widget.account!);
     }
-    return NovaSplash(
-      onFinished: () {
-        if (mounted && !_splashComplete) {
-          setState(() => _splashComplete = true);
-        }
-      },
-      footer: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_startupError != null) ...[
-            Text(
-              s.text('startError'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(s.text('errorBody'), textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: () {
-                setState(() => _startupError = null);
-                _initialize();
-              },
-              child: Text(s.text('retry')),
-            ),
-          ] else ...[
-            Semantics(
-              liveRegion: true,
-              child: Text(
-                s.text('loading'),
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-            const SizedBox(height: 18),
-            const ShimmerBox(width: 240, height: 6),
-          ],
-        ],
-      ),
-    );
+    // Not presented: main keeps the OS launch artwork until initialization
+    // succeeds or the recoverable error screen above can take over.
+    return const SizedBox.expand();
   }
 }

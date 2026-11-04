@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
  <item android:drawable="@color/nova_ink"/>
- <item><bitmap android:gravity="center" android:src="@mipmap/ic_launcher_foreground"/></item>
+ <item android:width="288dp" android:height="288dp" android:gravity="center" android:drawable="@drawable/nova_launch_logo"/>
 </layer-list>

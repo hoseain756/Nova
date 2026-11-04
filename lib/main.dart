@@ -20,7 +20,10 @@ import 'core/torrent/torrent_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  // Keep the platform launch screen until the first usable app/error frame.
+  // There is no second splash route or minimum animation delay in Flutter.
+  binding.deferFirstFrame();
   // media_kit (libmpv) init — Task 127: without this the first Player()
   // construction throws ('MediaKit.ensureInitialized must be called…') inside
   // the player route's first frame, which in release paints the full-screen
@@ -72,7 +75,12 @@ Future<void> main() async {
   final appState = AppState(api, CatalogRepository(api));
   PaintingBinding.instance.imageCache.maximumSizeBytes = 128 << 20;
   PaintingBinding.instance.imageCache.maximumSize = 200;
-  runApp(NovaApp(state: appState, account: account, requireAccount: true));
+  runApp(NovaApp(
+    state: appState,
+    account: account,
+    requireAccount: true,
+    onLaunchReady: binding.allowFirstFrame,
+  ));
   // Task 128: pre-boot the torrent engine + DHT while the user browses, so
   // the first torrent stream never pays the 10–30s cold-start inside its own
   // metadata timeout. No-op (and fully swallowed) off Android.

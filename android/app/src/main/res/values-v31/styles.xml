@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ uses the same artwork, rather than the launcher/Flutter icon. -->
+    <style name="LaunchTheme" parent="@style/LaunchThemeBase">
+        <item name="android:windowSplashScreenBackground">@color/nova_ink</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/nova_launch_logo</item>
+    </style>
+</resources>
