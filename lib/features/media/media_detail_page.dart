@@ -521,13 +521,6 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             const SizedBox(height: 16),
             _ProviderRatings(item: item, startAligned: true),
             if (!widget.kidsMode) _SimklPersonalRating(item: item),
-            if (!widget.kidsMode &&
-                app.letterboxdSettings.enabled &&
-                item.type == 'movie' &&
-                RegExp(r'^tt\d+$').hasMatch(item.id)) ...[
-              const SizedBox(height: 20),
-              LetterboxdDetailSection(item: item),
-            ],
             if (item.description?.isNotEmpty == true) ...[
               const SizedBox(height: 32),
               Text(NovaStrings.lookup(english, 'message178'),
@@ -553,11 +546,21 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
             DetailProduction(item: item, english: english),
           ]),
         )),
-        // The fact table is deliberately immediately before similar titles.
+        // Keep community content together after the film's story and facts.
         SliverToBoxAdapter(
             child: Padding(
                 padding: EdgeInsetsDirectional.fromSTEB(gutter, 0, gutter, 0),
                 child: DetailFactsTable(item: item, english: english))),
+        if (!widget.kidsMode &&
+            app.letterboxdSettings.enabled &&
+            item.type == 'movie' &&
+            RegExp(r'^tt\d+$').hasMatch(item.id))
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(gutter, 24, gutter, 16),
+              child: LetterboxdDetailSection(item: item),
+            ),
+          ),
         if (!widget.kidsMode)
           SliverToBoxAdapter(
             child: Padding(

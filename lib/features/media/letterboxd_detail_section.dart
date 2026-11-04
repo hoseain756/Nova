@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,7 +7,9 @@ import '../../core/letterboxd/letterboxd_settings.dart';
 import '../../core/letterboxd/stremboxd_client.dart';
 import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
+import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/shimmer_box.dart';
+import 'widgets/detail_discussion_rail.dart';
 
 /// Letterboxd film details supplied by the configured Stremboxd bridge.
 class LetterboxdDetailSection extends StatefulWidget {
@@ -84,7 +87,7 @@ class _LetterboxdDetailSectionState extends State<LetterboxdDetailSection>
         .replaceAll('&#39;', "'")
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    return text.length > 400 ? '${text.substring(0, 400)}…' : text;
+    return text;
   }
 
   static _FilmDetails _fromFullMeta(
@@ -159,7 +162,6 @@ class _LetterboxdDetailSectionState extends State<LetterboxdDetailSection>
       _request = _load(app, settings);
     }
 
-    final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final blurReviews = app.webSettings['letterboxdBlurReviews'] != false;
     return FutureBuilder<_FilmDetails>(
@@ -170,8 +172,10 @@ class _LetterboxdDetailSectionState extends State<LetterboxdDetailSection>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ShimmerBox(width: 180, height: 24),
-              SizedBox(height: 12),
-              ShimmerBox(height: 68),
+              SizedBox(height: NovaSpace.md),
+              ShimmerBox(height: 136),
+              SizedBox(height: NovaSpace.sm),
+              ShimmerBox(width: 200, height: 48),
             ],
           );
         }
@@ -184,108 +188,81 @@ class _LetterboxdDetailSectionState extends State<LetterboxdDetailSection>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Letterboxd', style: textTheme.titleLarge),
-            if (communityRating != null || userRating != null) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  if (communityRating != null)
-                    _Rating(
-                      label: app.tr('letterboxdCommunityRating'),
-                      value: communityRating,
-                    ),
-                  if (userRating != null)
-                    _Rating(
-                      label: app.tr('letterboxdYourRating'),
-                      value: userRating,
-                    ),
-                ],
-              ),
-            ],
-            if (info != null &&
-                (info.watched || info.liked || info.inWatchlist)) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (info.watched)
-                    _Status(
-                        icon: Icons.check_circle_outline,
-                        label: app.tr('letterboxdWatched')),
-                  if (info.liked)
-                    _Status(
-                        icon: Icons.favorite_border,
-                        label: app.tr('letterboxdLiked')),
-                  if (info.inWatchlist)
-                    _Status(
-                        icon: Icons.bookmark_border,
-                        label: app.tr('letterboxdInWatchlist')),
-                ],
-              ),
-            ],
-            const SizedBox(height: 8),
-            _ExternalLink(
-              icon: Icons.open_in_new,
-              label: app.tr('letterboxdOpenFilm'),
-              onTap: () => _open(filmUrl),
+            Semantics(
+              header: true,
+              child: Text('Letterboxd', style: textTheme.titleLarge),
             ),
-            if (info?.rateUrl case final Uri uri)
-              _ExternalLink(
-                icon: Icons.star_border,
-                label: app.tr('letterboxdRateAction'),
-                onTap: () => _open(uri),
-              ),
-            if (info?.watchedUrl case final Uri uri)
-              _ExternalLink(
-                icon: Icons.check_circle_outline,
-                label: app.tr('letterboxdWatchedAction'),
-                onTap: () => _open(uri),
-              ),
-            if (info?.likedUrl case final Uri uri)
-              _ExternalLink(
-                icon: Icons.favorite_border,
-                label: app.tr('letterboxdLikedAction'),
-                onTap: () => _open(uri),
-              ),
-            if (info?.watchlistUrl case final Uri uri)
-              _ExternalLink(
-                icon: Icons.bookmark_border,
-                label: app.tr('letterboxdWatchlistAction'),
-                onTap: () => _open(uri),
-              ),
-            if (details.reviews.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Divider(color: scheme.outlineVariant),
-              const SizedBox(height: 12),
-              Text(app.tr('letterboxdReviews'), style: textTheme.titleMedium),
-              const SizedBox(height: 8),
-              for (var index = 0; index < details.reviews.length; index++) ...[
-                if (blurReviews && !_revealedReviews.contains(index))
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: TextButton(
-                      onPressed: () =>
-                          setState(() => _revealedReviews.add(index)),
-                      child: Text(app.tr('letterboxdRevealReview')),
-                    ),
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(0, 8, 0, 8),
-                    child: Text(details.reviews[index].preview,
-                        style: textTheme.bodyMedium),
-                  ),
+            if (info != null &&
+                (communityRating != null ||
+                    userRating != null ||
+                    info.watched ||
+                    info.liked ||
+                    info.inWatchlist)) ...[
+              const SizedBox(height: NovaSpace.md),
+              _FilmSummary(info: info, app: app),
+            ],
+            const SizedBox(height: NovaSpace.sm),
+            Wrap(
+              spacing: NovaSpace.sm,
+              runSpacing: NovaSpace.sm,
+              children: [
                 _ExternalLink(
-                  icon: Icons.open_in_new,
-                  label: app.tr('letterboxdOpenReviews'),
-                  onTap: () => _open(details.reviews[index].url),
+                  icon: LucideIcons.externalLink,
+                  label: app.tr('letterboxdOpenFilm'),
+                  onTap: () => _open(filmUrl),
                 ),
-                if (index < details.reviews.length - 1)
-                  Divider(color: scheme.outlineVariant),
+                if (info?.rateUrl case final Uri uri)
+                  _ExternalLink(
+                    icon: LucideIcons.star,
+                    label: app.tr('letterboxdRateShort'),
+                    semanticLabel: app.tr('letterboxdRateAction'),
+                    onTap: () => _open(uri),
+                  ),
+                if (info?.watchedUrl case final Uri uri)
+                  _ExternalLink(
+                    icon: LucideIcons.check,
+                    label: app.tr('letterboxdWatchedShort'),
+                    semanticLabel: app.tr('letterboxdWatchedAction'),
+                    onTap: () => _open(uri),
+                  ),
+                if (info?.likedUrl case final Uri uri)
+                  _ExternalLink(
+                    icon: LucideIcons.heart,
+                    label: app.tr('letterboxdLikeShort'),
+                    semanticLabel: app.tr('letterboxdLikedAction'),
+                    onTap: () => _open(uri),
+                  ),
+                if (info?.watchlistUrl case final Uri uri)
+                  _ExternalLink(
+                    icon: LucideIcons.bookmark,
+                    label: app.tr('watchlist'),
+                    semanticLabel: app.tr('letterboxdWatchlistAction'),
+                    onTap: () => _open(uri),
+                  ),
               ],
+            ),
+            if (details.reviews.isNotEmpty) ...[
+              const SizedBox(height: NovaSpace.lg),
+              DetailDiscussionRail(
+                key: ValueKey('letterboxd-reviews-$_signature'),
+                title: app.tr('letterboxdReviews'),
+                hiddenLabel: app.tr('discussionHidden'),
+                revealLabel: app.tr('letterboxdRevealReview'),
+                readLabel: app.tr('discussionReadMore'),
+                entries: [
+                  for (var index = 0; index < details.reviews.length; index++)
+                    DetailDiscussionEntry(
+                      id: 'letterboxd-review-$index',
+                      source: 'Letterboxd',
+                      body: details.reviews[index].preview,
+                      hidden: blurReviews && !_revealedReviews.contains(index),
+                      onReveal: () =>
+                          setState(() => _revealedReviews.add(index)),
+                      onOpen: () => _open(details.reviews[index].url),
+                      openLabel: app.tr('letterboxdOpenReviews'),
+                    ),
+                ],
+              ),
             ],
           ],
         );
@@ -309,6 +286,94 @@ class _ReviewPreview {
   final Uri url;
 }
 
+class _FilmSummary extends StatelessWidget {
+  const _FilmSummary({required this.info, required this.app});
+
+  final LetterboxdFilmStreamInfo info;
+  final AppState app;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasRatings = info.communityRating != null || info.userRating != null;
+    final hasStatus = info.watched || info.liked || info.inWatchlist;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(NovaSpace.md),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final scale = MediaQuery.textScalerOf(context);
+          final minimumRatingWidth = scale.scale(124);
+          final ratingWidth =
+              constraints.maxWidth < minimumRatingWidth * 2 + NovaSpace.lg
+                  ? constraints.maxWidth
+                  : ((constraints.maxWidth - NovaSpace.lg) / 2)
+                      .clamp(minimumRatingWidth, scale.scale(280));
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (hasRatings)
+                Wrap(
+                  spacing: NovaSpace.lg,
+                  runSpacing: NovaSpace.md,
+                  children: [
+                    if (info.communityRating case final double value)
+                      SizedBox(
+                        width: ratingWidth,
+                        child: _Rating(
+                          label: app.tr('letterboxdCommunityRating'),
+                          value: value,
+                        ),
+                      ),
+                    if (info.userRating case final double value)
+                      SizedBox(
+                        width: ratingWidth,
+                        child: _Rating(
+                          label: app.tr('letterboxdYourRating'),
+                          value: value,
+                        ),
+                      ),
+                  ],
+                ),
+              if (hasRatings && hasStatus) ...[
+                const SizedBox(height: NovaSpace.sm),
+                Divider(color: scheme.outlineVariant),
+                const SizedBox(height: NovaSpace.sm),
+              ],
+              if (hasStatus)
+                Wrap(
+                  spacing: NovaSpace.md,
+                  runSpacing: NovaSpace.sm,
+                  children: [
+                    if (info.watched)
+                      _Status(
+                        icon: LucideIcons.check,
+                        label: app.tr('letterboxdWatched'),
+                      ),
+                    if (info.liked)
+                      _Status(
+                        icon: LucideIcons.heart,
+                        label: app.tr('letterboxdLiked'),
+                      ),
+                    if (info.inWatchlist)
+                      _Status(
+                        icon: LucideIcons.bookmark,
+                        label: app.tr('letterboxdInWatchlist'),
+                      ),
+                  ],
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
 class _Rating extends StatelessWidget {
   const _Rating({required this.label, required this.value});
 
@@ -318,27 +383,31 @@ class _Rating extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsetsDirectional.fromSTEB(12, 10, 12, 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: theme.textTheme.labelMedium),
-            const SizedBox(height: 2),
-            Text('${value.toStringAsFixed(1)} / 5',
-                textDirection: TextDirection.ltr,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w700,
-                )),
-          ],
-        ),
+    return MergeSemantics(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              )),
+          const SizedBox(height: NovaSpace.xs),
+          Row(
+            children: [
+              Icon(LucideIcons.star,
+                  size: 20, color: theme.colorScheme.secondary),
+              const SizedBox(width: NovaSpace.sm),
+              Flexible(
+                child: Text('${value.toStringAsFixed(1)} / 5',
+                    textDirection: TextDirection.ltr,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    )),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -351,27 +420,43 @@ class _Status extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Chip(
-        avatar: Icon(icon, size: 18),
-        label: Text(label),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.secondary),
+          const SizedBox(width: NovaSpace.sm),
+          Flexible(
+            child: Text(label, style: Theme.of(context).textTheme.labelMedium),
+          ),
+        ],
       );
 }
 
 class _ExternalLink extends StatelessWidget {
   const _ExternalLink(
-      {required this.icon, required this.label, required this.onTap});
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.semanticLabel});
 
   final IconData icon;
   final String label;
+  final String? semanticLabel;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: const Icon(Icons.open_in_new, size: 18),
-        onTap: onTap,
+  Widget build(BuildContext context) => Tooltip(
+        message: semanticLabel ?? label,
+        excludeFromSemantics: true,
+        child: OutlinedButton.icon(
+          onPressed: onTap,
+          icon: Icon(icon, size: 18),
+          label: Text(label, semanticsLabel: semanticLabel),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(
+                horizontal: NovaSpace.md, vertical: NovaSpace.sm),
+          ),
+        ),
       );
 }

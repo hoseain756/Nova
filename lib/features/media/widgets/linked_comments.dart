@@ -4,8 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/models/media_item.dart';
 import '../../../core/state/app_state.dart';
-import '../../../l10n/nova_strings.dart';
-import '../../../shared/widgets/shimmer_box.dart';
+import 'detail_discussion_rail.dart';
 
 /// Public tracker discussion, shown only when the viewer enables it.
 class LinkedComments extends StatefulWidget {
@@ -18,6 +17,7 @@ class LinkedComments extends StatefulWidget {
 }
 
 class _LinkedCommentsState extends State<LinkedComments> {
+  AppState? _loadedFor;
   String? _signature;
   Future<List<Map<String, dynamic>>>? _request;
   final Set<String> _revealed = {};
@@ -37,7 +37,7 @@ class _LinkedCommentsState extends State<LinkedComments> {
   }
 
   static String _plain(String value) {
-    final text = value
+    return value
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'</p\s*>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
@@ -46,9 +46,9 @@ class _LinkedCommentsState extends State<LinkedComments> {
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'")
+        .replaceAll(RegExp(r'\[/?spoiler\]', caseSensitive: false), '')
         .replaceAll(RegExp(r'[ \t]+'), ' ')
         .trim();
-    return text.length > 600 ? '${text.substring(0, 600)}…' : text;
   }
 
   @override
@@ -56,100 +56,79 @@ class _LinkedCommentsState extends State<LinkedComments> {
     final app = context.watch<AppState>();
     final trakt = app.webSettings['showTraktComments'] == true;
     final anilist = app.webSettings['showAnilistComments'] == true;
-    if (!trakt && !anilist) return const SizedBox.shrink();
+    if (!trakt && !anilist) {
+      _signature = null;
+      _revealed.clear();
+      return const SizedBox.shrink();
+    }
     final signature = [
       widget.item.id,
       widget.item.type,
       widget.item.anilistId,
+      app.activeAccountId,
+      app.activeProfileId,
       trakt,
       anilist,
+      app.webSettings['blurTraktComments'],
+      app.webSettings['anilistBlurComments'],
     ].join('|');
-    if (_signature != signature) {
+    if (!identical(_loadedFor, app) || _signature != signature) {
+      _loadedFor = app;
       _signature = signature;
       _revealed.clear();
       _request = _load(app, trakt, anilist);
     }
-    final english = app.english;
-    final scheme = Theme.of(context).colorScheme;
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _request,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ShimmerBox(width: 180, height: 24),
-              SizedBox(height: 12),
-              ShimmerBox(height: 70),
-            ],
-          );
-        }
+        final loading = snapshot.connectionState == ConnectionState.waiting;
         final rows = snapshot.data ?? const <Map<String, dynamic>>[];
-        if (rows.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(NovaStrings.lookup(english, 'linkedComments'),
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            for (final row in rows) ...[
-              Builder(builder: (context) {
-                final source = row['source']?.toString() ?? '';
-                final id = '$source:${row['id']}';
-                final blurred = source == 'trakt'
-                    ? app.webSettings['blurTraktComments'] != false
-                    : app.webSettings['anilistBlurComments'] != false;
-                final raw = row['text']?.toString() ?? '';
-                final hasInlineSpoiler = RegExp(
-                        r'\[spoiler\]|<span[^>]*spoiler',
-                        caseSensitive: false)
-                    .hasMatch(raw);
-                final hidden =
-                    (blurred || row['spoiler'] == true || hasInlineSpoiler) &&
-                        !_revealed.contains(id);
-                final text = _plain(raw);
-                final title = row['title']?.toString() ?? '';
-                final url = Uri.tryParse(row['url']?.toString() ?? '');
-                final allowedUrl = url?.scheme == 'https' &&
-                    (url?.host == 'trakt.tv' || url?.host == 'anilist.co');
-                return Padding(
-                  padding: const EdgeInsetsDirectional.only(bottom: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${source == 'trakt' ? 'Trakt' : 'AniList'} · ${row['username'] ?? ''}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelMedium
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      if (title.isNotEmpty)
-                        Text(title,
-                            style: Theme.of(context).textTheme.titleSmall),
-                      if (hidden)
-                        TextButton(
-                          onPressed: () => setState(() => _revealed.add(id)),
-                          child: Text(NovaStrings.lookup(
-                              english, 'linkedRevealComment')),
-                        )
-                      else if (text.isNotEmpty)
-                        Text(text,
-                            style: Theme.of(context).textTheme.bodyMedium),
-                      if (allowedUrl)
-                        TextButton(
-                          onPressed: () => launchUrl(url!,
-                              mode: LaunchMode.externalApplication),
-                          child: Text(NovaStrings.lookup(
-                              english, 'linkedOpenDiscussion')),
-                        ),
-                      Divider(color: scheme.outlineVariant),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ],
+        return DetailDiscussionRail(
+          key: ValueKey(signature),
+          title: app.tr('linkedComments'),
+          hiddenLabel: app.tr('discussionHidden'),
+          revealLabel: app.tr('linkedRevealComment'),
+          readLabel: app.tr('discussionReadMore'),
+          loading: loading,
+          entries: loading
+              ? const []
+              : rows.map((row) {
+                  final source = row['source']?.toString() ?? '';
+                  final id = '$source:${row['id']}';
+                  final blurred = source == 'trakt'
+                      ? app.webSettings['blurTraktComments'] != false
+                      : app.webSettings['anilistBlurComments'] != false;
+                  final raw = row['text']?.toString() ?? '';
+                  final hasInlineSpoiler = RegExp(
+                          r'\[spoiler\]|<span[^>]*spoiler',
+                          caseSensitive: false)
+                      .hasMatch(raw);
+                  final hidden =
+                      (blurred || row['spoiler'] == true || hasInlineSpoiler) &&
+                          !_revealed.contains(id);
+                  final text = _plain(raw);
+                  final title = row['title']?.toString() ?? '';
+                  final url = Uri.tryParse(row['url']?.toString() ?? '');
+                  final allowedUrl = url != null &&
+                      url.scheme == 'https' &&
+                      url.userInfo.isEmpty &&
+                      url.port == 443 &&
+                      (url.host == 'trakt.tv' || url.host == 'anilist.co');
+                  return DetailDiscussionEntry(
+                    id: id,
+                    source: source == 'trakt' ? 'Trakt' : 'AniList',
+                    author: row['username']?.toString(),
+                    title: title,
+                    body: text,
+                    hidden: hidden,
+                    onReveal: () => setState(() => _revealed.add(id)),
+                    onOpen: allowedUrl
+                        ? () =>
+                            launchUrl(url, mode: LaunchMode.externalApplication)
+                        : null,
+                    openLabel: app.tr('linkedOpenDiscussion'),
+                  );
+                }).toList(growable: false),
         );
       },
     );
