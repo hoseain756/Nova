@@ -18,6 +18,7 @@ import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
 import '../../shared/widgets/media_rail.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
 import '../anime/anime_tracker_sheet.dart';
 import '../library/custom_list_picker.dart';
@@ -637,47 +638,70 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final videoEpisode = (video['episode'] as num?)?.toInt() ?? 0;
     final episodeTitle = video['name']?.toString() ??
         NovaStrings.lookup(english, 'message44', {'p0': videoEpisode});
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                NovaStrings.lookup(english, 'message918', {
-                  'p0': videoSeason,
-                  'p1': videoEpisode,
-                }),
-                style: Theme.of(sheetContext).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              if (!widget.kidsMode)
-                _EpisodeActionTile(
-                  icon: LucideIcons.download,
-                  title: NovaStrings.lookup(english, 'message919'),
-                  onTap: () => Navigator.pop(sheetContext, 'download'),
+    final String? action;
+    if (NovaIosControls.available) {
+      final choices = [
+        if (!widget.kidsMode) 'download',
+        'watched',
+        'through',
+      ];
+      final selected = await NovaIosControls.choose(
+        context,
+        title: NovaStrings.lookup(english, 'message918', {
+          'p0': videoSeason,
+          'p1': videoEpisode,
+        }),
+        labels: [
+          if (!widget.kidsMode) NovaStrings.lookup(english, 'message919'),
+          NovaStrings.lookup(english, 'message99'),
+          NovaStrings.lookup(english, 'message920'),
+        ],
+        cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      );
+      action = selected == null ? null : choices[selected];
+    } else {
+      action = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        builder: (sheetContext) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(20, 4, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  NovaStrings.lookup(english, 'message918', {
+                    'p0': videoSeason,
+                    'p1': videoEpisode,
+                  }),
+                  style: Theme.of(sheetContext).textTheme.titleMedium,
                 ),
-              _EpisodeActionTile(
-                icon: LucideIcons.circleCheck,
-                title: NovaStrings.lookup(english, 'message99'),
-                onTap: () => Navigator.pop(sheetContext, 'watched'),
-              ),
-              _EpisodeActionTile(
-                icon: LucideIcons.listChecks,
-                title: NovaStrings.lookup(english, 'message920'),
-                subtitle: episodeTitle,
-                onTap: () => Navigator.pop(sheetContext, 'through'),
-              ),
-            ],
+                const SizedBox(height: 12),
+                if (!widget.kidsMode)
+                  _EpisodeActionTile(
+                    icon: LucideIcons.download,
+                    title: NovaStrings.lookup(english, 'message919'),
+                    onTap: () => Navigator.pop(sheetContext, 'download'),
+                  ),
+                _EpisodeActionTile(
+                  icon: LucideIcons.circleCheck,
+                  title: NovaStrings.lookup(english, 'message99'),
+                  onTap: () => Navigator.pop(sheetContext, 'watched'),
+                ),
+                _EpisodeActionTile(
+                  icon: LucideIcons.listChecks,
+                  title: NovaStrings.lookup(english, 'message920'),
+                  subtitle: episodeTitle,
+                  onTap: () => Navigator.pop(sheetContext, 'through'),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
     if (!mounted || action == null) return;
     if (action == 'download') {
       await _download(item, video: video);
@@ -1116,7 +1140,7 @@ class _SimklPersonalRatingState extends State<_SimklPersonalRating> {
           padding: const EdgeInsets.only(top: 12),
           child: Align(
             alignment: AlignmentDirectional.centerStart,
-            child: PopupMenuButton<int>(
+            child: NovaPopupMenuButton<int>(
               enabled: !_saving,
               tooltip: app.tr('simklYourRating'),
               onSelected: _save,

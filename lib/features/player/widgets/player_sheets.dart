@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/nova_theme.dart';
 import '../../../shared/widgets/color_picker_dialog.dart';
+import '../../../shared/widgets/nova_ios_controls.dart';
 import '../engine/playback_engine.dart';
 import 'precise_delay_value.dart';
 import 'subtitle_font_picker.dart';
@@ -516,7 +517,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          SwitchListTile.adaptive(
+          NovaSwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(NovaStrings.lookup(english, 'subtitleUseFileStyle')),
             subtitle: Text(
@@ -539,7 +540,7 @@ class _SubtitleStyleSheetState extends State<SubtitleStyleSheet> {
             display: '${_v['subFontSize']} px',
             onChanged: (v) => _commit('subFontSize', v),
           ),
-          SwitchListTile.adaptive(
+          NovaSwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(NovaStrings.lookup(english, 'subtitleBoldFont')),
             value: _v['subFontBold'] == true,

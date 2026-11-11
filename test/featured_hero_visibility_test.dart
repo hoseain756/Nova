@@ -8,6 +8,8 @@ import 'package:nova_mobile/core/models/featured_artwork.dart';
 import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/features/home/widgets/featured_hero.dart';
+import 'package:nova_mobile/shared/widgets/media_hero.dart';
+import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 
 const _slides = [
   MediaItem(id: 'first', type: 'movie', name: 'First slide'),
@@ -16,7 +18,8 @@ const _slides = [
 ];
 
 class _Catalog extends CatalogRepository {
-  _Catalog(super.api);
+  _Catalog(super.api, {this.artwork});
+  final FeaturedArtwork? artwork;
   final requests = <String>[];
   @override
   Future<FeaturedArtwork> featuredArtwork(
@@ -26,7 +29,7 @@ class _Catalog extends CatalogRepository {
     String uiLanguage = 'en',
   }) async {
     requests.add(item.id);
-    return FeaturedArtwork(title: item.name);
+    return artwork ?? FeaturedArtwork(title: item.name);
   }
 }
 
@@ -73,6 +76,13 @@ void main() {
             .getSize(find.byKey(const ValueKey('hero-slide-indicator-1')))
             .width,
         8);
+    final dots = [
+      for (var i = 0; i < 3; i++)
+        tester.getCenter(find.byKey(ValueKey('hero-slide-indicator-$i'))).dx
+    ];
+    expect(dots[1] - dots[0], 32);
+    expect(dots[2] - dots[1], 32);
+    expect(dots[1], closeTo(tester.getCenter(hero).dx, 1));
     expect(catalog.requests, isEmpty);
     active.value = true;
     await tester.pump();
@@ -101,5 +111,58 @@ void main() {
     expect(find.text('Third slide'), findsOneWidget);
     expect(catalog.requests, ['first', 'second', 'third']);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'phone uses full-height portrait art and wide layout uses backdrop',
+      (tester) async {
+    const item = MediaItem(
+      id: 'poster-test',
+      type: 'movie',
+      name: 'Poster test',
+      poster: 'https://example.com/poster.jpg',
+      background: 'https://example.com/backdrop.jpg',
+    );
+    final api = NoorApi();
+    final catalog = _Catalog(api,
+        artwork: const FeaturedArtwork(
+          portrait: 'https://example.com/portrait.jpg',
+          landscape: 'https://example.com/landscape.jpg',
+        ));
+    final app = AppState(api, catalog)..english = true;
+    addTearDown(api.dispose);
+    addTearDown(app.dispose);
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: MaterialApp(
+            home: Scaffold(
+                body: SingleChildScrollView(
+                    child:
+                        FeaturedHero(items: const [item], onTap: (_) {}))))));
+    expect(tester.widget<MediaHero>(find.byType(MediaHero)).artworkUrl,
+        item.poster);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.widget<MediaHero>(find.byType(MediaHero)).artworkUrl,
+        'https://example.com/portrait.jpg');
+    final phoneImage = tester.widget<NovaNetworkImage>(find.descendant(
+        of: find.byType(MediaHero), matching: find.byType(NovaNetworkImage)));
+    expect(phoneImage.fit, BoxFit.cover);
+    expect(phoneImage.alignment, Alignment.topCenter);
+    expect(phoneImage.cacheHeight, 624);
+    expect(tester.getSize(find.byKey(const ValueKey('media-hero-frame'))),
+        const Size(360, 624));
+
+    tester.view.physicalSize = const Size(1024, 768);
+    await tester.pump();
+    expect(tester.widget<MediaHero>(find.byType(MediaHero)).artworkUrl,
+        'https://example.com/landscape.jpg');
+    final wideImage = tester.widget<NovaNetworkImage>(find.descendant(
+        of: find.byType(MediaHero), matching: find.byType(NovaNetworkImage)));
+    expect(wideImage.cacheWidth, 1024);
   });
 }

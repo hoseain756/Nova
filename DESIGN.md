@@ -13,10 +13,10 @@ Poppins for Latin and IBM Plex Sans Arabic for Arabic; logo always supplied SVG.
 8dp spacing grid: 8,16,24,32,48,64. 4dp optical half step. Radius 12 inputs and controls,16 posters,24 sheets,999 floating navigation. Controls at least48dp. Flat content surfaces; no nested decorative cards.
 
 ## Responsive
-Compact windows below 600dp use 16dp gutters and a bottom dock. From 600–839dp, use 24dp gutters and the dock. At 840dp and above, use the narrow icon-only logical-start rail and 32dp gutters. Featured Home, Anime and Kids heroes use a full-bleed still at 78% of the screen height, with a legible overlaid caption and controls. Centered dots select featured slides; the active dot is slightly longer. The detail media hero keeps its own available-width layout: below 700dp the still sits above the caption, and from 700dp the caption sits beside the still. Keep enlarged hero text reachable and let the page scroll from the artwork.
+Compact windows below 600dp use 16dp gutters and a bottom dock. From 600–839dp, use 24dp gutters and the dock. At 840dp and above, use the narrow icon-only logical-start rail and 32dp gutters. Featured Home, Anime and Kids heroes use full-bleed artwork at 78% of screen height, with a legible overlaid caption and controls. Below 700dp prefer portrait artwork fitted across the full hero; wider layouts prefer landscape artwork. Closely spaced centered dots select featured slides, with a slightly longer active dot and 48dp touch areas. The detail media hero keeps its own available-width layout: below 700dp the still sits above the caption, and from 700dp the caption sits beside the still. Keep enlarged hero text reachable and let the page scroll from the artwork.
 
 ## Motion
 120ms press,180ms state,240ms route/expansion, easeOutCubic. Respect OS and in-app reduced motion, stop offscreen animations. Fallback opaque chrome with reduced transparency.
 
 ## Components
-Theme-level buttons, inputs, switches, sliders, tabs, chips, dialogs and sheets. Shared page header, empty/error message, skeleton, cached image, branded mark and parental gate.
+Theme-level buttons, inputs, switches, sliders, tabs, chips, dialogs and sheets. On iPhone/iPad, standard UIKit switches, simple confirmations and anchored selection menus use the system appearance; iOS 26 supplies Liquid Glass where Apple applies it. Keep data, forms, artwork and player video in their content layer. Shared page header, empty/error message, skeleton, cached image, branded mark and parental gate.

@@ -10,6 +10,7 @@ import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/app_state_message.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../../shared/widgets/poster_card.dart';
 import '../media/media_detail_page.dart';
 import '../shell/nova_browse_widgets.dart';
@@ -256,7 +257,7 @@ class _CatalogBrowserPageState extends State<CatalogBrowserPage>
                           ]),
                           SizedBox(
                               width: 208,
-                              child: DropdownButtonFormField<String>(
+                              child: NovaDropdownFormField<String>(
                                   isExpanded: true,
                                   initialValue: _sort,
                                   decoration: InputDecoration(

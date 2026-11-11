@@ -8,6 +8,7 @@ import '../../core/models/media_item.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../player/playback_entry_page.dart';
 import 'downloads_view.dart';
 
@@ -61,22 +62,13 @@ class _DownloadsPageState extends State<DownloadsPage> {
 
   Future<void> _remove(NovaDownload job) async {
     final s = NovaStrings.of(context);
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.text('downloadDelete')),
-        content: Text(s.text('downloadDeleteBody')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.text('cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.text('remove')),
-          ),
-        ],
-      ),
+    final yes = await NovaIosControls.confirm(
+      context,
+      title: s.text('downloadDelete'),
+      message: s.text('downloadDeleteBody'),
+      confirmLabel: s.text('remove'),
+      cancelLabel: s.text('cancel'),
+      destructive: true,
     );
     if (yes == true) await _action(() => _manager.remove(job));
   }

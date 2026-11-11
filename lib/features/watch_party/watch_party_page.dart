@@ -10,6 +10,7 @@ import '../../core/watch_party/watch_party_invite.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/nova_network_image.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import 'watch_party_playback.dart';
 import 'widgets/watch_party_chat.dart';
 
@@ -100,19 +101,14 @@ class _WatchPartyPageState extends State<WatchPartyPage>
 
   Future<void> _confirmLeave(WatchPartyController controller,
       {required bool end}) async {
-    final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialog) => AlertDialog(
-                title: Text(_t(end ? 'partyEnd' : 'partyLeave')),
-                content: Text(_t(end ? 'partyEndBody' : 'partyLeaveBody')),
-                actions: [
-                  TextButton(
-                      onPressed: () => Navigator.pop(dialog, false),
-                      child: Text(_t('partyCancel'))),
-                  FilledButton(
-                      onPressed: () => Navigator.pop(dialog, true),
-                      child: Text(_t(end ? 'partyEnd' : 'partyLeave')))
-                ]));
+    final confirmed = await NovaIosControls.confirm(
+      context,
+      title: _t(end ? 'partyEnd' : 'partyLeave'),
+      message: _t(end ? 'partyEndBody' : 'partyLeaveBody'),
+      confirmLabel: _t(end ? 'partyEnd' : 'partyLeave'),
+      cancelLabel: _t('partyCancel'),
+      destructive: end,
+    );
     if (confirmed == true && mounted) {
       await _run(end ? controller.end : controller.leave);
     }
@@ -155,7 +151,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                         ? null
                         : () => unawaited(_run(() => controller!.refresh())),
                     icon: const Icon(LucideIcons.refreshCw)),
-                PopupMenuButton<String>(
+                NovaPopupMenuButton<String>(
                     key: const ValueKey('party-room-menu'),
                     icon: const Icon(LucideIcons.ellipsisVertical),
                     tooltip: _t('partyRoomOptions'),
@@ -538,7 +534,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
           subtitle: Text('${_t('partyMembers')} · ${room.members.length}/8'),
           children: [
             if (room.isHost)
-              SwitchListTile.adaptive(
+              NovaSwitchListTile(
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   title: Text(_t('partyHostOnly')),
                   subtitle: Text(_t('partyHostOnlyBody')),
@@ -589,7 +585,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                               Theme.of(context).colorScheme.onSurfaceVariant))
                 ])),
             if (room.isHost && member.id != room.selfId)
-              PopupMenuButton<String>(
+              NovaPopupMenuButton<String>(
                   icon: const Icon(LucideIcons.ellipsisVertical),
                   tooltip: _t('partyMemberActions'),
                   enabled: !_working,

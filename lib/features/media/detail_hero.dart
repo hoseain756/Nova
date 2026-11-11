@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/models/media_item.dart';
 import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/image_decode.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../../shared/widgets/shimmer_box.dart';
 export '../../shared/widgets/shimmer_box.dart';
 
@@ -102,7 +103,7 @@ class DetailActionRow extends StatelessWidget {
                   style:
                       IconButton.styleFrom(minimumSize: const Size.square(52))),
             if (!nativeTopActions)
-              PopupMenuButton<String>(
+              NovaPopupMenuButton<String>(
                 tooltip: NovaStrings.lookup(english, 'message141'),
                 icon: const Icon(LucideIcons.ellipsis),
                 constraints: const BoxConstraints(minWidth: 240),

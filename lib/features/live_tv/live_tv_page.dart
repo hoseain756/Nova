@@ -13,6 +13,7 @@ import '../../core/state/app_state.dart';
 import '../shell/nova_browse_widgets.dart';
 import '../../shared/widgets/app_state_message.dart';
 import '../../shared/widgets/image_decode.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../player/playback_entry_page.dart';
 
 class LiveTvPage extends StatefulWidget {
@@ -128,21 +129,14 @@ class _LiveTvPageState extends State<LiveTvPage> {
 
   Future<void> _removePlaylist(String id) async {
     final app = context.read<AppState>();
-    final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-              icon: const Icon(LucideIcons.listVideo),
-              title: Text(app.tr('message655')),
-              content: Text(app.tr('message656')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    child: Text(app.tr('cancel'))),
-                FilledButton(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    child: Text(app.tr('remove')))
-              ],
-            ));
+    final confirmed = await NovaIosControls.confirm(
+      context,
+      title: app.tr('message655'),
+      message: app.tr('message656'),
+      confirmLabel: app.tr('remove'),
+      cancelLabel: app.tr('cancel'),
+      destructive: true,
+    );
     if (confirmed != true || !mounted) return;
     final next = _playlists(app)
       ..removeWhere((playlist) => playlist['id']?.toString() == id);

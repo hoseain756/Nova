@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/data/catalog_repository.dart';
 import '../../core/state/app_state.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 
 /// Order and visibility apply immediately to installed add-on catalogs.
 /// Keys include the add-on identity, so similarly named rows stay independent.
@@ -40,7 +41,7 @@ class CatalogSettingsPage extends StatelessWidget {
                   Text(app.tr('catalogManagementDescription'),
                       style: Theme.of(context).textTheme.bodyMedium),
                   const SizedBox(height: 12),
-                  SwitchListTile.adaptive(
+                  NovaSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(app.tr('hideKidsCatalogsHome')),
                     subtitle: Text(app.tr('hideKidsCatalogsHomeDescription')),
@@ -72,7 +73,7 @@ class CatalogSettingsPage extends StatelessWidget {
                 child: Material(
                   color: scheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(16),
-                  child: SwitchListTile.adaptive(
+                  child: NovaSwitchListTile(
                     secondary: const Icon(LucideIcons.gripVertical),
                     title: Text(row.title),
                     subtitle: Text(row.subtitle),

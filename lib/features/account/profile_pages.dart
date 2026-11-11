@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/nova_theme.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/nova_network_image.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../settings/widgets/settings_tiles.dart';
 
 const novaAvatarPackKeys = <String>[
@@ -524,7 +525,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                                   : s.text('profilePinRule'),
                         ),
                       if (widget.initial?.hasPin == true)
-                        SwitchListTile.adaptive(
+                        NovaSwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(s.text('profileRemovePin')),
                           value: _removePin,
@@ -535,7 +536,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                                     if (value) _pin.clear();
                                   }),
                         ),
-                      SwitchListTile.adaptive(
+                      NovaSwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(s.text('profileSetDefault')),
                         subtitle: Text(s.text('profileSetDefaultHint')),
@@ -777,22 +778,13 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
 
   Future<void> _confirmDelete(ProfileSummary profile) async {
     final s = NovaStrings.of(context);
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.text('profileDelete')),
-        content: Text(s.text('profileDeleteConfirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.text('cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.text('profileDelete')),
-          ),
-        ],
-      ),
+    final accepted = await NovaIosControls.confirm(
+      context,
+      title: s.text('profileDelete'),
+      message: s.text('profileDeleteConfirm'),
+      confirmLabel: s.text('profileDelete'),
+      cancelLabel: s.text('cancel'),
+      destructive: true,
     );
     if (accepted == true && await _authorize(profile) && mounted) {
       await _run(() => widget.onDelete(profile.id));
@@ -865,7 +857,7 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
                     icon: const Icon(LucideIcons.trash2),
                   ),
                 ]),
-                SwitchListTile.adaptive(
+                NovaSwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(s.text('profileSetDefault')),
                   value: profile.isDefault,

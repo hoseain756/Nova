@@ -8,6 +8,7 @@ import '../../../core/data/catalog_repository.dart';
 import '../../../core/state/app_state.dart';
 import '../../../l10n/nova_strings.dart';
 import '../../../shared/widgets/nova_network_image.dart';
+import '../../../shared/widgets/nova_ios_controls.dart';
 import 'player_sheets.dart' show SheetScaffold;
 
 /// Season and episode picker shared by the legacy and Core player routes.
@@ -103,11 +104,9 @@ class _PlayerEpisodesSheetState extends State<PlayerEpisodesSheet> {
           if (_seasons.isNotEmpty)
             Align(
               alignment: AlignmentDirectional.centerStart,
-              child: DropdownButton<int>(
+              child: NovaSelectionButton<int>(
                 value: season,
                 isDense: true,
-                borderRadius: BorderRadius.circular(12),
-                icon: const Icon(LucideIcons.chevronDown, size: 18),
                 items: [
                   for (final value in _seasons)
                     DropdownMenuItem(

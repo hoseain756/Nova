@@ -12,6 +12,7 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../../shared/widgets/poster_card.dart';
 import '../media/media_detail_page.dart';
 import '../shell/nova_browse_widgets.dart';
@@ -485,21 +486,13 @@ Future<void> _copyList(BuildContext context, CustomMediaList list) async {
 Future<void> _deleteList(BuildContext context, CustomMediaList list) async {
   final app = context.read<AppState>();
   final english = app.english;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      icon: const Icon(LucideIcons.trash2, size: 32),
-      title: Text(NovaStrings.lookup(english, 'message628')),
-      content: Text(NovaStrings.lookup(english, 'message629')),
-      actions: [
-        TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(NovaStrings.lookup(english, 'cancel'))),
-        FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(NovaStrings.lookup(english, 'message384'))),
-      ],
-    ),
+  final confirmed = await NovaIosControls.confirm(
+    context,
+    title: NovaStrings.lookup(english, 'message628'),
+    message: NovaStrings.lookup(english, 'message629'),
+    confirmLabel: NovaStrings.lookup(english, 'message384'),
+    cancelLabel: NovaStrings.lookup(english, 'cancel'),
+    destructive: true,
   );
   if (confirmed != true || !context.mounted) return;
   await app.deleteCustomList(list.id);

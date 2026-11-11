@@ -55,6 +55,7 @@ class SceneDelegate: FlutterSceneDelegate {
 
     override func sceneDidEnterBackground(_ scene: UIScene) {
         NovaBackgroundDownloads.shared.publishProgressSnapshots()
+        NovaNativeControls.shared.cancelPending()
         super.sceneDidEnterBackground(scene)
     }
 
@@ -87,6 +88,7 @@ class SceneDelegate: FlutterSceneDelegate {
     }
 
     override func sceneDidDisconnect(_ scene: UIScene) {
+        NovaNativeControls.shared.cancelPending()
         removeChrome()
         super.sceneDidDisconnect(scene)
     }

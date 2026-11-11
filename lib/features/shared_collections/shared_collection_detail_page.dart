@@ -8,6 +8,7 @@ import '../../core/models/media_item.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/nova_network_image.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../media/media_detail_page.dart';
 import 'shared_collection_control_page.dart';
 import 'shared_collections_panel.dart';
@@ -252,7 +253,7 @@ class _SharedCollectionDetailPageState extends State<SharedCollectionDetailPage>
               icon: const Icon(LucideIcons.settings2),
             ),
           if (collection != null)
-            PopupMenuButton<String>(
+            NovaPopupMenuButton<String>(
               tooltip: strings.text('more'),
               onSelected: (action) {
                 if (action == 'edit') unawaited(_editCollection());
@@ -427,7 +428,7 @@ class _CollectionItemRow extends StatelessWidget {
                 builder: (_) => MediaDetailPage(item: mediaItem),
               )),
       trailing: canEdit || canDelete
-          ? PopupMenuButton<String>(
+          ? NovaPopupMenuButton<String>(
               tooltip: strings.text('more'),
               enabled: !busy,
               onSelected: (action) {
@@ -482,7 +483,7 @@ Future<(String, String)?> showSharedCollectionItemForm(
                     : null,
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
+              NovaDropdownFormField<String>(
                 initialValue: selected,
                 decoration:
                     InputDecoration(labelText: strings.text('sharedItemType')),
@@ -525,21 +526,13 @@ Future<(String, String)?> showSharedCollectionItemForm(
 Future<bool> _confirm(BuildContext context, String messageKey,
     {String actionKey = 'delete'}) async {
   final strings = NovaStrings.of(context);
-  return await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(strings.text(messageKey)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(strings.text('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(strings.text(actionKey)),
-            ),
-          ],
-        ),
+  return await NovaIosControls.confirm(
+        context,
+        title: strings.text(messageKey),
+        message: '',
+        confirmLabel: strings.text(actionKey),
+        cancelLabel: strings.text('cancel'),
+        destructive: true,
       ) ??
       false;
 }

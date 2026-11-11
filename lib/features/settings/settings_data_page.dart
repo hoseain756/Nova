@@ -19,6 +19,7 @@ import '../../core/version.dart';
 import '../../core/update/app_update_service.dart';
 import '../../shared/widgets/noor_toast.dart';
 import '../../shared/widgets/nova_brand.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import 'widgets/settings_tiles.dart';
 import '../downloads/downloads_page.dart';
 
@@ -156,20 +157,12 @@ class SettingsDataPage extends StatelessWidget {
     required Future<void> Function() onConfirm,
   }) async {
     final english = context.read<AppState>().english;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(NovaStrings.lookup(english, 'cancel'))),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(NovaStrings.lookup(english, 'message368'))),
-        ],
-      ),
+    final accepted = await NovaIosControls.confirm(
+      context,
+      title: title,
+      message: body,
+      confirmLabel: NovaStrings.lookup(english, 'message368'),
+      cancelLabel: NovaStrings.lookup(english, 'cancel'),
     );
     if (accepted == true) await onConfirm();
   }

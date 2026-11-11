@@ -361,9 +361,7 @@ query ($weekStart: Int!, $weekEnd: Int!) {
         logo:
             useArtwork ? item.logo ?? _tmdbImage(logoPath, 'w500') : item.logo,
         portrait: useArtwork
-            ? _tmdbImage(textlessPoster, 'w780') ??
-                _tmdbImage(textlessBackdrop, 'w780') ??
-                item.poster
+            ? _tmdbImage(textlessPoster, 'w780') ?? item.poster
             : item.poster,
         landscape: useArtwork
             ? _tmdbImage(textlessBackdrop, 'w1280') ?? item.background

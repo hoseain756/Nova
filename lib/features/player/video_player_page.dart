@@ -12,6 +12,7 @@ import 'package:volume_controller/volume_controller.dart';
 import '../../core/models/media_item.dart';
 import '../../core/models/playback_resume_policy.dart';
 import '../../core/state/app_state.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import '../../core/storage/skip_timing_credentials.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
@@ -1149,30 +1150,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     final wasPlaying = !_partyMatching && (engine?.playing ?? false);
     if (wasPlaying) await engine!.pause();
     if (!mounted) return;
-    final leave = await showDialog<bool>(
-          context: context,
+    final leave = await NovaIosControls.confirm(
+          context,
+          title: NovaStrings.lookup(english, 'playerLeaveTitle'),
+          message: NovaStrings.lookup(english, 'playerLeaveBody'),
+          confirmLabel: NovaStrings.lookup(english, 'playerLeaveAction'),
+          cancelLabel: NovaStrings.lookup(english, 'cancel'),
           barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
-            scrollable: true,
-            title: Text(
-              NovaStrings.lookup(english, 'playerLeaveTitle'),
-            ),
-            content: Text(
-              NovaStrings.lookup(english, 'playerLeaveBody'),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: Text(NovaStrings.lookup(english, 'cancel')),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: Text(
-                  NovaStrings.lookup(english, 'playerLeaveAction'),
-                ),
-              ),
-            ],
-          ),
         ) ??
         false;
     _leaveDialogOpen = false;

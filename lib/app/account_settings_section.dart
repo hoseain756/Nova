@@ -6,6 +6,7 @@ import '../core/state/app_state.dart';
 import '../features/account/account_pages.dart';
 import '../features/settings/widgets/settings_tiles.dart';
 import '../l10n/nova_strings.dart';
+import '../shared/widgets/nova_ios_controls.dart';
 
 class AccountSettingsSection extends StatelessWidget {
   const AccountSettingsSection(
@@ -140,20 +141,12 @@ class AccountSettingsSection extends StatelessWidget {
 
   Future<void> _import(BuildContext context) async {
     final s = NovaStrings.of(context);
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(s.text('accountImportLegacy')),
-        content: Text(s.text('accountImportLegacyDescription')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text(s.text('cancel'))),
-          FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(s.text('accountImportLegacy'))),
-        ],
-      ),
+    final accepted = await NovaIosControls.confirm(
+      context,
+      title: s.text('accountImportLegacy'),
+      message: s.text('accountImportLegacyDescription'),
+      confirmLabel: s.text('accountImportLegacy'),
+      cancelLabel: s.text('cancel'),
     );
     if (accepted != true || !context.mounted) return;
     final ok = await app.importLegacyData();

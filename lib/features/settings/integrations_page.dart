@@ -12,6 +12,7 @@ import '../../core/auth/account_controller.dart';
 import '../../core/oauth/oauth_redirect.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import 'widgets/settings_tiles.dart';
 import 'widgets/skip_timing_service_card.dart';
 import 'letterboxd_settings_page.dart';
@@ -522,7 +523,7 @@ class _ProviderAvatarSwitchState extends State<_ProviderAvatarSwitch> {
     final selected = saved?.containsKey(profile.id) == true &&
         profile.avatarKind == 'url' &&
         profile.avatarValue == widget.avatar;
-    return SwitchListTile.adaptive(
+    return NovaSwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(app
           .tr('linkedUseAvatar', {'service': _providerName(widget.service)})),
@@ -1898,7 +1899,7 @@ class _DebridCardState extends State<_DebridCard> {
               ),
             ),
           ] else ...[
-            DropdownButtonFormField<String>(
+            NovaDropdownFormField<String>(
               initialValue: _service,
               decoration: InputDecoration(
                   labelText: NovaStrings.lookup(english, 'message342')),

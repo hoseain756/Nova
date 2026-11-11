@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../shared/widgets/nova_ios_controls.dart';
 
 /// NOVA's editorial settings primitives. Surface boundaries are reserved for
 /// groups; individual controls share quiet separators and generous touch areas.
@@ -193,7 +194,7 @@ class _SettingsOptimisticSwitchState extends State<SettingsOptimisticSwitch> {
   }
 
   @override
-  Widget build(BuildContext context) => Switch.adaptive(
+  Widget build(BuildContext context) => NovaSwitch(
       value: _value,
       activeThumbColor: widget.activeThumbColor,
       onChanged: widget.onChanged == null
@@ -234,7 +235,7 @@ class _SettingsOptimisticSwitchTileState
   }
 
   @override
-  Widget build(BuildContext context) => SwitchListTile.adaptive(
+  Widget build(BuildContext context) => NovaSwitchListTile(
       contentPadding: widget.contentPadding ??
           const EdgeInsetsDirectional.fromSTEB(20, 10, 16, 10),
       title: widget.title,
@@ -262,19 +263,13 @@ class SettingsLanguageDropdown extends StatelessWidget {
   final bool expanded;
   @override
   Widget build(BuildContext context) => DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
+          child: NovaSelectionButton<String>(
         value: value,
         items: items,
         onChanged: (next) {
           if (next != null) onChanged(next);
         },
-        isExpanded: expanded,
-        borderRadius: BorderRadius.circular(20),
-        style: Theme.of(context)
-            .textTheme
-            .titleSmall
-            ?.copyWith(color: Theme.of(context).colorScheme.secondary),
-        icon: const Icon(LucideIcons.chevronDown, size: 18),
+        expanded: expanded,
       ));
 }
 
@@ -283,20 +278,11 @@ Future<bool> confirmSettingsAction(BuildContext context,
         required String message,
         required String confirm,
         required String cancel}) async =>
-    await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-              icon: Icon(LucideIcons.shieldAlert,
-                  color: Theme.of(context).colorScheme.secondary),
-              title: Text(title),
-              content: Text(message),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    child: Text(cancel)),
-                FilledButton(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    child: Text(confirm))
-              ],
-            )) ??
+    await NovaIosControls.confirm(
+      context,
+      title: title,
+      message: message,
+      confirmLabel: confirm,
+      cancelLabel: cancel,
+    ) ??
     false;

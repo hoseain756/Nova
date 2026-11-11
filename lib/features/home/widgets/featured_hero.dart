@@ -116,13 +116,20 @@ class _FeaturedHeroState extends State<FeaturedHero>
         builder: (context, snapshot) {
           final result = snapshot.data;
           final art = result?.$1 == artKey ? result?.$2 : null;
+          final portrait = MediaQuery.sizeOf(context).width < 700;
+          final artworkUrl = portrait
+              ? [art?.portrait, item.poster, art?.landscape, item.background]
+                  .whereType<String>()
+                  .where((url) => url.trim().isNotEmpty)
+                  .firstOrNull
+              : MediaHero.artwork(item, art?.landscape, art?.portrait);
           return MediaHero(
             item: item,
             immersive: true,
             title: art?.title,
             genre: art?.genre,
             story: art?.overview,
-            artworkUrl: MediaHero.artwork(item, art?.landscape, art?.portrait),
+            artworkUrl: artworkUrl,
             topChrome: widget.topChrome,
             onArtworkTap: () => widget.onTap(item),
             onSwipeStart: widget.items.length < 2
@@ -148,6 +155,7 @@ class _FeaturedHeroState extends State<FeaturedHero>
                         _SlideIndicator(
                             item: widget.items[i],
                             index: i,
+                            count: widget.items.length,
                             selected: i == index,
                             onTap: () => _select(i)),
                     ])),
@@ -176,14 +184,17 @@ class _SlideIndicator extends StatelessWidget {
   const _SlideIndicator(
       {required this.item,
       required this.index,
+      required this.count,
       required this.selected,
       required this.onTap});
   final MediaItem item;
-  final int index;
+  final int index, count;
   final bool selected;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
+    final direction = Directionality.of(context) == TextDirection.rtl ? -1 : 1;
+    final inwardOffset = ((count - 1) / 2 - index) * 16 * direction;
     return Semantics(
         label: item.name,
         button: true,
@@ -198,21 +209,25 @@ class _SlideIndicator extends StatelessWidget {
                         width: 48,
                         height: 48,
                         child: Center(
-                            child: AnimatedContainer(
-                          key: ValueKey('hero-slide-indicator-$index'),
-                          duration: MediaQuery.disableAnimationsOf(context)
-                              ? Duration.zero
-                              : const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          width: selected ? 16 : 8,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? NovaColors.white
-                                : NovaColors.white.withValues(alpha: .46),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        )))))));
+                            child: Transform.translate(
+                                offset: Offset(inwardOffset, 0),
+                                child: AnimatedContainer(
+                                  key: ValueKey('hero-slide-indicator-$index'),
+                                  duration:
+                                      MediaQuery.disableAnimationsOf(context)
+                                          ? Duration.zero
+                                          : const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  width: selected ? 16 : 8,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? NovaColors.white
+                                        : NovaColors.white
+                                            .withValues(alpha: .46),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ))))))));
   }
 }
 

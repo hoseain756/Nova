@@ -278,7 +278,12 @@ class MediaHero extends StatelessWidget {
                                 size: 56, color: NovaColors.mist))
                         : NovaNetworkImage(url,
                             fit: BoxFit.cover,
-                            cacheWidth: imageCacheWidth(context, width),
+                            alignment:
+                                wide ? Alignment.center : Alignment.topCenter,
+                            cacheWidth:
+                                wide ? imageCacheWidth(context, width) : null,
+                            cacheHeight:
+                                wide ? null : imageCacheWidth(context, height),
                             excludeFromSemantics: true),
                   ),
                 ),

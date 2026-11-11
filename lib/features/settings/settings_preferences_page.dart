@@ -1,5 +1,6 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 
@@ -686,39 +687,56 @@ class _PreferenceTile extends StatelessWidget {
     final app = context.read<AppState>();
     final english = app.english;
     if (item.control == _Control.select) {
-      final selected = await showModalBottomSheet<String>(
-        context: context,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        showDragHandle: true,
-        isScrollControlled: true,
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .8),
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [
-              Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(english ? item.english : item.arabic,
-                      style: Theme.of(context).textTheme.titleLarge)),
-              for (final option in item.options)
-                ListTile(
-                  leading: Icon(
-                    current?.toString() == option.value
-                        ? LucideIcons.circleDot
-                        : LucideIcons.circle,
-                    color: current?.toString() == option.value
-                        ? Theme.of(context).colorScheme.secondary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+      String? selected;
+      if (NovaIosControls.available) {
+        final nativeChoice = await NovaIosControls.choose(
+          context,
+          title: english ? item.english : item.arabic,
+          labels: [
+            for (final option in item.options)
+              english ? option.english : option.arabic
+          ],
+          cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+          sourceRect: NovaIosControls.sourceRect(context),
+        );
+        if (!context.mounted) return;
+        selected =
+            nativeChoice == null ? null : item.options[nativeChoice].value;
+      } else {
+        selected = await showModalBottomSheet<String>(
+          context: context,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          showDragHandle: true,
+          isScrollControlled: true,
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .8),
+          builder: (context) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              children: [
+                Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(english ? item.english : item.arabic,
+                        style: Theme.of(context).textTheme.titleLarge)),
+                for (final option in item.options)
+                  ListTile(
+                    leading: Icon(
+                      current?.toString() == option.value
+                          ? LucideIcons.circleDot
+                          : LucideIcons.circle,
+                      color: current?.toString() == option.value
+                          ? Theme.of(context).colorScheme.secondary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    title: Text(english ? option.english : option.arabic),
+                    onTap: () => Navigator.pop(context, option.value),
                   ),
-                  title: Text(english ? option.english : option.arabic),
-                  onTap: () => Navigator.pop(context, option.value),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
+        );
+      }
       if (selected != null) {
         await app.setSetting(item.key, _typedValue(item.key, selected));
       }

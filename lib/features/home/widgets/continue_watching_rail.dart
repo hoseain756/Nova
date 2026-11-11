@@ -14,6 +14,7 @@ import '../../../core/state/app_state.dart';
 import '../../../core/theme/horse_theme.dart';
 import '../../../shared/widgets/image_decode.dart';
 import '../../../shared/widgets/noor_toast.dart';
+import '../../../shared/widgets/nova_ios_controls.dart';
 import '../../media/media_detail_page.dart';
 import '../cw_upcoming.dart';
 import 'home_section_header.dart';
@@ -419,7 +420,35 @@ class ContinueCard extends StatelessWidget {
     /// Harbor-web long-press menu (web CwContextMenu → the mobile M3 sheet):
     /// view details always; mark-as-watched / remove only on LOCAL cards —
     /// linked-service cards carry no local position data to act on.
-    Future<void> openMenu() {
+    Future<void> openMenu() async {
+      if (NovaIosControls.available) {
+        final actions = [
+          'detail',
+          if (onMarkWatched != null) 'watched',
+          if (onRemove != null) 'remove',
+        ];
+        final selected = await NovaIosControls.choose(
+          context,
+          title: item.name,
+          labels: [
+            NovaStrings.lookup(english, 'message126'),
+            if (onMarkWatched != null) NovaStrings.lookup(english, 'message99'),
+            if (onRemove != null) NovaStrings.lookup(english, 'message127'),
+          ],
+          cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+          sourceRect: NovaIosControls.sourceRect(context),
+        );
+        if (selected == null || !context.mounted) return;
+        switch (actions[selected]) {
+          case 'detail':
+            openDetail();
+          case 'watched':
+            onMarkWatched?.call();
+          case 'remove':
+            onRemove?.call();
+        }
+        return;
+      }
       return showModalBottomSheet<void>(
         context: context,
         useSafeArea: true,

@@ -9,6 +9,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/track/track_link.dart';
 import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/noor_toast.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 
 /// Anime tracking sheet: pick a watch status, nudge the episodes-watched
 /// counter and set a 0–10 score — saved to EVERY linked tracker the item can
@@ -122,21 +123,14 @@ class _TrackerSheetState extends State<_TrackerSheet> {
   Future<void> _remove() async {
     if (_saving) return;
     final app = context.read<AppState>();
-    final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-              icon: const Icon(LucideIcons.listMinus),
-              title: Text(app.tr('message545')),
-              content: Text(app.tr('message546')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(dialogContext, false),
-                    child: Text(app.tr('cancel'))),
-                FilledButton(
-                    onPressed: () => Navigator.pop(dialogContext, true),
-                    child: Text(app.tr('remove')))
-              ],
-            ));
+    final confirmed = await NovaIosControls.confirm(
+      context,
+      title: app.tr('message545'),
+      message: app.tr('message546'),
+      confirmLabel: app.tr('remove'),
+      cancelLabel: app.tr('cancel'),
+      destructive: true,
+    );
     if (confirmed != true || !mounted) return;
     setState(() => _saving = true);
     final outcomes = await app.saveAnimeEntry(item: widget.item);

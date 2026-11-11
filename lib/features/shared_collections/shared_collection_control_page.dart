@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../l10n/nova_strings.dart';
+import '../../shared/widgets/nova_ios_controls.dart';
 import 'shared_collections_panel.dart';
 
 class SharedCollectionControlPage extends StatefulWidget {
@@ -145,21 +146,13 @@ class _SharedCollectionControlPageState
 
   Future<void> _deleteCollection() async {
     final strings = NovaStrings.of(context);
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(strings.text('sharedDeleteCollectionQuestion')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(strings.text('cancel')),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(strings.text('delete')),
-              ),
-            ],
-          ),
+    final confirmed = await NovaIosControls.confirm(
+          context,
+          title: strings.text('sharedDeleteCollectionQuestion'),
+          message: '',
+          confirmLabel: strings.text('delete'),
+          cancelLabel: strings.text('cancel'),
+          destructive: true,
         ) ??
         false;
     if (!confirmed || !mounted) return;
@@ -199,22 +192,13 @@ class _SharedCollectionControlPageState
 
   Future<void> _removeMember(CollectionMember member) async {
     final strings = NovaStrings.of(context);
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(strings.text('sharedRemoveMemberQuestion')),
-            content: Text(member.username ?? member.accountId),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(strings.text('cancel')),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(strings.text('sharedRemoveMember')),
-              ),
-            ],
-          ),
+    final confirmed = await NovaIosControls.confirm(
+          context,
+          title: strings.text('sharedRemoveMemberQuestion'),
+          message: member.username ?? member.accountId,
+          confirmLabel: strings.text('sharedRemoveMember'),
+          cancelLabel: strings.text('cancel'),
+          destructive: true,
         ) ??
         false;
     if (!confirmed || !mounted) return;
@@ -250,21 +234,13 @@ class _SharedCollectionControlPageState
 
   Future<void> _disableInvite() async {
     final strings = NovaStrings.of(context);
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: Text(strings.text('sharedDisableInviteQuestion')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(strings.text('cancel')),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: Text(strings.text('sharedDisableInvite')),
-              ),
-            ],
-          ),
+    final confirmed = await NovaIosControls.confirm(
+          context,
+          title: strings.text('sharedDisableInviteQuestion'),
+          message: '',
+          confirmLabel: strings.text('sharedDisableInvite'),
+          cancelLabel: strings.text('cancel'),
+          destructive: true,
         ) ??
         false;
     if (!confirmed || !mounted) return;
@@ -504,7 +480,7 @@ class _SharedCollectionControlPageState
     CollectionPermissions Function(bool value) updated, {
     bool canEnable = true,
   }) {
-    return SwitchListTile.adaptive(
+    return NovaSwitchListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(NovaStrings.of(context).text(labelKey)),
       value: value,
