@@ -7,9 +7,8 @@ import 'package:provider/provider.dart';
 import '../../../core/models/featured_artwork.dart';
 import '../../../core/models/media_item.dart';
 import '../../../core/state/app_state.dart';
-import '../../../shared/widgets/image_decode.dart';
+import '../../../core/theme/nova_theme.dart';
 import '../../../shared/widgets/media_hero.dart';
-import '../../../shared/widgets/nova_network_image.dart';
 import '../../../shared/widgets/shimmer_box.dart';
 
 /// Manual selection stays local to this destination when a detail route opens.
@@ -46,7 +45,6 @@ class _FeaturedHeroState extends State<FeaturedHero>
     with WidgetsBindingObserver {
   (String, String)? _selected;
   double _dragStart = 0;
-  final _strip = ScrollController();
   Object? _artKey;
   Future<(Object, FeaturedArtwork)>? _art;
   bool _foreground = true;
@@ -69,24 +67,12 @@ class _FeaturedHeroState extends State<FeaturedHero>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _strip.dispose();
     super.dispose();
   }
 
   void _select(int index) {
     final item = widget.items[index];
     setState(() => _selected = (item.type, item.id));
-    if (!_strip.hasClients) return;
-    final position = _strip.position;
-    final offset = (index * 64.0 + 32 - position.viewportDimension / 2)
-        .clamp(0.0, position.maxScrollExtent)
-        .toDouble();
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _strip.jumpTo(offset);
-    } else {
-      unawaited(_strip.animateTo(offset,
-          duration: const Duration(milliseconds: 180), curve: Curves.easeOut));
-    }
   }
 
   @override
@@ -132,6 +118,7 @@ class _FeaturedHeroState extends State<FeaturedHero>
           final art = result?.$1 == artKey ? result?.$2 : null;
           return MediaHero(
             item: item,
+            immersive: true,
             title: art?.title,
             genre: art?.genre,
             story: art?.overview,
@@ -155,18 +142,15 @@ class _FeaturedHeroState extends State<FeaturedHero>
             selector: widget.items.length < 2
                 ? null
                 : Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: SingleChildScrollView(
-                        controller: _strip,
-                        scrollDirection: Axis.horizontal,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          for (var i = 0; i < widget.items.length; i++)
-                            _Thumbnail(
-                                item: widget.items[i],
-                                index: i,
-                                selected: i == index,
-                                onTap: () => _select(i)),
-                        ]))),
+                    alignment: Alignment.bottomCenter,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (var i = 0; i < widget.items.length; i++)
+                        _SlideIndicator(
+                            item: widget.items[i],
+                            index: i,
+                            selected: i == index,
+                            onTap: () => _select(i)),
+                    ])),
             actions: Wrap(spacing: 8, runSpacing: 8, children: [
               FilledButton.icon(
                   onPressed: () => widget.onTap(item),
@@ -188,8 +172,8 @@ class _FeaturedHeroState extends State<FeaturedHero>
   }
 }
 
-class _Thumbnail extends StatelessWidget {
-  const _Thumbnail(
+class _SlideIndicator extends StatelessWidget {
+  const _SlideIndicator(
       {required this.item,
       required this.index,
       required this.selected,
@@ -200,10 +184,6 @@ class _Thumbnail extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final url = MediaHero.artwork(item);
-    final fallback = Center(
-        child: Text('${index + 1}', style: TextStyle(color: colors.onSurface)));
     return Semantics(
         label: item.name,
         button: true,
@@ -215,29 +195,23 @@ class _Thumbnail extends StatelessWidget {
                 onTap: onTap,
                 child: ExcludeSemantics(
                     child: SizedBox(
-                        width: 64,
+                        width: 48,
                         height: 48,
                         child: Center(
-                            child: Container(
-                          width: 58,
-                          height: 36,
-                          clipBehavior: Clip.antiAlias,
+                            child: AnimatedContainer(
+                          key: ValueKey('hero-slide-indicator-$index'),
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          width: selected ? 16 : 8,
+                          height: 6,
                           decoration: BoxDecoration(
-                              color: colors.surface,
-                              borderRadius: BorderRadius.circular(6)),
-                          foregroundDecoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                  color: selected
-                                      ? colors.primary
-                                      : colors.outline,
-                                  width: selected ? 3 : 1)),
-                          child: url == null
-                              ? fallback
-                              : NovaNetworkImage(url,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: imageCacheWidth(context, 58),
-                                  errorBuilder: (_, __, ___) => fallback),
+                            color: selected
+                                ? NovaColors.white
+                                : NovaColors.white.withValues(alpha: .46),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
                         )))))));
   }
 }
@@ -245,30 +219,26 @@ class _Thumbnail extends StatelessWidget {
 class FeaturedSkeleton extends StatelessWidget {
   const FeaturedSkeleton({super.key});
   @override
-  Widget build(BuildContext context) =>
-      LayoutBuilder(builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 700;
-        final art = ShimmerBox(
-            height: (constraints.maxWidth * (wide ? .33 : .55))
-                .clamp(160.0, wide ? 420.0 : 320.0),
-            borderRadius: BorderRadius.zero);
-        const caption = Padding(
-            padding: EdgeInsets.all(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              ShimmerBox(width: 128, height: 16),
-              SizedBox(height: 10),
-              ShimmerBox(width: 208, height: 36),
-              SizedBox(height: 16),
-              ShimmerBox(width: 152, height: 48),
-            ]));
-        return wide
-            ? Row(children: [
-                const Expanded(flex: 44, child: caption),
-                Expanded(flex: 56, child: art)
-              ])
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [art, caption]);
-      });
+  Widget build(BuildContext context) => SizedBox(
+        height: MediaQuery.sizeOf(context).height * .78,
+        child: Stack(fit: StackFit.expand, children: [
+          const ShimmerBox(borderRadius: BorderRadius.zero),
+          Align(
+            alignment: AlignmentDirectional.bottomStart,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 84),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const ShimmerBox(width: 124, height: 14),
+                    const SizedBox(height: 12),
+                    const ShimmerBox(width: 236, height: 42),
+                    const SizedBox(height: 18),
+                    const ShimmerBox(width: 176, height: 48),
+                  ]),
+            ),
+          ),
+        ]),
+      );
 }

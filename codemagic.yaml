@@ -37,9 +37,21 @@ workflows:
           fi
       - name: Compile unsigned iOS app
         script: "$CM_BUILD_DIR/.codemagic-flutter/bin/flutter build ios --release --no-codesign --no-pub"
+      - name: Verify compiled iOS release version
+        script: |
+          set -e
+          declared_version="$(sed -n 's/^version: //p' pubspec.yaml | head -n 1)"
+          expected_name="${declared_version%%+*}"
+          expected_build="${declared_version##*+}"
+          test -n "$expected_name"
+          test "$expected_build" != "$declared_version"
+          app_plist="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_plist")" = "$expected_name"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_plist")" = "$expected_build"
       - name: Package release IPA for iloader signing
         script: |
           set -e
+          declared_version="$(sed -n 's/^version: //p' pubspec.yaml | head -n 1)"
           app_dir="$CM_BUILD_DIR/build/ios/iphoneos/Runner.app"
           assets_dir="$app_dir/Frameworks/App.framework/flutter_assets"
           output_dir="$CM_BUILD_DIR/build/ios/ipa"
@@ -52,6 +64,10 @@ workflows:
           ditto "$app_dir" "$output_dir/Payload/Runner.app"
           (cd "$output_dir" && ditto -c -k --keepParent Payload Nova-release-unsigned.ipa)
           unzip -tq "$output_dir/Nova-release-unsigned.ipa"
+          unzip -p "$output_dir/Nova-release-unsigned.ipa" Payload/Runner.app/Info.plist > "$output_dir/packaged-Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$output_dir/packaged-Info.plist")" = "${declared_version%%+*}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$output_dir/packaged-Info.plist")" = "${declared_version##*+}"
+          rm "$output_dir/packaged-Info.plist"
           shasum -a 256 "$output_dir/Nova-release-unsigned.ipa"
     artifacts:
       - build/ios/ipa/Nova-release-unsigned.ipa

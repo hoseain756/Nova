@@ -43,7 +43,7 @@ void main() {
         'https://github.com/hoseain756/Nova/releases/download/v$noorVersion/app-release.apk');
     expect(
         AppUpdateStatus(
-                manifest: manifest, currentVersion: '1.0.6', currentBuild: 69)
+                manifest: manifest, currentVersion: '1.0.7', currentBuild: 70)
             .hasUpdate,
         isTrue);
   });

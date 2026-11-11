@@ -60,6 +60,19 @@ void main() {
                       })),
             )))));
     await tester.pump();
+    final hero = find.byType(FeaturedHero);
+    final screenHeight = MediaQuery.sizeOf(tester.element(hero)).height;
+    expect(tester.getSize(hero).height, closeTo(screenHeight * .78, 1));
+    expect(
+        tester
+            .getSize(find.byKey(const ValueKey('hero-slide-indicator-0')))
+            .width,
+        16);
+    expect(
+        tester
+            .getSize(find.byKey(const ValueKey('hero-slide-indicator-1')))
+            .width,
+        8);
     expect(catalog.requests, isEmpty);
     active.value = true;
     await tester.pump();
@@ -67,6 +80,11 @@ void main() {
     expect(catalog.requests, ['first']);
     await tester.tap(find.byTooltip('Second slide'));
     await tester.pumpAndSettle();
+    expect(
+        tester
+            .getSize(find.byKey(const ValueKey('hero-slide-indicator-1')))
+            .width,
+        16);
     expect(catalog.requests, ['first', 'second']);
     expect(find.text('Second slide'), findsOneWidget);
     await tester.tap(find.text('Explore title'));

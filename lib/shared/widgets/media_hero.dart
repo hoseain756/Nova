@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' show Bidi;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/theme/nova_theme.dart';
 import 'image_decode.dart';
 import 'nova_network_image.dart';
 
@@ -18,6 +19,7 @@ class MediaHero extends StatelessWidget {
     this.genre,
     this.story,
     this.detail = false,
+    this.immersive = false,
     this.topChrome = false,
     this.selector,
     this.onArtworkTap,
@@ -29,7 +31,7 @@ class MediaHero extends StatelessWidget {
   final String? artworkUrl, title, genre, story;
   final Widget actions;
   final Widget? selector;
-  final bool detail, topChrome;
+  final bool detail, immersive, topChrome;
   final VoidCallback? onArtworkTap;
   final GestureDragStartCallback? onSwipeStart;
   final GestureDragEndCallback? onSwipe;
@@ -43,6 +45,7 @@ class MediaHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (immersive) return _buildImmersive(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final canvas = theme.scaffoldBackgroundColor;
@@ -224,5 +227,188 @@ class MediaHero extends StatelessWidget {
                     top: 0, bottom: 0, end: 0, width: artWidth, child: frame),
               ]));
         }));
+  }
+
+  Widget _buildImmersive(BuildContext context) {
+    final theme = Theme.of(context);
+    final direction = Directionality.of(context);
+    final height = MediaQuery.sizeOf(context).height * .78;
+    final url = artwork(item, artworkUrl);
+    final displayTitle = title ?? item.name;
+    final overview = story ?? item.description;
+    final category = genre ?? item.genres.firstOrNull;
+    final titleDirection = Bidi.startsWithRtl(displayTitle)
+        ? TextDirection.rtl
+        : Bidi.startsWithLtr(displayTitle)
+            ? TextDirection.ltr
+            : direction;
+    final facts = <String>[
+      if (category?.trim().isNotEmpty == true) category!,
+      if (item.releaseInfo?.trim().isNotEmpty == true) item.releaseInfo!,
+      if (item.runtime?.trim().isNotEmpty == true) item.runtime!,
+    ];
+    return SizedBox(
+      height: height,
+      child: LayoutBuilder(builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final wide = width >= 700;
+        final gutter = NovaSpace.gutter(width);
+        final captionBottom = wide
+            ? 28.0
+            : selector == null
+                ? 28.0
+                : 76.0;
+        final topClearance =
+            topChrome ? MediaQuery.paddingOf(context).top + 76 : 24.0;
+        return Stack(fit: StackFit.expand, children: [
+          Stack(
+              key: const ValueKey('media-hero-frame'),
+              fit: StackFit.expand,
+              children: [
+                GestureDetector(
+                  excludeFromSemantics: true,
+                  onTap: onArtworkTap,
+                  onHorizontalDragStart: onSwipeStart,
+                  onHorizontalDragEnd: onSwipe,
+                  child: ColoredBox(
+                    color: NovaColors.graphite,
+                    child: url == null
+                        ? const Center(
+                            child: Icon(LucideIcons.film,
+                                size: 56, color: NovaColors.mist))
+                        : NovaNetworkImage(url,
+                            fit: BoxFit.cover,
+                            cacheWidth: imageCacheWidth(context, width),
+                            excludeFromSemantics: true),
+                  ),
+                ),
+                IgnorePointer(
+                    child: DecoratedBox(
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, .28, .55, 1],
+                    colors: [
+                      NovaColors.ink.withValues(alpha: topChrome ? .64 : .24),
+                      NovaColors.ink.withValues(alpha: 0),
+                      NovaColors.ink.withValues(alpha: .34),
+                      NovaColors.ink.withValues(alpha: .98),
+                    ],
+                  )),
+                )),
+                if (wide)
+                  IgnorePointer(
+                      child: DecoratedBox(
+                    decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                      begin: AlignmentDirectional.centerStart,
+                      end: AlignmentDirectional.centerEnd,
+                      stops: const [0, .65, 1],
+                      colors: [
+                        NovaColors.ink.withValues(alpha: .62),
+                        NovaColors.ink.withValues(alpha: .18),
+                        NovaColors.ink.withValues(alpha: 0),
+                      ],
+                    )),
+                  )),
+              ]),
+          PositionedDirectional(
+            start: gutter,
+            end: wide ? null : gutter,
+            width: wide ? (width * .53).clamp(360.0, 650.0) : null,
+            bottom: captionBottom,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: (height - topClearance - captionBottom)
+                      .clamp(80.0, height)),
+              child: SingleChildScrollView(
+                primary: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (facts.isNotEmpty) ...[
+                      Wrap(spacing: 12, runSpacing: 4, children: [
+                        for (final fact in facts)
+                          Text(fact,
+                              textDirection: Bidi.startsWithRtl(fact)
+                                  ? TextDirection.rtl
+                                  : TextDirection.ltr,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: NovaColors.white.withValues(alpha: .84),
+                                fontWeight: FontWeight.w600,
+                              )),
+                      ]),
+                      const SizedBox(height: 10),
+                    ],
+                    Semantics(
+                        header: true,
+                        child: Text(
+                          displayTitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textDirection: titleDirection,
+                          style: theme.textTheme.headlineLarge?.copyWith(
+                            color: NovaColors.white,
+                            fontSize: wide ? 44 : 36,
+                            height: 1.12,
+                            fontWeight: FontWeight.w700,
+                            shadows: const [
+                              Shadow(
+                                color: NovaColors.ink,
+                                blurRadius: 20,
+                              )
+                            ],
+                          ),
+                        )),
+                    if (wide && overview?.trim().isNotEmpty == true) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        overview!,
+                        textDirection: Bidi.startsWithRtl(overview)
+                            ? TextDirection.rtl
+                            : Bidi.startsWithLtr(overview)
+                                ? TextDirection.ltr
+                                : direction,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: NovaColors.white.withValues(alpha: .88),
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Theme(
+                        data: theme.copyWith(
+                          outlinedButtonTheme: OutlinedButtonThemeData(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: NovaColors.white,
+                              backgroundColor:
+                                  NovaColors.ink.withValues(alpha: .46),
+                              side: BorderSide(
+                                  color:
+                                      NovaColors.white.withValues(alpha: .62)),
+                              minimumSize: const Size(48, 48),
+                            ),
+                          ),
+                        ),
+                        child: actions),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (selector != null)
+            PositionedDirectional(
+              start: gutter,
+              end: gutter,
+              bottom: 14,
+              child: selector!,
+            ),
+        ]);
+      }),
+    );
   }
 }

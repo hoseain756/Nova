@@ -464,7 +464,11 @@ Future<void> _exercisePage(
   final title = tester.widget<MediaHero>(hero).item.name;
   final heading = tester
       .getRect(find.descendant(of: hero, matching: find.text(title)).first);
-  if (size.width < 700) {
+  if (pageName.startsWith('home')) {
+    expect(tester.widget<MediaHero>(hero).immersive, isTrue);
+    expect(art.height, closeTo(size.height * .78, 1));
+    expect(heading.overlaps(art), isTrue);
+  } else if (size.width < 700) {
     expect(art.width, size.width);
     expect(heading.top, greaterThanOrEqualTo(art.bottom));
   } else if (english) {
@@ -508,7 +512,11 @@ Future<void> _exercisePage(
 
 Future<ScrollPosition> _scrollToCoveredState(WidgetTester tester) async {
   final scrollView = find.byType(CustomScrollView).first;
-  await tester.drag(scrollView, const Offset(0, -900));
+  final viewport = tester.getRect(scrollView);
+  await tester.dragFrom(
+    Offset(viewport.center.dx, viewport.top + 80),
+    const Offset(0, -900),
+  );
   await _settleFrames(tester);
   return tester.state<ScrollableState>(find.byType(Scrollable).first).position;
 }
