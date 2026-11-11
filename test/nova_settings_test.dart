@@ -9,6 +9,7 @@ import 'package:nova_mobile/core/models/addon.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/core/update/app_update_service.dart';
+import 'package:nova_mobile/core/version.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/features/settings/addons_page.dart';
 import 'package:nova_mobile/features/settings/app_icon_settings_page.dart';
@@ -488,7 +489,7 @@ void main() {
             find.descendant(of: header, matching: find.byType(NovaBrand));
         expect(brand, findsOneWidget);
         expect((tester.getCenter(brand).dx - 195).abs(), lessThan(1));
-        expect(find.textContaining('1.0.6+69'), findsOneWidget);
+        expect(find.textContaining(noorVersionLabel), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

@@ -18,7 +18,8 @@ Both Android and iOS use `1.0.7+70` from pubspec.yaml. Tag: `v1.0.7`.
   unsuitable for upgrading installs signed with another key. Build/sign with
   the installed app's original signing key before uploading `app-release.apk`
   to the GitHub Release for this tag.
-- iOS: select tag `v1.0.7` and YAML workflow `nova-ios-validation` in Codemagic
+- iOS: select corrected build tag `v1.0.7-ios-buildfix` and YAML workflow
+  `nova-ios-validation` in Codemagic
   (`NOVA iOS Release IPA (iLoader)`). Download `Nova-release-unsigned.ipa` and
   sign it with the existing iLoader process. The YAML does not automatically
   start on tags; native compilation and updated two-phone acceptance remain
@@ -29,6 +30,10 @@ Both Android and iOS use `1.0.7+70` from pubspec.yaml. Tag: `v1.0.7`.
   available; the Android build number does not trigger iOS notices.
 
 The prior local APK was `1.0.6+69`; rebuild from this tag for build 70.
+The original `v1.0.7` source contains a stale version literal in four About
+widget tests, which blocks Codemagic before iOS compilation. The corrected
+iOS build tag changes only that test expectation and this handoff note; both
+tags package the same `1.0.7+70` application source.
 
 ## Validation
 
