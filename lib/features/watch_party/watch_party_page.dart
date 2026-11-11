@@ -4,25 +4,33 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/theme/nova_theme.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_invite.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import '../../l10n/nova_strings.dart';
-import '../media/media_detail_page.dart';
+import '../../shared/widgets/nova_network_image.dart';
+import 'watch_party_playback.dart';
+import 'widgets/watch_party_chat.dart';
+
+typedef WatchPartyPlaybackLauncher = Future<void> Function(
+    BuildContext context, WatchPartySnapshot room);
 
 Future<void> openWatchParty(BuildContext context,
         {WatchPartyMedia? media,
         int positionMs = 0,
         bool playing = false,
-        double rate = 1}) =>
+        double rate = 1,
+        WatchPartyPlaybackLauncher? onJoinPlayback}) =>
     Navigator.of(context).push<void>(MaterialPageRoute(
         builder: (_) => WatchPartyPage(
             media: media,
             positionMs: positionMs,
             playing: playing,
-            rate: rate)));
+            rate: rate,
+            onJoinPlayback: onJoinPlayback)));
 
-/// A persistent destination, also reachable while the player keeps running.
+/// The room stays available while its underlying player keeps running.
 class WatchPartyPage extends StatefulWidget {
   const WatchPartyPage(
       {super.key,
@@ -30,23 +38,28 @@ class WatchPartyPage extends StatefulWidget {
       this.media,
       this.positionMs = 0,
       this.playing = false,
-      this.rate = 1});
+      this.rate = 1,
+      this.onJoinPlayback});
   final String? initialCode;
   final WatchPartyMedia? media;
   final int positionMs;
   final bool playing;
   final double rate;
+  final WatchPartyPlaybackLauncher? onJoinPlayback;
   @override
   State<WatchPartyPage> createState() => _WatchPartyPageState();
 }
 
-class _WatchPartyPageState extends State<WatchPartyPage> {
-  late final TextEditingController _code =
-      TextEditingController(text: widget.initialCode);
+class _WatchPartyPageState extends State<WatchPartyPage>
+    with SingleTickerProviderStateMixin {
+  late final _code = TextEditingController(text: widget.initialCode);
+  late final _tabs = TabController(length: 2, vsync: this);
   final _message = TextEditingController();
   bool _working = false;
+  bool _detailsOpen = false;
   String? _error;
   String _t(String key) => NovaStrings.of(context).text(key);
+
   Future<void> _pasteInvite() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (!mounted || data?.text == null) return;
@@ -77,8 +90,46 @@ class _WatchPartyPageState extends State<WatchPartyPage> {
     }
   }
 
+  Future<void> _copyInvite(WatchPartySnapshot room) async {
+    await Clipboard.setData(ClipboardData(text: watchPartyInvite(room.code)));
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_t('partyCopied'))));
+    }
+  }
+
+  Future<void> _confirmLeave(WatchPartyController controller,
+      {required bool end}) async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+                title: Text(_t(end ? 'partyEnd' : 'partyLeave')),
+                content: Text(_t(end ? 'partyEndBody' : 'partyLeaveBody')),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dialog, false),
+                      child: Text(_t('partyCancel'))),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(dialog, true),
+                      child: Text(_t(end ? 'partyEnd' : 'partyLeave')))
+                ]));
+    if (confirmed == true && mounted) {
+      await _run(end ? controller.end : controller.leave);
+    }
+  }
+
+  Future<void> _joinPlayback(WatchPartySnapshot room) async {
+    if (widget.onJoinPlayback != null) {
+      await widget.onJoinPlayback!(context, room);
+    } else {
+      await launchWatchPartyPlayback(context,
+          room: room, returnToPlayer: widget.media?.key == room.media?.key);
+    }
+  }
+
   @override
   void dispose() {
+    _tabs.dispose();
     _code.dispose();
     _message.dispose();
     super.dispose();
@@ -88,307 +139,469 @@ class _WatchPartyPageState extends State<WatchPartyPage> {
   Widget build(BuildContext context) {
     final controller = context.watch<WatchPartyController?>();
     final room = controller?.snapshot;
-    final scheme = Theme.of(context).colorScheme;
     final error = _error ?? controller?.errorKey;
+    final eligible = controller?.eligible == true;
+    final tabHeight = (MediaQuery.textScalerOf(context).scale(14) * 1.3 + 24)
+        .clamp(48.0, 120.0);
     return Scaffold(
-      appBar: AppBar(title: Text(_t('partyTitle')), actions: [
-        if (room != null)
-          IconButton(
-              tooltip: _t('partyRefresh'),
-              onPressed:
-                  _working ? null : () => unawaited(controller!.refresh()),
-              icon: const Icon(LucideIcons.refreshCw))
-      ]),
-      body: SafeArea(
-          child: Align(
-              alignment: Alignment.topCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: ListView(padding: const EdgeInsets.all(24), children: [
-                  if (error != null)
-                    Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Semantics(
-                            liveRegion: true,
-                            child: Text(_t(error),
-                                style: TextStyle(color: scheme.error)))),
-                  if (controller == null || !controller.eligible) ...[
-                    const Icon(LucideIcons.usersRound, size: 48),
-                    const SizedBox(height: 24),
-                    Text(_t('partyAccountRequired'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                        textAlign: TextAlign.center),
-                  ] else if (room == null)
-                    ..._entry(controller)
-                  else
-                    ..._room(controller, room),
-                ]),
-              ))),
-    );
-  }
-
-  List<Widget> _entry(WatchPartyController controller) => [
-        Text(_t('partyStartTitle'),
-            style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
-        Text(_t('partyIntro')),
-        if (widget.media != null)
-          Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(widget.media!.title,
-                  style: Theme.of(context).textTheme.titleMedium)),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-            onPressed: _working
-                ? null
-                : () => _run(() => controller.create(
-                    media: widget.media,
-                    positionMs: widget.positionMs,
-                    playing: widget.playing,
-                    rate: widget.rate)),
-            icon: const Icon(LucideIcons.usersRound),
-            label: Text(_t(_working ? 'partyWorking' : 'partyCreate'))),
-        const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24), child: Divider()),
-        Text(_t('partyJoin'), style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 16),
-        TextField(
-            controller: _code,
-            textCapitalization: TextCapitalization.characters,
-            textDirection: TextDirection.ltr,
-            maxLength: 11,
-            autocorrect: false,
-            enableSuggestions: false,
-            autofillHints: const [],
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z2-9\s-]'))
-            ],
-            decoration: InputDecoration(
-                labelText: _t('partyCode'),
-                hintText: 'ABCD EFGH',
-                counterText: '',
-                suffixIcon: IconButton(
-                    tooltip: _t('partyPasteInvite'),
-                    onPressed: _working ? null : _pasteInvite,
-                    icon: const Icon(LucideIcons.clipboard))),
-            onSubmitted: (_) =>
-                _working ? null : _run(() => controller.join(_code.text))),
-        const SizedBox(height: 12),
-        OutlinedButton(
-            onPressed:
-                _working ? null : () => _run(() => controller.join(_code.text)),
-            child: Text(_t('partyJoin'))),
-      ];
-  List<Widget> _room(WatchPartyController controller, WatchPartySnapshot room) {
-    final media = room.media;
-    return [
-      Semantics(
-          liveRegion: true,
-          child: Text(
-              _t(room.waiting
-                  ? 'partyWaiting'
-                  : !controller.online || !controller.realtimeConnected
-                      ? 'partyReconnecting'
-                      : 'partyConnected'),
-              style: Theme.of(context).textTheme.labelLarge)),
-      const SizedBox(height: 16),
-      Text(_t('partyCode'), style: Theme.of(context).textTheme.labelLarge),
-      const SizedBox(height: 4),
-      SelectableText('${room.code.substring(0, 4)} ${room.code.substring(4)}',
-          textDirection: TextDirection.ltr,
-          style: Theme.of(context)
-              .textTheme
-              .headlineLarge
-              ?.copyWith(letterSpacing: 3)),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        OutlinedButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(
-                  ClipboardData(text: watchPartyInvite(room.code)));
-              if (mounted) {
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text(_t('partyCopied'))));
-              }
-            },
-            icon: const Icon(LucideIcons.copy, size: 18),
-            label: Text(_t('partyCopyInvite'))),
-        OutlinedButton.icon(
-            onPressed: () => SharePlus.instance.share(ShareParams(
-                text: watchPartyInvite(room.code),
-                sharePositionOrigin: Rect.fromLTWH(
-                    0, 0, MediaQuery.sizeOf(context).width, 100))),
-            icon: const Icon(LucideIcons.share2, size: 18),
-            label: Text(_t('partyShare'))),
-      ]),
-      const SizedBox(height: 24),
-      if (media != null) ...[
-        Text(media.title, style: Theme.of(context).textTheme.titleLarge),
-        if (media.season != null)
-          Text(NovaStrings.of(context).text('partyEpisode',
-              {'season': media.season, 'episode': media.episode})),
-        const SizedBox(height: 12),
-        FilledButton.icon(
-            onPressed: () {
-              if (widget.media?.key == media.key) {
-                Navigator.pop(context);
-                return;
-              }
-              Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => MediaDetailPage(
-                      item: media.item,
-                      resumeVideoId: media.videoId,
-                      resumeSeason: media.season,
-                      resumeEpisode: media.episode,
-                      resumePositionMs: room.targetMs(controller.clock.nowMs),
-                      resumeAtPausePoint: false)));
-            },
-            icon: const Icon(LucideIcons.play),
-            label: Text(_t('partyWatch'))),
-        const SizedBox(height: 8),
-        Text(_t('partyLocalSources'),
-            style: Theme.of(context).textTheme.bodySmall),
-      ] else ...[
-        Text(_t('partyChooseTitle'),
-            style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Text(_t('partyChooseBody')),
-        if (room.isHost)
-          Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: FilledButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(_t('partyBrowse')))),
-      ],
-      const SizedBox(height: 24),
-      if (room.isHost)
-        SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text(_t('partyHostOnly')),
-            subtitle: Text(_t('partyHostOnlyBody')),
-            value: room.hostOnly,
-            onChanged: _working
-                ? null
-                : (value) => _run(() => controller.configure(value))),
-      Text('${_t('partyMembers')} (${room.members.length}/8)',
-          style: Theme.of(context).textTheme.titleMedium),
-      const SizedBox(height: 8),
-      for (final member in room.members)
-        ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-                child: Icon(member.id == room.hostId
-                    ? LucideIcons.crown
-                    : LucideIcons.userRound)),
-            title: Text(member.name),
-            subtitle: Text(_t(member.id == room.hostId
-                ? 'partyHost'
-                : switch (member.status) {
-                    'ready' => 'partyReady',
-                    'buffering' || 'loading' => 'partyLoading',
-                    _ => 'partyBrowsing'
-                  })),
-            trailing: room.isHost && member.id != room.selfId
-                ? PopupMenuButton<String>(
-                    tooltip: _t('partyMemberActions'),
+        appBar: AppBar(
+            title: Text(_t('partyTitle'),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            actions: [
+              if (room != null) ...[
+                IconButton(
+                    tooltip: _t('partyRefresh'),
+                    onPressed: _working
+                        ? null
+                        : () => unawaited(_run(() => controller!.refresh())),
+                    icon: const Icon(LucideIcons.refreshCw)),
+                PopupMenuButton<String>(
+                    key: const ValueKey('party-room-menu'),
+                    icon: const Icon(LucideIcons.ellipsisVertical),
+                    tooltip: _t('partyRoomOptions'),
                     enabled: !_working,
-                    onSelected: (action) => _run(() => action == 'transfer'
-                        ? controller.transfer(member.id)
-                        : controller.remove(member.id)),
+                    onSelected: (action) => unawaited(
+                        _confirmLeave(controller!, end: action == 'end')),
                     itemBuilder: (_) => [
                           PopupMenuItem(
-                              value: 'transfer',
-                              child: Text(_t('partyTransfer'))),
-                          PopupMenuItem(
-                              value: 'remove', child: Text(_t('partyRemove')))
+                              value: 'leave', child: Text(_t('partyLeave'))),
+                          if (room.isHost)
+                            PopupMenuItem(
+                                value: 'end', child: Text(_t('partyEnd')))
                         ])
+              ]
+            ],
+            bottom: room != null && eligible
+                ? PreferredSize(
+                    preferredSize: Size.fromHeight(tabHeight),
+                    child: TabBar(
+                        controller: _tabs,
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        tabs: [
+                          Tab(
+                              key: const ValueKey('party-room-tab'),
+                              height: tabHeight,
+                              text: _t('partyRoom')),
+                          Tab(
+                              key: const ValueKey('party-chat-tab'),
+                              height: tabHeight,
+                              text: _t('partyChat'))
+                        ]))
                 : null),
-      const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
-      Text(_t('partyChat'), style: Theme.of(context).textTheme.titleLarge),
-      const SizedBox(height: 12),
-      if (controller.messages.isEmpty)
-        Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(_t('partyChatEmpty'))),
-      for (final message in controller.messages)
-        Padding(
-            key: ValueKey(
-                'party-message-${message.memberId}-${message.clientId}'),
-            padding: const EdgeInsets.only(bottom: 16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(message.name, style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 4),
-              SelectableText(message.body),
-              if (message.pending)
-                Text(_t('partySending'),
-                    style: Theme.of(context).textTheme.bodySmall),
-              if (message.failed)
-                TextButton.icon(
-                    onPressed: () => unawaited(controller
-                        .sendMessage(message.body, clientId: message.clientId)),
-                    icon: const Icon(LucideIcons.refreshCw, size: 16),
-                    label: Text(_t('partyRetryMessage'))),
-            ])),
-      TextField(
-          key: const ValueKey('party-message-input'),
-          controller: _message,
-          minLines: 1,
-          maxLines: 4,
-          maxLength: 500,
-          decoration: InputDecoration(
-              labelText: _t('partyMessage'),
-              counterText: '${_message.text.runes.length}/500',
-              errorText: _message.text.trim().runes.length > 500
-                  ? _t('partyMessageLimit')
-                  : null),
-          onChanged: (_) => setState(() {})),
-      Align(
-          alignment: AlignmentDirectional.centerEnd,
-          child: FilledButton.icon(
-              onPressed: _message.text.trim().isEmpty ||
-                      _message.text.trim().runes.length > 500
-                  ? null
-                  : () {
-                      final body = _message.text;
-                      _message.clear();
-                      setState(() {});
-                      unawaited(controller.sendMessage(body));
-                    },
-              icon: const Icon(LucideIcons.send, size: 18),
-              label: Text(_t('partySend')))),
-      const SizedBox(height: 24),
-      Wrap(spacing: 16, runSpacing: 8, children: [
-        OutlinedButton(
-            onPressed: _working ? null : () => _run(controller.leave),
-            child: Text(_t('partyLeave'))),
-        if (room.isHost)
-          TextButton(
-              onPressed: _working
-                  ? null
-                  : () async {
-                      final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dialog) => AlertDialog(
-                                  title: Text(_t('partyEnd')),
-                                  content: Text(_t('partyEndBody')),
-                                  actions: [
-                                    TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dialog, false),
-                                        child: Text(_t('partyCancel'))),
-                                    FilledButton(
-                                        onPressed: () =>
-                                            Navigator.pop(dialog, true),
-                                        child: Text(_t('partyEnd')))
-                                  ]));
-                      if (confirmed == true && mounted) {
-                        await _run(controller.end);
-                      }
-                    },
-              child: Text(_t('partyEnd'))),
-      ]),
-    ];
+        body: SafeArea(
+            child: LayoutBuilder(
+                builder: (context, constraints) => Column(children: [
+                      if (error != null)
+                        ConstrainedBox(
+                            constraints: BoxConstraints(
+                                maxHeight: constraints.maxHeight * .3),
+                            child: SingleChildScrollView(
+                                child: _errorBanner(error))),
+                      Expanded(
+                          child: !eligible
+                              ? _accountRequired()
+                              : room == null
+                                  ? _entry(controller!)
+                                  : TabBarView(controller: _tabs, children: [
+                                      _room(controller!, room),
+                                      WatchPartyChat(
+                                          controller: controller,
+                                          room: room,
+                                          messageController: _message)
+                                    ]))
+                    ]))));
   }
+
+  Widget _errorBanner(String error) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+        liveRegion: true,
+        child: Container(
+            width: double.infinity,
+            color: scheme.errorContainer,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(LucideIcons.circleAlert,
+                  color: scheme.onErrorContainer, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Text(_t(error),
+                      style: TextStyle(color: scheme.onErrorContainer)))
+            ])));
+  }
+
+  Widget _accountRequired() => Center(
+      child: SingleChildScrollView(
+          padding: const EdgeInsets.all(32),
+          child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(LucideIcons.usersRound, size: 48),
+                const SizedBox(height: 24),
+                Text(_t('partyAccountRequired'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center)
+              ]))));
+
+  Widget _entry(WatchPartyController controller) => Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: ListView(
+              key: const PageStorageKey('party-entry'),
+              padding: EdgeInsets.all(
+                  NovaSpace.gutter(MediaQuery.sizeOf(context).width)),
+              children: [
+                const SizedBox(height: 16),
+                Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Icon(LucideIcons.usersRound,
+                        size: 40,
+                        color: Theme.of(context).colorScheme.secondary)),
+                const SizedBox(height: 24),
+                Text(_t('partyStartTitle'),
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 12),
+                Text(_t('partyIntro'),
+                    style: Theme.of(context).textTheme.bodyLarge),
+                if (widget.media != null)
+                  Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: _mediaIdentity(widget.media!, compact: true)),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                    onPressed: _working
+                        ? null
+                        : () => _run(() => controller.create(
+                            media: widget.media,
+                            positionMs: widget.positionMs,
+                            playing: widget.playing,
+                            rate: widget.rate)),
+                    icon: const Icon(LucideIcons.plus, size: 20),
+                    label: Text(_t(_working ? 'partyWorking' : 'partyCreate'))),
+                const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Divider()),
+                Text(_t('partyJoin'),
+                    style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                TextField(
+                    key: const ValueKey('party-code-input'),
+                    controller: _code,
+                    textCapitalization: TextCapitalization.characters,
+                    textDirection: TextDirection.ltr,
+                    maxLength: 11,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    autofillHints: const [],
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'[a-zA-Z2-9\s-]'))
+                    ],
+                    decoration: InputDecoration(
+                        labelText: _t('partyCode'),
+                        hintText: 'ABCD EFGH',
+                        counterText: '',
+                        suffixIcon: IconButton(
+                            tooltip: _t('partyPasteInvite'),
+                            onPressed: _working ? null : _pasteInvite,
+                            icon: const Icon(LucideIcons.clipboard))),
+                    onSubmitted: (_) => _working
+                        ? null
+                        : _run(() => controller.join(_code.text))),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                    onPressed: _working
+                        ? null
+                        : () => _run(() => controller.join(_code.text)),
+                    child: Text(_t('partyJoin'))),
+                const SizedBox(height: 24)
+              ])));
+
+  Widget _room(WatchPartyController controller, WatchPartySnapshot room) =>
+      Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: ListView(
+                  key: const PageStorageKey('party-room-content'),
+                  padding: EdgeInsets.all(
+                      NovaSpace.gutter(MediaQuery.sizeOf(context).width)),
+                  children: [
+                    _invitation(controller, room),
+                    const SizedBox(height: 32),
+                    if (room.media case final media?) ...[
+                      Text(_t('partyNowWatching'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant)),
+                      const SizedBox(height: 16),
+                      _mediaIdentity(media),
+                      const SizedBox(height: 12),
+                      Text(
+                          _t(room.playing
+                              ? 'partyPlaybackPlaying'
+                              : 'partyPlaybackPaused'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant)),
+                      const SizedBox(height: 24),
+                      FilledButton.icon(
+                          key: const ValueKey('party-join-playback'),
+                          onPressed: _working
+                              ? null
+                              : () => _run(() => _joinPlayback(room)),
+                          icon: const Icon(LucideIcons.play, size: 20),
+                          label: Text(_t(widget.media?.key == media.key
+                              ? 'partyReturnPlayback'
+                              : 'partyJoinPlayback'))),
+                      const SizedBox(height: 12),
+                      Text(_t('partyLocalSources'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant))
+                    ] else ...[
+                      const Icon(LucideIcons.film, size: 40),
+                      const SizedBox(height: 16),
+                      Text(_t('partyChooseTitle'),
+                          style: Theme.of(context).textTheme.headlineSmall),
+                      const SizedBox(height: 8),
+                      Text(_t('partyChooseBody')),
+                      if (room.isHost)
+                        Padding(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: FilledButton.icon(
+                                onPressed: () => Navigator.pop(context),
+                                icon: const Icon(LucideIcons.search),
+                                label: Text(_t('partyBrowse'))))
+                    ],
+                    const SizedBox(height: 24),
+                    _controlExplanation(room),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    _details(controller, room),
+                    const SizedBox(height: 16)
+                  ])));
+
+  Widget _invitation(WatchPartyController controller, WatchPartySnapshot room) {
+    final statusKey = room.waiting
+        ? 'partyWaiting'
+        : !controller.online || !controller.realtimeConnected
+            ? 'partyReconnecting'
+            : 'partyConnected';
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Semantics(
+          liveRegion: true,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Icon(
+                    statusKey == 'partyConnected'
+                        ? LucideIcons.radio
+                        : LucideIcons.loaderCircle,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Text(_t(statusKey),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)))
+          ])),
+      const SizedBox(height: 16),
+      Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_t('partyCode'),
+                  style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 4),
+              SelectableText(
+                  '${room.code.substring(0, 4)} ${room.code.substring(4)}',
+                  textDirection: TextDirection.ltr,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(letterSpacing: 2))
+            ]),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton.outlined(
+                  tooltip: _t('partyCopyInvite'),
+                  onPressed: () => unawaited(_copyInvite(room)),
+                  icon: const Icon(LucideIcons.copy, size: 20)),
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                  tooltip: _t('partyInvite'),
+                  onPressed: () => SharePlus.instance.share(ShareParams(
+                      text: watchPartyInvite(room.code),
+                      sharePositionOrigin: Rect.fromLTWH(
+                          0, 0, MediaQuery.sizeOf(context).width, 100))),
+                  icon: const Icon(LucideIcons.userPlus, size: 20))
+            ])
+          ])
+    ]);
+  }
+
+  Widget _mediaIdentity(WatchPartyMedia media, {bool compact = false}) {
+    final text = Theme.of(context).textTheme;
+    final posterWidth = compact ? 64.0 : 88.0;
+    final identity =
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(media.title, style: compact ? text.titleMedium : text.headlineSmall),
+      if (media.season != null) ...[
+        const SizedBox(height: 8),
+        Text(
+            NovaStrings.of(context).text('partyEpisode',
+                {'season': media.season, 'episode': media.episode}),
+            style: text.bodyMedium)
+      ]
+    ]);
+    return LayoutBuilder(builder: (context, constraints) {
+      final showPoster = constraints.maxWidth >= 280 &&
+          MediaQuery.textScalerOf(context).scale(14) < 25;
+      if (!showPoster) return identity;
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+                width: posterWidth,
+                height: posterWidth * 1.5,
+                child: media.poster?.isNotEmpty == true
+                    ? NovaNetworkImage(media.poster!,
+                        fit: BoxFit.cover,
+                        excludeFromSemantics: true,
+                        cacheWidth: 264)
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHigh,
+                            border: Border.all(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant),
+                            borderRadius: BorderRadius.circular(16)),
+                        child: const Center(
+                            child: Icon(LucideIcons.film, size: 28))))),
+        const SizedBox(width: 16),
+        Expanded(child: identity)
+      ]);
+    });
+  }
+
+  Widget _controlExplanation(WatchPartySnapshot room) =>
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+                room.hostOnly ? LucideIcons.crown : LucideIcons.usersRound,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        const SizedBox(width: 12),
+        Expanded(
+            child: Text(
+                _t(room.hostOnly ? 'partyHostControl' : 'partyGroupControl'),
+                style: Theme.of(context).textTheme.bodyMedium))
+      ]);
+
+  Widget _details(WatchPartyController controller, WatchPartySnapshot room) =>
+      ExpansionTile(
+          key: const PageStorageKey('party-room-details'),
+          initiallyExpanded: _detailsOpen,
+          onExpansionChanged: (open) => setState(() => _detailsOpen = open),
+          trailing: AnimatedRotation(
+              turns: _detailsOpen ? .5 : 0,
+              duration: NovaMotion.duration(context, NovaMotion.state),
+              curve: NovaMotion.curve,
+              child: const Icon(LucideIcons.chevronDown)),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          title: Text(_t('partyRoomDetails'),
+              style: Theme.of(context).textTheme.titleMedium),
+          subtitle: Text('${_t('partyMembers')} · ${room.members.length}/8'),
+          children: [
+            if (room.isHost)
+              SwitchListTile.adaptive(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  title: Text(_t('partyHostOnly')),
+                  subtitle: Text(_t('partyHostOnlyBody')),
+                  value: room.hostOnly,
+                  onChanged: _working
+                      ? null
+                      : (value) => _run(() => controller.configure(value))),
+            for (final member in room.members)
+              _member(controller, room, member),
+            const SizedBox(height: 16)
+          ]);
+
+  Widget _member(WatchPartyController controller, WatchPartySnapshot room,
+          WatchPartyMember member) =>
+      Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            CircleAvatar(
+                radius: 20,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHigh,
+                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                child: Icon(
+                    member.id == room.hostId
+                        ? LucideIcons.crown
+                        : LucideIcons.userRound,
+                    size: 20)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(
+                      member.id == room.selfId
+                          ? '${member.name} · ${_t('partyYou')}'
+                          : member.name,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                      _t(member.id == room.hostId
+                          ? 'partyHost'
+                          : switch (member.status) {
+                              'ready' => 'partyReady',
+                              'buffering' || 'loading' => 'partyLoading',
+                              _ => 'partyBrowsing'
+                            }),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant))
+                ])),
+            if (room.isHost && member.id != room.selfId)
+              PopupMenuButton<String>(
+                  icon: const Icon(LucideIcons.ellipsisVertical),
+                  tooltip: _t('partyMemberActions'),
+                  enabled: !_working,
+                  onSelected: (action) => _run(() => action == 'transfer'
+                      ? controller.transfer(member.id)
+                      : controller.remove(member.id)),
+                  itemBuilder: (_) => [
+                        PopupMenuItem(
+                            value: 'transfer',
+                            child: Text(_t('partyTransfer'))),
+                        PopupMenuItem(
+                            value: 'remove', child: Text(_t('partyRemove')))
+                      ])
+          ]));
 }

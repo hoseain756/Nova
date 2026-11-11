@@ -13,6 +13,72 @@ Future<WatchPartyController> joined(FakeWatchPartyGateway gateway) async {
 }
 
 void main() {
+  test('readiness changed during a heartbeat is sent immediately after it',
+      () async {
+    final g = FakeWatchPartyGateway();
+    final c = await joined(g);
+    addTearDown(c.dispose);
+    final pending = Completer<Map<String, dynamic>>();
+    var heartbeats = 0;
+    g.handle = (p) async {
+      if (p['p_action'] == 'heartbeat' && ++heartbeats == 1) {
+        return pending.future;
+      }
+      return partyData();
+    };
+    c.setPlaybackStatus('loading', partyMedia.key);
+    await Future<void>.delayed(Duration.zero);
+    c.setPlaybackStatus('ready', partyMedia.key);
+    pending.complete(partyData());
+    await Future<void>.delayed(Duration.zero);
+    final statuses = g.requests
+        .where((p) => p['p_action'] == 'heartbeat')
+        .map((p) => (p['p_payload'] as Map)['status']);
+    expect(statuses, ['loading', 'ready']);
+  });
+
+  test('reconnect history recovery survives an in-flight heartbeat', () async {
+    final g = FakeWatchPartyGateway();
+    final c = await joined(g);
+    addTearDown(c.dispose);
+    g.status!(true);
+    await Future<void>.delayed(Duration.zero);
+    g.requests.clear();
+    final pending = Completer<Map<String, dynamic>>();
+    var heartbeats = 0;
+    g.handle = (p) async {
+      if (p['p_action'] == 'heartbeat' && ++heartbeats == 1) {
+        return pending.future;
+      }
+      return partyData();
+    };
+    final first = c.refresh(history: false);
+    g.status!(false);
+    g.status!(true);
+    pending.complete(partyData());
+    await first;
+    await Future<void>.delayed(Duration.zero);
+    expect(g.requests.where((p) => p['p_action'] == 'snapshot').length, 1);
+    expect(heartbeats, 2);
+  });
+
+  test('new rooms request shared controls with an explicit host-only option',
+      () async {
+    for (final hostOnly in [false, true]) {
+      final g = FakeWatchPartyGateway();
+      final c = WatchPartyController(g, deviceId: partyDeviceId);
+      c.bindIdentity('account', partyProfileId);
+      await Future<void>.delayed(Duration.zero);
+      if (hostOnly) {
+        await c.create(hostOnly: true);
+      } else {
+        await c.create();
+      }
+      final create = g.requests.singleWhere((p) => p['p_action'] == 'create');
+      expect((create['p_payload'] as Map)['host_only'], hostOnly);
+      c.dispose();
+    }
+  });
   test('a retiring route cannot clear a newer player status', () async {
     final g = FakeWatchPartyGateway();
     final c = await joined(g);

@@ -15,16 +15,23 @@ native library or hosted reference service is bundled or contacted by NOVA.
   `app.nova.mobile://watch-party?code=ABCDEFGH`.
 - A room created from the player uses that movie/episode and current playback.
   An empty room adopts the host's next supported playback route. Each member
-  chooses a source from their own add-ons through the existing detail/source
-  flow. No playable URL, torrent endpoint, HTTP header or service credential is
+  uses **Join playback** inside the room to open their own source picker for
+  the exact room movie/episode. This bypasses detail metadata and local resume
+  history, preserving the shared playback identity. No playable URL, torrent
+  endpoint, HTTP header or service credential is
   included in the Party media descriptor.
-- The host controls playback by default. Turning this switch off allows every
-  member to play/pause/seek/change speed. Only the host can change room media,
+- New rooms allow every member to play/pause/seek/change speed by default.
+  The host can restrict control in **Viewers & controls**; existing rooms keep
+  their previous mode. The current control mode is visible beside the playback
+  action. Only the host can change room media,
   transfer the host role, remove members or end the room. Leaving and ending
   are distinct; leaving the destination with Back keeps the room active.
 - Chat confirms optimistic messages by server ID plus member/client ID and
   offers retry. The current history is room-scoped, separate from cloud sync
   buckets. Membership ends on sign-out, profile switch or entry into Kids.
+- Room and chat have separate tabs. Chat keeps its composer at the bottom;
+  invitations stay near the room code, with viewer/admin actions disclosed
+  separately and leave/end actions in the room menu.
 
 Android registers the new invite host on the existing activity; iOS already
 registers the shared scheme and forwards all incoming URLs. Pending invitation
@@ -53,6 +60,25 @@ storage stay with the existing player/session implementation. Detached bindings
 cannot issue new native commands; status ownership prevents a retiring route
 from clearing the new route's ready state.
 
+The room calls `watch_party_playback.dart` and the shared
+`media/media_playback_launcher.dart` directly. The launcher also serves normal
+detail playback, retaining source headers, torrent preparation and native
+retirement barriers. It rechecks room membership/media after source selection
+and resolution, and before native navigation; stale prepared leases are stopped.
+The binding applies pause before seeking, checks Core command outcomes rather
+than discarding rejected commands, and reports native reconciliation failures.
+Transport checks tolerate membership-only revisions, and a snapshot received
+during native work schedules an immediate follow-up reconciliation.
+An already hung native operation still owns Core's serialized command lane;
+new room intent is retained until that operation completes or native ownership
+is retired. The client does not create another native engine to bypass it.
+
+When a room is opened above a different-media player, the route-local handoff
+retires the old player before opening the new source picker. Core retains its
+shared ownership barrier; Legacy awaits native close before releasing its
+torrent, including late cleanup after a retirement timeout. A retirement
+failure blocks that handoff instead of starting simultaneous playback.
+
 Party playback opens paused and reconciles with the room, bypassing ordinary
 resume prompts. Background pauses stay local; foreground return reconciles
 again. Local tools do not pause/resume the whole room. Non-host auto-advance and
@@ -71,7 +97,8 @@ target = position_ms                                (while paused)
 
 The client anchors server time to a monotonic clock using the lowest observed
 RPC RTT midpoint. Projection respects playback speed and local duration. First
-application and play/pause changes seek to the room; periodic correction seeks
+application seeks only above 250 ms of drift, so a zero-start source does not
+need seek capability merely to begin. Periodic correction seeks
 above 1500 ms while playing or 500 ms while paused. Smaller playing drift starts
 a local ±5% rate adjustment above 250 ms and stops inside 80 ms. Seek attempts
 are spaced by at least 500 ms. Host exact samples publish every two seconds
@@ -88,10 +115,11 @@ implementation rules, not measured device synchronization accuracy.
 
 ## Server contract and security
 
-Apply both migrations in order:
+Apply the migrations in order:
 
 1. `20261111091937_watch_parties.sql`
 2. `20261111092449_watch_party_access_guards.sql`
+3. `20261111133733_watch_party_shared_controls.sql`
 
 They were applied to the existing configured NOVA project on 2026-11-11.
 Their filenames match the versions returned by the deployed migration history.
@@ -165,11 +193,17 @@ tables. See the official [broadcast troubleshooting guide](https://supabase.com/
 
 Flutter coverage is in `watch_party_models_test.dart`,
 `watch_party_controller_test.dart`, `watch_party_player_binding_test.dart`,
-`watch_party_page_test.dart`, and the Party interceptor regression in
+`watch_party_page_test.dart`, `watch_party_playback_test.dart`,
+`watch_party_player_handoff_test.dart`, `media_playback_launcher_test.dart`,
+and the Party interceptor regression in
 `playback_session_test.dart`. Tests cover source/room generations, command echo
 suppression, late disposal, reconnect history, profile switching, chat retries,
 host-only control, clock/rate math and large-text Arabic/English layouts at
 320×640 and 900×360.
+An authoritative in-memory server fixture connects two controllers and two Core
+sessions or Legacy-style engine bindings, covering both directions of play/pause/seek/
+rate, rejection and echo suppression. Rendered room/chat checks also cover
+390×844 with Arabic/English fonts and safe areas.
 
 ```powershell
 flutter analyze --no-pub
@@ -180,20 +214,29 @@ Security advisors reported no new Party findings after the explicit access
 guards. Existing findings on legacy sync and older account/collection APIs
 were left in their original scope.
 
-Final verification on 2026-11-11: **894 Flutter tests passed**, full Flutter
+Final verification on 2026-11-11: **925 Flutter tests passed**, full Flutter
 analysis and the final changed-file analysis reported no issues, and the
 Android arm64 Release APK built successfully. Its compiled manifest contains
 the `app.nova.mobile://watch-party` handler. The artifact is
-`build/app/outputs/flutter-apk/app-release.apk` (about 96.2 MB).
-Logs and the current artifact SHA-256 are under `.codex/watch-party-*.log` and
-`.codex/watch-party-validation.json`. Android tooling reported existing Gradle,
+`build/app/outputs/flutter-apk/app-release.apk` (about 96.4 MB).
+Logs and the current artifact SHA-256 are under `.codex/watch-party-fix-*-final.log` and
+`.codex/watch-party-fix-validation.json`. Android tooling reported existing Gradle,
 AGP and Kotlin upgrade notices; no build configuration was changed for them.
 
-## Remaining acceptance
+## Two-phone feedback and remaining acceptance
 
-SQL claims/role tests and a public WebSocket probe do not establish a successful
-authenticated private-channel conversation between actual accounts. Run two
-signed-in clients through create/join, source selection, play/pause/seek/speed,
+The user tested Android with iPhone and confirmed room creation, invitations,
+membership and chat worked. They reported that the guest had to start the
+episode manually and that neither phone's pause controlled the other. The
+follow-up fixes add direct exact-episode source entry, shared control by
+default and native-command reconciliation regressions. These fixes still need
+another physical Android/iPhone run; prior successful chat is not proof of
+corrected playback synchronization.
+
+Automated SQL claims/role tests and the public WebSocket probe do not establish
+native playback synchronization. The user's invitation/chat result applies to
+their reported two-phone run. Repeat with updated signed-in clients through
+create/join, source selection, play/pause/seek/speed,
 buffering, network loss/rejoin, host transfer/removal, profile switch, Kids,
 six-hour expiry and native source/backend replacement. Measure actual drift,
 latency and battery/resource use on physical Android and iPhone devices.

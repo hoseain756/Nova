@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import 'engine/playback_engine.dart';
+import 'session/playback_state.dart';
 
 /// Uses exact engine reads, never the coalesced display timeline. Its own
 /// timer/listener never calls setState on either fullscreen player page.
@@ -29,6 +31,7 @@ class WatchPartyPlayerBinding {
   Timer? _timer;
   bool _disposed = false,
       _working = false,
+      _tickPending = false,
       _foreground = true,
       _canChangeMedia = false;
   bool _wasMatching = false,
@@ -39,7 +42,7 @@ class WatchPartyPlayerBinding {
   String? _notifiedMediaKey;
   int _lastSeek = -10000, _lastPublish = -10000, _bufferSince = -1;
   double? _baseRate;
-  bool? _lastPlaying;
+  bool _reportedNativeFailure = false;
   bool get _active =>
       !_disposed &&
       isActive() &&
@@ -71,6 +74,7 @@ class WatchPartyPlayerBinding {
       controller.releasePlaybackStatus(this);
     } else {
       _wasMatching = false;
+      _lastSeek = -10000;
       unawaited(controller.refresh());
     }
   }
@@ -79,8 +83,15 @@ class WatchPartyPlayerBinding {
     if (!_disposed) unawaited(_tick());
   }
 
-  Future<void> _native(Future<void> Function() action) =>
-      runZoned(action, zoneValues: {PlaybackEngine.watchPartyRemoteZone: true});
+  Future<void> _native(Future<dynamic> Function() action) async {
+    final result = await runZoned(action,
+        zoneValues: {PlaybackEngine.watchPartyRemoteZone: true});
+    // Core reports command outcomes without throwing; Legacy reports native
+    // failures as exceptions. Both must keep failed sync visible to the user.
+    if (result is PlaybackCommandResult && !result.applied && _active) {
+      throw StateError('Watch Party native command rejected');
+    }
+  }
 
   Future<void> _restoreRate() async {
     final rate = _baseRate;
@@ -90,13 +101,19 @@ class WatchPartyPlayerBinding {
   }
 
   Future<void> _tick() async {
-    if (_working || !_active) return;
+    if (!_active) return;
+    if (_working) {
+      _tickPending = true;
+      return;
+    }
     _working = true;
     try {
       final room = controller.snapshot;
       if (room == null || !media.supported) {
         await _restoreRate();
         _wasMatching = false;
+        _lastSeek = -10000;
+        _reportedNativeFailure = false;
         return;
       }
       if (room.isHost &&
@@ -128,6 +145,7 @@ class WatchPartyPlayerBinding {
           onError?.call('partyTitleChanged');
         }
         _wasMatching = false;
+        _lastSeek = -10000;
         return;
       }
       _adoptedRoom = room.id;
@@ -146,6 +164,15 @@ class WatchPartyPlayerBinding {
         }
         return;
       }
+      final roomId = room.id;
+      bool validTransport() =>
+          _active &&
+          controller.snapshot?.id == roomId &&
+          // Membership/readiness heartbeats advance the room revision too.
+          // Only a newer transport intent invalidates an in-flight command.
+          _sameTransport(controller.snapshot!, room) &&
+          identical(engine.watchPartyCommand, _handler);
+      bool current() => engine.ready && validTransport();
       String status;
       if (!engine.ready || engine.failed) {
         status = 'loading';
@@ -157,6 +184,13 @@ class WatchPartyPlayerBinding {
         status = 'ready';
       }
       controller.setPlaybackStatus(status, media.key, owner: this);
+      // Native seeking can be unavailable, fail, or wait for network data on
+      // either backend. Even a failed Core session can still be playing; a
+      // room pause must reach native before readiness or seek correction.
+      if (!room.playing && engine.playing && validTransport()) {
+        await _native(() => engine.pause());
+        if (!validTransport()) return;
+      }
       if (!engine.ready || engine.failed) return;
       // Natural completion must stop the shared clock before reconciliation;
       // otherwise a playing room would repeatedly restart the final frames.
@@ -167,28 +201,23 @@ class WatchPartyPlayerBinding {
       // A paused-open backend may require play intent to finish filling its
       // buffer. Waiting for buffering=false before play would deadlock it.
       if (engine.buffering) {
-        if (_active &&
-            controller.snapshot?.revision == room.revision &&
-            engine.playing != room.playing) {
+        if (current() && engine.playing != room.playing) {
           await _native(() => room.playing ? engine.play() : engine.pause());
         }
         return;
       }
-      final revision = room.revision, roomId = room.id;
-      bool current() =>
-          _active &&
-          engine.ready &&
-          controller.snapshot?.id == roomId &&
-          controller.snapshot?.revision == revision &&
-          identical(engine.watchPartyCommand, _handler);
       final target = room.targetMs(controller.clock.nowMs,
           localDurationMs: engine.duration.inMilliseconds);
       final drift = target - engine.position.inMilliseconds;
-      final stateChanged = _lastPlaying != room.playing;
-      final forceSeek = !_wasMatching || stateChanged;
+      // An already aligned paused-open source can play even when seeking is
+      // unavailable. Only meaningful initial drift needs an alignment seek.
+      final forceSeek = !_wasMatching && drift.abs() > 250;
       final shouldSeek =
           forceSeek || (room.playing ? drift.abs() > 1500 : drift.abs() > 500);
-      if (shouldSeek && now - _lastSeek >= 500 && current()) {
+      if (shouldSeek) {
+        // A throttled correction is still pending; do not play or announce a
+        // successful match until that seek has actually been accepted.
+        if (now - _lastSeek < 500 || !current()) return;
         _lastSeek = now;
         await _native(() => engine.seekTo(Duration(milliseconds: target)));
         if (!current()) return;
@@ -209,7 +238,7 @@ class WatchPartyPlayerBinding {
         if (!current()) return;
       }
       _wasMatching = true;
-      _lastPlaying = room.playing;
+      _reportedNativeFailure = false;
       if (room.isHost &&
           !room.waiting &&
           now - _lastPublish >= 2000 &&
@@ -221,12 +250,31 @@ class WatchPartyPlayerBinding {
             positionMs: engine.position.inMilliseconds,
             durationMs: engine.duration.inMilliseconds);
       }
-    } catch (_) {
-      /* A retiring/failed native engine cannot keep the binding alive. */
+    } catch (error) {
+      // Retired routes are expected to reject late work. An active route's
+      // failure needs visible feedback instead of silently losing room sync.
+      if (_active && !_reportedNativeFailure) {
+        _reportedNativeFailure = true;
+        debugPrint('Watch Party native reconciliation failed: '
+            '${error.runtimeType}');
+        onError?.call('partySyncFailed');
+      }
     } finally {
       _working = false;
+      if (_tickPending) {
+        _tickPending = false;
+        scheduleMicrotask(() => unawaited(_tick()));
+      }
     }
   }
+
+  bool _sameTransport(WatchPartySnapshot a, WatchPartySnapshot b) =>
+      a.media?.key == b.media?.key &&
+      a.playing == b.playing &&
+      a.rate == b.rate &&
+      a.positionMs == b.positionMs &&
+      a.atMs == b.atMs &&
+      a.waiting == b.waiting;
 
   void dispose() {
     if (_disposed) return;

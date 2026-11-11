@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:nova_mobile/core/update/app_update_service.dart';
+import 'package:nova_mobile/core/version.dart';
 
 class _PlainTextJsonAdapter implements HttpClientAdapter {
   _PlainTextJsonAdapter(this.body);
@@ -31,13 +32,29 @@ class _PlainTextJsonAdapter implements HttpClientAdapter {
 }
 
 void main() {
+  test('root release manifest matches the app and updates the previous build',
+      () {
+    final manifest = AppUpdateManifest.fromJson(
+        jsonDecode(File('version.json').readAsStringSync())
+            as Map<String, dynamic>);
+    expect(manifest.latestVersion, noorVersion);
+    expect(manifest.latestBuild, noorBuild);
+    expect(manifest.androidUrl,
+        'https://github.com/hoseain756/Nova/releases/download/v$noorVersion/app-release.apk');
+    expect(
+        AppUpdateStatus(
+                manifest: manifest, currentVersion: '1.0.6', currentBuild: 69)
+            .hasUpdate,
+        isTrue);
+  });
+
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.6',
-    'latest_build': 69,
+    'latest_version': '1.0.7',
+    'latest_build': 70,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
-        'https://github.com/hoseain756/Nova/releases/download/v1.0.6/app-release.apk',
+        'https://github.com/hoseain756/Nova/releases/download/v1.0.7/app-release.apk',
     'ios_url': '',
   };
 
@@ -50,14 +67,14 @@ void main() {
       packageInfoProvider: () async => PackageInfo(
         appName: 'NOVA',
         packageName: 'app.nova.mobile',
-        version: '1.0.5',
-        buildNumber: '68',
+        version: '1.0.6',
+        buildNumber: '69',
       ),
     );
 
     final status = await service.checkForUpdates();
 
-    expect(status.manifest.latestBuild, 69);
+    expect(status.manifest.latestBuild, 70);
     expect(status.hasUpdate, isTrue);
     expect(status.forceRequired, isFalse);
   });
@@ -65,12 +82,12 @@ void main() {
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.6');
-    expect(manifest.latestBuild, 69);
+    expect(manifest.latestVersion, '1.0.7');
+    expect(manifest.latestBuild, 70);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
-      'https://github.com/hoseain756/Nova/releases/download/v1.0.6/app-release.apk',
+      'https://github.com/hoseain756/Nova/releases/download/v1.0.7/app-release.apk',
     );
   });
 
@@ -100,8 +117,8 @@ void main() {
     expect(current.forceRequired, isFalse);
     final latest = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.0.6',
-      currentBuild: 69,
+      currentVersion: '1.0.7',
+      currentBuild: 70,
     );
     expect(latest.hasUpdate, isFalse);
     expect(latest.forceRequired, isFalse);
@@ -215,7 +232,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 70,
+        'min_build': (manifestJson['latest_build'] as int) + 1,
       }),
       throwsFormatException,
     );

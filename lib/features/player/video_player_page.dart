@@ -45,6 +45,7 @@ import 'widgets/subtitle_overlay.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import '../watch_party/watch_party_page.dart';
+import '../watch_party/watch_party_player_handoff.dart';
 import 'watch_party_player_binding.dart';
 
 /// Fullscreen player with centralized transport, a directional timeline and tool dialogs.
@@ -124,6 +125,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _partyBinding = null;
     if (engine == null ||
         controller == null ||
+        _partyRetirement != null ||
         !widget.recordProgress ||
         _liveChannel ||
         _app.kidsSession) {
@@ -154,11 +156,64 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _attachPartyBinding(_engine);
   }
 
-  void _openParty() => unawaited(openWatchParty(context,
-      media: _partyMedia,
-      positionMs: _engine?.position.inMilliseconds ?? 0,
-      playing: _engine?.playing ?? false,
-      rate: _engine?.rate ?? 1));
+  Future<void>? _partyRetirement;
+
+  void _openParty() {
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    unawaited(openWatchParty(context,
+        media: _partyMedia,
+        positionMs: _engine?.position.inMilliseconds ?? 0,
+        playing: _engine?.playing ?? false,
+        rate: _engine?.rate ?? 1,
+        onJoinPlayback: (roomContext, room) => handoffWatchPartyPlayback(
+              roomContext,
+              room: room,
+              currentMedia: _partyMedia,
+              playerRoute: route,
+              retirePlayback: _retireForParty,
+            )));
+  }
+
+  Future<void> _retireForParty() => _partyRetirement ??= () async {
+        // This future takes ownership from dispose before the first await.
+        // A route removed during checkpointing must not stop its torrent while
+        // the native player still holds requests against the local server.
+        _closing = true;
+        _temporarySpeed.invalidate();
+        _partyBinding?.dispose();
+        _partyBinding = null;
+        final engine = _engine;
+        engine?.removeListener(_onEngineTick);
+        _progressBinding?.unbind();
+        try {
+          if (!_stopScrobbled) {
+            _scrobble('stop');
+            _stopScrobbled = true;
+          }
+        } catch (error) {
+          debugPrint('[NOVA] party handoff scrobble failed: '
+              '${error.runtimeType}');
+        }
+        try {
+          await retireWatchPartyLegacyPlayback(
+            pause: () async {
+              if (engine?.playing == true) await engine!.pause();
+            },
+            captureFrame: _captureResumeSnapshot,
+            saveProgress: _saveProgress,
+            closeNative: () async {
+              // Do not mix dispose() with this awaitable ownership path.
+              await engine?.close();
+              _engine = null;
+            },
+            releaseTorrent: () async => widget.torrent?.stop(),
+          );
+        } catch (_) {
+          _closing = false;
+          rethrow;
+        }
+      }();
   PlaybackProgressBinding? _progressBinding;
   late final AppState _app = context.read<AppState>();
   Timer? _hideTimer;
@@ -523,6 +578,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
       10;
 
   void _createEngine({bool softwareDecoding = false}) {
+    if (_partyRetirement != null) return;
     _externalSegmentsRequested = false;
     final wasHolding = _temporarySpeed.active;
     _temporarySpeed.invalidate();
@@ -709,7 +765,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   Future<void> _retryTorrentOpen(MediaKitEngine failedEngine) async {
-    if (!mounted || !identical(_engine, failedEngine)) return;
+    if (!mounted ||
+        _partyRetirement != null ||
+        !identical(_engine, failedEngine)) {
+      return;
+    }
     debugPrint(
       '[NoorPlayback] retrying torrent HTTP open once: '
       '${failedEngine.errorMessage ?? 'unknown error'}',
@@ -726,7 +786,11 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   }
 
   void _retryWithSoftwareDecoding(MediaKitEngine failedEngine) {
-    if (!mounted || !identical(_engine, failedEngine)) return;
+    if (!mounted ||
+        _partyRetirement != null ||
+        !identical(_engine, failedEngine)) {
+      return;
+    }
     // The codec error may arrive after audio has already advanced. Preserve
     // that position so switching to FFmpeg's software decoder doesn't restart
     // the episode from the beginning.
@@ -1736,6 +1800,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     required Map<String, dynamic> stream,
     required List<Map<String, dynamic>> streams,
   }) async {
+    if (_partyRetirement != null) return;
     await _endTemporarySpeed();
     final resolved = await _resolveForPlayback(_app, stream);
     if (!mounted) return;
@@ -1795,7 +1860,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// empty state, never a dead end. Used by the Up-Next card's Next button
   /// AND by the auto-advance when a data-provided countdown exists.
   Future<void> _startEpisodeSources(Map<String, dynamic> episode) async {
-    if (_episodeTransitionBusy) return;
+    if (_episodeTransitionBusy || _partyRetirement != null) return;
     _episodeTransitionBusy = true;
     try {
       final episodeId = (episode['id'] ?? widget.item.id).toString();
@@ -2203,16 +2268,16 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     _torrentSub?.cancel();
     _subStyle.dispose();
     final torrent = widget.torrent;
-    if (torrent != null) unawaited(torrent.stop());
+    if (_partyRetirement == null && torrent != null) unawaited(torrent.stop());
     final engine = _engine;
     engine?.removeListener(_onEngineTick);
-    if (!_allowRoutePop) {
+    if (!_allowRoutePop && _partyRetirement == null) {
       unawaited(_saveProgress().catchError((Object error) {
         debugPrint('[NOVA] legacy dispose progress save failed: '
             '${error.runtimeType}');
       }));
     }
-    engine?.dispose();
+    if (_partyRetirement == null) engine?.dispose();
     unawaited(_restoreBrightness());
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(const []);
@@ -2367,6 +2432,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
                       : (engine?.errorMessage ?? _engineInitError),
                   english: english,
                   onRetry: () {
+                    if (_partyRetirement != null) return;
                     _softwareDecodeRetryUsed = false;
                     final old = _engine;
                     _progressBinding?.unbind();

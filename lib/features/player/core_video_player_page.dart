@@ -48,6 +48,7 @@ import 'widgets/subtitle_overlay.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import '../watch_party/watch_party_page.dart';
+import '../watch_party/watch_party_player_handoff.dart';
 import 'watch_party_player_binding.dart';
 
 /// Fullscreen player with centralized transport, a directional timeline and tool dialogs.
@@ -126,6 +127,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _partyBinding = null;
     if (engine == null ||
         controller == null ||
+        _partyRetirement != null ||
         !widget.recordProgress ||
         _liveChannel ||
         _app.kidsSession) {
@@ -157,11 +159,49 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _attachPartyBinding(_engine);
   }
 
-  void _openParty() => unawaited(openWatchParty(context,
-      media: _partyMedia,
-      positionMs: _engine?.position.inMilliseconds ?? 0,
-      playing: _engine?.playing ?? false,
-      rate: _engine?.rate ?? 1));
+  Future<void>? _partyRetirement;
+
+  void _openParty() {
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    unawaited(openWatchParty(context,
+        media: _partyMedia,
+        positionMs: _engine?.position.inMilliseconds ?? 0,
+        playing: _engine?.playing ?? false,
+        rate: _engine?.rate ?? 1,
+        onJoinPlayback: (roomContext, room) => handoffWatchPartyPlayback(
+              roomContext,
+              room: room,
+              currentMedia: _partyMedia,
+              playerRoute: route,
+              retirePlayback: _retireForParty,
+            )));
+  }
+
+  Future<void> _retireForParty() => _partyRetirement ??= () async {
+        _closing = true;
+        _temporarySpeed.invalidate();
+        _engine?.cancelResolution();
+        _partyBinding?.dispose();
+        _partyBinding = null;
+        try {
+          if (!_stopScrobbled) {
+            _scrobble('stop');
+            _stopScrobbled = true;
+          }
+        } catch (error) {
+          debugPrint('[NOVA] party handoff scrobble failed: '
+              '${error.runtimeType}');
+        }
+        try {
+          // This uses the session's exact final checkpoint, native-before-
+          // torrent close ordering, resolver drain and failed-close barrier.
+          await PlaybackOwnership.shared.retireCurrent();
+        } catch (_) {
+          _closing = false; // The old route can still be exited after failure.
+          rethrow;
+        }
+      }();
   PlaybackPanelToken? _panelToken;
   Object? _featureProjection;
   late final AppState _app = context.read<AppState>();
@@ -1618,10 +1658,12 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final owner = _engine;
     if (owner == null || (owner.isClosing && !allowRetired)) return;
     final resolutionIdentity = owner.beginResolution();
-    final pausing = owner.pause();
+    // Source choice is local to this device. Keep room play intent intact;
+    // the ownership handoff below retires native output when it is needed.
+    final pausing = _partyMatching ? null : owner.pause();
     final handoffIntent = owner.handoffIntent(
         resolutionIdentity, _pendingContinuity?.playing ?? false);
-    await pausing;
+    if (pausing != null) await pausing;
     await _saveProgress();
     if (!mounted || !owner.acceptsResolution(resolutionIdentity)) return;
     final resolved = await owner.resolve(resolutionIdentity, () async {
@@ -1730,7 +1772,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     try {
       final episodeId = (episode['id'] ?? widget.item.id).toString();
       if (episodeId == widget.videoId) return;
-      await _engine?.pause();
+      if (!_partyMatching) await _engine?.pause();
       await _saveProgress();
       if (!mounted) return;
       final picked = await Navigator.of(context).push<Map<String, dynamic>>(

@@ -22,11 +22,10 @@ import '../../shared/widgets/nova_parental_gate.dart';
 import '../anime/anime_tracker_sheet.dart';
 import '../library/custom_list_picker.dart';
 import '../player/stream_headers.dart';
-import '../player/playback_entry_page.dart';
-import '../player/session/playback_session.dart';
 import '../shell/noor_dock_tabs.dart' show glassDockContentClearance;
 import 'detail_hero.dart';
 import 'letterboxd_detail_section.dart';
+import 'media_playback_launcher.dart';
 import 'episode_data.dart';
 import 'episode_views.dart';
 import 'sources_page.dart';
@@ -813,287 +812,23 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Playback machinery (unchanged contract — moved, not rewritten)
-  // -------------------------------------------------------------------------
-
   Future<void> _play(
     MediaItem item, {
     Map<String, dynamic>? video,
     int? resumePositionMs,
-  }) async {
-    final app = context.read<AppState>();
-    final english = app.english;
-    final episode = video;
-    // Task 139 (user mandate): watch / episode taps land DIRECTLY on the
-    // sources page — the streams are fetched INSIDE it (spinner + refresh
-    // button next to the search bar) and only the picked stream is
-    // resolved afterwards. The old instant-play auto-pick is gone: the
-    // user always chooses the source.
-    final id = (episode?['id'] as String?) ?? item.id;
-    final picked = await Navigator.of(context).push<Map<String, dynamic>>(
-      MaterialPageRoute(
-        builder: (_) => SourcesPage(
-          item: item,
-          video: episode,
-          english: english,
-          loader: () => loadRankedSources(app: app, item: item, videoId: id),
-        ),
-      ),
-    );
-    if (picked == null || !mounted) return;
-    await _launchStream(
-      item: item,
-      episode: episode,
-      stream: picked,
-      resumePositionMs: resumePositionMs,
-    );
-  }
-
-  /// Resolves the chosen stream (direct URL / debrid / on-device torrent)
-  /// and pushes the player — the playback contract carried over unchanged
-  /// from the old inline-sheet flow, now fed by the sources page.
-  Future<void> _launchStream({
-    required MediaItem item,
-    required Map<String, dynamic>? episode,
-    required Map<String, dynamic> stream,
-    required int? resumePositionMs,
-  }) async {
-    final id = (episode?['id'] as String?) ?? item.id;
-    final chosenStream = stream;
-    setState(() => _loadingStreams = true);
-    PreparedTorrent? prepared;
-    Map<String, String>? directHeaders;
-    try {
-      final hints =
-          (chosenStream['behaviorHints'] as Map?)?.cast<String, dynamic>() ??
-              const <String, dynamic>{};
-      final filename = (hints['filename'] ?? chosenStream['title'])?.toString();
-      final String url;
-      final direct = parsePlaybackSource(chosenStream);
-      // Task 128: addons increasingly return magnet: URIs in the url field —
-      // they resolve through debrid/engine (trackers preserved), never mpv.
-      final magnetUrl = (direct?.url ?? '').toLowerCase().startsWith('magnet:')
-          ? direct!.url
-          : null;
-      if (direct != null &&
-          magnetUrl == null &&
-          direct.url.startsWith('http')) {
-        // Direct HTTP sources play as-is; the player attaches the source's
-        // headers (pipe syntax / proxyHeaders flat or nested / legacy
-        // headers — all normalized by parsePlaybackSource, Task 127).
-        url = direct.url;
-        directHeaders = direct.headers.isEmpty ? null : direct.headers;
-      } else {
-        // Task 142: the shared TorrentStreamHints extraction (info-hash from
-        // the stream or the magnet, Torrentio `sources` trackers, `fileIdx`,
-        // behaviorHints filename, declared size) — identical to the in-player
-        // source resolver, pinned by torrent_stream_hints_test.dart.
-        final torrentHints = TorrentStreamHints.fromStream(
-          chosenStream,
-          magnetUri: magnetUrl,
-          fallbackName: item.name,
-        );
-        final resolved = await _resolveTorrentStream(
-          displayName: item.name,
-          infoHash: torrentHints.infoHash,
-          filename: torrentHints.filename,
-          filesize: torrentHints.filesize,
-          magnet: magnetUrl,
-          trackers: torrentHints.trackers,
-          fileIndex: torrentHints.fileIndex,
-        );
-        if (!mounted) return;
-        if (resolved == null) {
-          setState(() => _loadingStreams = false);
-          return;
-        }
-        url = resolved.url;
-        prepared = resolved.torrent;
-      }
-      if (!mounted) return;
-      setState(() => _loadingStreams = false);
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => PlaybackEntryPage(
-            item: item,
-            url: url,
-            headers: directHeaders,
-            filename: filename,
-            torrent: prepared,
-            streamName:
-                (chosenStream['title'] ?? chosenStream['addonName'] ?? 'NOVA')
-                    .toString(),
-            videoId: id,
-            season: (episode?['season'] as num?)?.toInt(),
-            episode: (episode?['episode'] as num?)?.toInt(),
-            initialPositionMs: resumePositionMs ??
-                (widget.resumeVideoId == episode?['id']
-                    ? widget.resumePositionMs
-                    : null),
-            // Task 139: hand the player the picked stream row — the
-            // skip-intro/outro + Up-Next resolver reads the CURRENT
-            // stream's metadata (behaviorHints etc.), and before this the
-            // player never saw any stream row at all.
-            streams: [chosenStream],
-            streamIndex: 0,
-          ),
-          fullscreenDialog: true,
-        ),
-      );
-    } catch (error) {
-      if (mounted) setState(() => _loadingStreams = false);
-      if (mounted) {
-        // Task 128: friendly, actionable message instead of the raw
-        // `TorrentException(metadata_timeout): …` toast.
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is PlaybackRetirementException
-                  ? NovaStrings.lookup(context.read<AppState>().english,
-                      'playerNativeRetirementFailed')
-                  : torrentFriendlyMessage(
-                      error,
-                      english: context.read<AppState>().english,
-                    ),
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  /// Resolves an infoHash stream through the connected Debrid service first
-  /// and the on-device torrent engine second (Task 118). The player opens as
-  /// soon as the local endpoint is bound and buffers missing pieces while the
-  /// torrent downloads; it does not wait for an arbitrary file percentage.
-  /// Returns `null` after showing a bilingual explanation when no resolution
-  /// path exists (or the user cancels).
-  Future<({String url, PreparedTorrent? torrent})?> _resolveTorrentStream({
-    required String displayName,
-    required String infoHash,
-    required String? filename,
-    required int? filesize,
-    String? magnet,
-    List<String> trackers = const <String>[],
-    int? fileIndex,
-  }) async {
-    final app = context.read<AppState>();
-    final api = app.api;
-    final english = app.english;
-    final debridConfigured = api.debridService != null;
-    var engineSupported = false;
-    if (!debridConfigured) {
-      try {
-        engineSupported = await TorrentService.instance.isSupported;
-      } catch (_) {
-        engineSupported = false;
-      }
-      if (!engineSupported) {
-        // Neither path exists on this device — explain the requirement.
-        _showNoTorrentPathMessage(english);
-        return null;
-      }
-    }
-    if (!mounted) return null;
-    final navigator = Navigator.of(context, rootNavigator: true);
-    var cancelled = false;
-    var dialogOpen = true;
-    // null = indeterminate phase (debrid round-trip / metadata fetch);
-    // non-null = live engine status with a real percentage.
-    final status = ValueNotifier<TorrentStatus?>(null);
-    Future<void> closeDialog() async {
-      if (dialogOpen) {
-        dialogOpen = false;
-        navigator.pop();
-      }
-    }
-
-    unawaited(showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => StreamPrepareDialog(
-        english: english,
-        status: status,
-        onCancel: () {
-          cancelled = true;
-          unawaited(closeDialog());
+  }) =>
+      launchMediaPlayback(
+        context,
+        item: item,
+        video: video,
+        resumePositionMs: resumePositionMs ??
+            (widget.resumeVideoId == video?['id']
+                ? widget.resumePositionMs
+                : null),
+        onLoadingChanged: (loading) {
+          if (mounted) setState(() => _loadingStreams = loading);
         },
-      ),
-    ));
-    try {
-      if (debridConfigured) {
-        final url = await api.resolveDebridTorrent(
-          infoHash: infoHash,
-          filename: filename,
-          filesize: filesize,
-        );
-        if (cancelled) return null;
-        if (url != null && url.isNotEmpty) {
-          return (url: url, torrent: null);
-        }
-        // The debrid service could not resolve this torrent (not cached,
-        // quota, network…). Degrade to the on-device engine when possible.
-        try {
-          engineSupported = await TorrentService.instance.isSupported;
-        } catch (_) {
-          engineSupported = false;
-        }
-        if (cancelled) return null;
-        if (!engineSupported) {
-          _showNoTorrentPathMessage(english, debridFailed: true);
-          return null;
-        }
-      }
-      if (const bool.fromEnvironment('NOVA_PLAYER_CORE', defaultValue: true)) {
-        await PlaybackOwnership.shared.retireCurrent();
-      }
-      if (cancelled) return null;
-      final prepared = await TorrentService.instance.prepare(
-        infoHash: infoHash,
-        magnet: magnet,
-        filename: filename,
-        filesize: filesize,
-        displayName: displayName,
-        trackers: trackers,
-        fileIndex: fileIndex,
       );
-      if (cancelled) {
-        // The user backed out while the engine was preparing the stream.
-        unawaited(prepared.stop());
-        unawaited(TorrentService.instance.remove(prepared.infoHash));
-        return null;
-      }
-      // prepare() has already bound the loopback HTTP server. Transfer control
-      // to mpv now; waiting for torrent.ready here can strand the user on this
-      // dialog when the swarm downloads out of order. The HTTP server waits
-      // for each requested piece and mpv owns buffering from this point on.
-      if (cancelled) {
-        unawaited(prepared.stop());
-        unawaited(TorrentService.instance.remove(prepared.infoHash));
-        return null;
-      }
-      return (url: prepared.url, torrent: prepared);
-    } finally {
-      await closeDialog();
-      status.dispose();
-    }
-  }
-
-  /// Bilingual SnackBar explaining that torrent playback needs either a
-  /// connected Debrid service or a device with the built-in torrent engine.
-  void _showNoTorrentPathMessage(bool english, {bool debridFailed = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          debridFailed
-              ? (NovaStrings.lookup(english, 'message182'))
-              : (NovaStrings.lookup(english, 'message183')),
-        ),
-      ),
-    );
-  }
 }
 
 /// The primary CTA's resolved target: which video to play, the resume

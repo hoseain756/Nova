@@ -25,8 +25,12 @@ begin
   r:=public.nova_party('create',da,pa,null,null,jsonb_build_object('media',jsonb_build_object('id','bad')));
   assert r->>'error'='invalid_media','invalid creation must not leave a membership';
   assert not exists(select 1 from app_private.nova_party_members where account_id=a),'invalid create had side effects';
+  r:=public.nova_party('create',da,pa,null,null,'{"host_only":"false"}');
+  assert r->>'error'='invalid','creation control mode must be a boolean';
+  assert not exists(select 1 from app_private.nova_party_members where account_id=a),'invalid control mode had side effects';
   r:=public.nova_party('create',da,pa,null,null,jsonb_build_object('media',media));
   assert r->>'error' is null,'create failed';
+  assert not (r->'room'->>'host_only')::boolean,'new rooms must default to shared playback control';
   room_id:=(r->'room'->>'id')::uuid; ha:=(r->>'self_member_id')::uuid;
   code:=r->'room'->>'code';
   assert char_length(code)=8 and code ~ '^[A-HJ-NP-Z2-9]{8}$','invalid room code';
@@ -48,6 +52,14 @@ begin
   assert r->>'error' is null and mb is not null,'guest join';
   rev:=(r->'room'->>'revision')::bigint;
   r:=public.nova_party('command',db,pb,room_id,null,jsonb_build_object('revision',rev,'command','play','media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke'));
+  assert r->>'error' is null and (r->'room'->>'playing')::boolean,'guest can play in a new shared-control room';
+  rev:=(r->'room'->>'revision')::bigint;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',false)::text,true);
+  r:=public.nova_party('configure',da,pa,room_id,null,jsonb_build_object('revision',rev,'host_only',true));
+  assert (r->'room'->>'host_only')::boolean,'host can restrict playback control';
+  rev:=(r->'room'->>'revision')::bigint;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','is_anonymous',false)::text,true);
+  r:=public.nova_party('command',db,pb,room_id,null,jsonb_build_object('revision',rev,'command','pause','media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke'));
   assert r->>'error'='host_required','host-only guest control';
   r:=public.nova_party('publish',da,pb,room_id,null,jsonb_build_object('revision',rev,'media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke','position_ms',100,'duration_ms',100000));
   assert r->>'error'='not_member','device ID cannot impersonate another account';

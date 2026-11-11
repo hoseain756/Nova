@@ -31,6 +31,7 @@ class WatchPartyController extends ChangeNotifier {
   String? _mediaKey;
   Object? _statusOwner;
   bool _disposed = false, _refreshing = false, _publishing = false;
+  bool _refreshPending = false, _refreshHistoryPending = false;
   int _generation = 0, _commandCount = 0;
   Timer? _heartbeat;
   Future<void> _commands = Future<void>.value();
@@ -179,6 +180,7 @@ class WatchPartyController extends ChangeNotifier {
 
   Future<void> create(
           {WatchPartyMedia? media,
+          bool hostOnly = false,
           int positionMs = 0,
           bool playing = false,
           double rate = 1}) =>
@@ -191,6 +193,7 @@ class WatchPartyController extends ChangeNotifier {
         }
         await _call('create', payload: {
           if (media != null) 'media': media.toJson(),
+          'host_only': hostOnly,
           'position_ms': positionMs,
           'playing': playing,
           'rate': rate
@@ -227,7 +230,12 @@ class WatchPartyController extends ChangeNotifier {
   }
 
   Future<void> refresh({bool history = true}) async {
-    if (_refreshing || snapshot == null || _disposed) return;
+    if (snapshot == null || _disposed) return;
+    if (_refreshing) {
+      _refreshPending = true;
+      _refreshHistoryPending |= history;
+      return;
+    }
     _refreshing = true;
     final generation = _generation;
     try {
@@ -239,7 +247,15 @@ class WatchPartyController extends ChangeNotifier {
         await _call('snapshot', roomRequired: true);
       }
     } catch (_) {/* Retain last state and show reconnect/retry. */} finally {
-      if (generation == _generation) _refreshing = false;
+      if (generation == _generation) {
+        _refreshing = false;
+        if (_refreshPending) {
+          final history = _refreshHistoryPending;
+          _refreshPending = false;
+          _refreshHistoryPending = false;
+          unawaited(refresh(history: history));
+        }
+      }
     }
   }
 
@@ -417,6 +433,8 @@ class WatchPartyController extends ChangeNotifier {
     ++_generation;
     busy = false;
     _refreshing = false;
+    _refreshPending = false;
+    _refreshHistoryPending = false;
     _publishing = false;
     _commandCount = 0;
     _commands = Future<void>.value();
