@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/features/player/widgets/player_side_panel.dart';
+import 'package:nova_mobile/features/player/widgets/player_sheets.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,65 +28,76 @@ void main() {
     EdgeInsets padding = EdgeInsets.zero,
     TextDirection direction = TextDirection.ltr,
   }) {
-    // Mirror the page's real overlay: right-half Positioned inside a Stack.
-    // [padding] simulates the system MediaQuery the panel would see on a real
-    // device (e.g. a landscape camera cutout reported on one display edge).
     return MaterialApp(
-      builder: (context, child) =>
-          Directionality(textDirection: direction, child: child!),
-      home: Scaffold(
-        body: Stack(
-          children: [
-            PositionedDirectional(
-              end: 0,
-              top: 0,
-              bottom: 0,
-              width: playerPanelWidth(888),
-              child: Builder(
-                builder: (context) => MediaQuery(
-                  data: MediaQuery.of(context).copyWith(padding: padding),
-                  child: PlayerSidePanel(
-                    title: 'Panel',
-                    english: true,
-                    onClose: onClose ?? () {},
-                    onRefresh: onRefresh,
-                    refreshing: refreshing,
-                    child: ListView.builder(
-                      itemCount: 60,
-                      itemBuilder: (context, index) => ListTile(
-                        dense: true,
-                        title: Text('Row $index'),
+      home: Builder(
+          builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(padding: padding),
+              child: Directionality(
+                  textDirection: direction,
+                  child: Scaffold(
+                      body: Stack(children: [
+                    PlayerPanelOverlay(
+                      onClose: onClose ?? () {},
+                      child: PlayerSidePanel(
+                        title: 'Panel',
+                        english: true,
+                        onClose: onClose ?? () {},
+                        onRefresh: onRefresh,
+                        refreshing: refreshing,
+                        child: ListView.builder(
+                          itemCount: 60,
+                          itemBuilder: (context, index) => ListTile(
+                            dense: true,
+                            title: Text('Row $index'),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+                  ]))))),
     );
   }
 
   Finder headerButton(String label) => find.bySemanticsLabel(label);
 
-  testWidgets('panel width adapts and stays bounded for readability',
+  testWidgets('player dialog fits within a compact portrait viewport',
       (tester) async {
-    expect(playerPanelWidth(888), closeTo(426.24, .01));
-    expect(playerPanelWidth(560), 360.0);
-    expect(playerPanelWidth(1400), 560.0);
+    tester.view.physicalSize = const Size(320, 640);
+    await tester.pumpWidget(host());
+    final box = tester.getRect(find.byType(PlayerSidePanel));
+    expect(box.width, 296);
+    expect(box.center, const Offset(160, 320));
   });
 
-  testWidgets('landscape panel occupies the logical end, full height',
-      (tester) async {
+  testWidgets('landscape dialog is centered and bounded', (tester) async {
     await tester.pumpWidget(host());
-    await tester.pumpAndSettle();
-
     final box = tester.getRect(find.byType(PlayerSidePanel));
-    expect(box.top, 0);
-    expect(box.bottom, 412);
-    expect(box.left, closeTo(888 - playerPanelWidth(888), .01));
-    expect(box.right, 888);
+    expect(box.width, 520);
+    expect(box.height, closeTo(412 * .88, .01));
+    expect(box.center.dx, closeTo(444, .01));
+    expect(box.center.dy, closeTo(206, .01));
+  });
+
+  testWidgets(
+      'episode and subtitle dialogs use the same bounds and dismiss outside',
+      (tester) async {
+    const content = ValueKey('dialog content');
+    await tester.pumpWidget(MaterialApp(
+        home: Builder(
+            builder: (context) => Scaffold(
+                  body: TextButton(
+                      onPressed: () => showPlayerSheet<void>(context,
+                          builder: (_) => const SizedBox.expand(key: content)),
+                      child: const Text('Open')),
+                ))));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final box = tester.getRect(find.byKey(content));
+    expect(box.width, 520);
+    expect(box.height, closeTo(412 * .88, .01));
+    expect(box.center.dy, closeTo(206, .01));
+    await tester.tapAt(const Offset(10, 206));
+    await tester.pumpAndSettle();
+    expect(find.byKey(content), findsNothing);
   });
 
   testWidgets('compact geometry on a short landscape screen', (tester) async {
@@ -111,7 +123,7 @@ void main() {
     expect(refreshButton, findsOneWidget);
     // Header zone: above the scrollable list body.
     final center = tester.getCenter(refreshButton);
-    expect(center.dy, lessThan(120));
+    expect(center.dy, lessThan(tester.getTopLeft(find.byType(ListView)).dy));
     await tester.tap(refreshButton);
     await tester.pumpAndSettle();
     expect(refreshed, 1);
@@ -144,7 +156,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('list scrolling inside the right-half panel works',
+  testWidgets('tool dialog stays open while scrolling the list',
       (tester) async {
     await tester.pumpWidget(host());
     await tester.pumpAndSettle();
@@ -162,61 +174,19 @@ void main() {
     expect(find.text('Row 30'), findsOneWidget);
   });
 
-  Finder bodyRow(String label) => find.ancestor(
-        of: find.text(label),
-        matching: find.byType(ListTile),
-      );
-
-  testWidgets(
-      'NOVA inner gutter ignores opposite-edge cutouts — a '
-      'landscape camera cutout reported on the display\'s LEFT side never '
-      'opens a phantom dead strip inside the panel', (tester) async {
-    final semantics = tester.ensureSemantics();
-    // SM-A217F-class rotation: the punch-hole cutout shows up as the
-    // The old SafeArea chrome would have pushed content ~40dp+18dp inward.
-    await tester.pumpWidget(
-      host(padding: const EdgeInsets.only(left: 40)),
-    );
-    await tester.pumpAndSettle();
-
-    final panel = tester.getRect(find.byType(PlayerSidePanel));
-    expect(panel.left, closeTo(888 - playerPanelWidth(888), .01));
-
-    final row = tester.getRect(bodyRow('Row 0'));
-    expect(row.left, closeTo(888 - playerPanelWidth(888) + 24, .01));
-    expect(row.right, 888 - 24);
-
-    final close = tester.getRect(headerButton('Close'));
-    expect(close.right, 888 - 24);
-    semantics.dispose();
-  });
-
-  testWidgets(
-      'Task 140: real screen-edge insets are still honored — with the '
-      'camera on the RIGHT the content avoids the punch hole, while the '
-      'inner edge keeps its design gutter', (tester) async {
-    await tester.pumpWidget(
-      host(padding: const EdgeInsets.only(left: 40, right: 36)),
-    );
-    await tester.pumpAndSettle();
-
-    final row = tester.getRect(bodyRow('Row 0'));
-    expect(row.left, closeTo(888 - playerPanelWidth(888) + 24, .01));
-    // content ever sits under the physical camera hole in this rotation.
-    expect(row.right, 888 - 36 - 24);
-  });
-
-  testWidgets('RTL panel honors the actual left screen cutout only',
-      (tester) async {
-    await tester.pumpWidget(host(
-        direction: TextDirection.rtl,
-        padding: const EdgeInsets.only(left: 40, right: 36)));
-    await tester.pumpAndSettle();
-    final panel = tester.getRect(find.byType(PlayerSidePanel));
-    final row = tester.getRect(bodyRow('Row 0'));
-    expect(panel.left, 0);
-    expect(row.left, 64);
-    expect(row.right, closeTo(playerPanelWidth(888) - 24, .01));
-    expect(tester.takeException(), isNull);
-  });
+  for (final direction in TextDirection.values) {
+    testWidgets('dialog stays within asymmetric safe insets in $direction',
+        (tester) async {
+      await tester.pumpWidget(host(
+          direction: direction,
+          padding: const EdgeInsets.only(left: 40, right: 16)));
+      final box = tester.getRect(find.byType(PlayerSidePanel));
+      expect(box.center.dx, (40 + 888 - 16) / 2);
+      expect(box.left, greaterThan(40));
+      expect(box.right, lessThan(888 - 16));
+      final row = tester.getRect(find.text('Row 0'));
+      expect(box.contains(row.center), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

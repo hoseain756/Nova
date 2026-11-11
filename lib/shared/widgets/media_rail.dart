@@ -7,6 +7,7 @@ import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import '../../core/models/media_item.dart';
 import 'poster_card.dart';
+import 'poster_layout.dart';
 
 class MediaRail extends StatelessWidget {
   const MediaRail({
@@ -41,40 +42,13 @@ class MediaRail extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final wide = viewportWidth >= 700;
-    // Task 122-b (F5): the rail used to `watch` AppState (rebuilding the
-    // whole rail on any notification) for a single setting — select exactly
-    // that field instead (identical value, identical UI).
-    final showTitle = context.select<AppState, bool>(
-      (app) => app.webSettings['hidePosterTitles'] != true,
-    );
-    final showRelease =
-        showTitle && items.any((item) => item.releaseInfo != null);
-    final posterWidth = wide ? 138.0 : 122.0;
-    final posterHeight = posterWidth / .72;
-    final titleStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-          height: 1.3,
-        );
-    final releaseStyle = Theme.of(context).textTheme.bodySmall;
-    final cardTextHeight = showTitle
-        ? 8 +
-            _lineBoxHeight(
-              context,
-              titleStyle,
-              posterWidth,
-              lines: 2,
-            ) +
-            (showRelease
-                ? 3 +
-                    _lineBoxHeight(
-                      context,
-                      releaseStyle,
-                      posterWidth,
-                      lines: 1,
-                    )
-                : 0)
-        : 0.0;
-    final railHeight = posterHeight + cardTextHeight;
+    final style = watchPosterStyle(context);
+    final posterWidth = style.railWidth(viewportWidth);
+    final showRelease = items.any((item) => item.releaseInfo != null);
+    final railHeight = posterWidth / style.aspectRatio +
+        (style.hideTitles
+            ? 0
+            : posterLabelHeight(context, posterWidth, release: showRelease));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -145,27 +119,6 @@ class MediaRail extends StatelessWidget {
       ],
     );
   }
-}
-
-double _lineBoxHeight(
-  BuildContext context,
-  TextStyle? style,
-  double width, {
-  required int lines,
-}) {
-  const sample = 'Ag أج';
-  final painter = TextPainter(
-    text: TextSpan(text: List.filled(lines, sample).join('\n'), style: style),
-    textDirection: Directionality.of(context),
-    textScaler: MediaQuery.textScalerOf(context),
-    locale: Localizations.maybeLocaleOf(context),
-    maxLines: lines,
-  )..layout(maxWidth: width);
-  // RenderFlex constraints are exact; round fractional font metrics upward so
-  // rasterization can never need a fraction more than the rail reserves.
-  final height = painter.height.ceilToDouble();
-  painter.dispose();
-  return height;
 }
 
 /// The header "greater-than" mark that opens the rail's full section.

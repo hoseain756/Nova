@@ -13,12 +13,6 @@ import 'precise_delay_value.dart';
 import 'subtitle_font_picker.dart';
 import 'subtitle_overlay.dart' show SubtitleStyle;
 
-/// Dark-glass bottom sheets used by the player (settings, episodes,
-/// subtitle style). They belong to the app's design language; the on-video
-/// chrome follows the cinematic reference, and the subtitle / audio /
-/// source pickers live in the RIGHT-HALF side panel
-/// (widgets/player_side_panel.dart, Task 139 user mandate).
-
 /// Common subtitle language codes → native names (Task 124 mandate: the
 /// subtitles window groups addon results by language). Unknown codes fall
 /// back to the upper-cased code itself.
@@ -66,76 +60,62 @@ String subtitleLanguageName(String code) {
       key.toUpperCase();
 }
 
-/// Player sheet host (spec §0-ب): phones get a full-width bottom sheet at
-/// ~66% height; tablets (width ≥ 900) get a floating ~400px side panel
-/// anchored to the directional END so the video stays visible.
+/// Shared dialog bounds for tool overlays, episodes and subtitle styling.
+class PlayerDialogFrame extends StatelessWidget {
+  const PlayerDialogFrame(
+      {super.key, required this.child, this.compact = false});
+
+  final Widget child;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: LayoutBuilder(builder: (context, bounds) {
+            final maxHeight = bounds.maxHeight * .88;
+            final height = compact
+                ? (180 + MediaQuery.textScalerOf(context).scale(36))
+                    .clamp(0.0, maxHeight)
+                : maxHeight;
+            return Center(
+              child: SizedBox(
+                  width: bounds.maxWidth.clamp(0.0, 520.0),
+                  height: height,
+                  child: child),
+            );
+          }),
+        ),
+      );
+}
+
 Future<T?> showPlayerSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
 }) {
-  final size = MediaQuery.sizeOf(context);
-  if (size.width >= 700 || size.width > size.height) {
-    return showGeneralDialog<T>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-      barrierColor: Theme.of(context).colorScheme.shadow.withValues(alpha: .32),
-      transitionDuration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 220),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        final curved =
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-        return FadeTransition(
-          opacity: curved,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: Offset(
-                  Directionality.of(context) == TextDirection.rtl ? -.06 : .06,
-                  0),
-              end: Offset.zero,
-            ).animate(curved),
-            child: Align(
-              alignment: AlignmentDirectional.centerEnd,
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Material(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerLow
-                      .withValues(alpha: .98),
-                  borderRadius: BorderRadius.circular(22),
-                  clipBehavior: Clip.antiAlias,
-                  elevation: 12,
-                  shadowColor: Theme.of(context)
-                      .colorScheme
-                      .shadow
-                      .withValues(alpha: .32),
-                  child: SizedBox(
-                    width: (size.width * .48).clamp(360.0, 560.0),
-                    height: size.height - 32,
-                    child: builder(dialogContext),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-  return showModalBottomSheet<T>(
+  final scheme = Theme.of(context).colorScheme;
+  return showDialog<T>(
     context: context,
-    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-    isScrollControlled: true,
-    constraints: BoxConstraints(maxHeight: size.height * .86),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-    ),
-    sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
+    useSafeArea: false,
+    barrierColor: scheme.scrim.withValues(alpha: .72),
+    animationStyle: MediaQuery.disableAnimationsOf(context)
         ? AnimationStyle.noAnimation
         : null,
-    builder: builder,
+    builder: (dialogContext) => Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(dialogContext).bottom),
+      child: PlayerDialogFrame(
+        child: Material(
+          color: scheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: scheme.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: builder(dialogContext),
+        ),
+      ),
+    ),
   );
 }
 
@@ -231,11 +211,6 @@ class SheetScaffold extends StatelessWidget {
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
-// Task 141 (user mandate): the playback-settings picker joined the RIGHT-HALF
-// side panels — PlayerSettingsPanelBody lives in
-// widgets/player_side_panel.dart. The selection chips below are shared with
-// the sheets that remain.
-
 class SheetSelectChip extends StatelessWidget {
   const SheetSelectChip({
     super.key,
@@ -287,12 +262,6 @@ class SheetSelectChip extends StatelessWidget {
 }
 
 // ── Track pickers ──────────────────────────────────────────────────────────
-
-// The audio / subtitle / stream pickers moved to the RIGHT-HALF side panel
-// (widgets/player_side_panel.dart, Task 139 user mandate): instant open,
-// in-panel loading and a header refresh button. The playback settings
-// joined them in Task 141 — only the episodes and subtitle-style
-// sheets remain bottom sheets here.
 
 /// A selectable subtitle row model: external addon subtitles carry their raw
 /// language code + source addon; embedded mpv tracks carry track info.

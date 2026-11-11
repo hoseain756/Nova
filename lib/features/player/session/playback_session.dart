@@ -772,6 +772,8 @@ class PlaybackSession extends PlaybackEngine {
 
   @override
   Future<PlaybackCommandResult> play() {
+    final party = _routePartyCommand('play');
+    if (party != null) return party;
     if (_backgrounded) return Future.value(_cancelled());
     _playIntent = true;
     ++_intentRevision;
@@ -782,6 +784,8 @@ class PlaybackSession extends PlaybackEngine {
 
   @override
   Future<PlaybackCommandResult> pause() {
+    final party = _routePartyCommand('pause');
+    if (party != null) return party;
     _playIntent = false;
     ++_intentRevision;
     return _command('pause', (_) async {
@@ -793,6 +797,7 @@ class PlaybackSession extends PlaybackEngine {
   Future<PlaybackCommandResult> togglePlayPause() => playing ? pause() : play();
   @override
   Future<PlaybackCommandResult> seekTo(Duration target) =>
+      _routePartyCommand('seek', target.inMilliseconds.toDouble()) ??
       _command('seek', (_) async {
         if (!canSeek) throw UnsupportedError('Not seekable');
         await _raw!.seekTo(target);
@@ -800,6 +805,8 @@ class PlaybackSession extends PlaybackEngine {
       });
   @override
   Future<PlaybackCommandResult> seekBy(int seconds) =>
+      _routePartyCommand(
+          'seek', (position.inMilliseconds + seconds * 1000).toDouble()) ??
       _command('seek', (_) async {
         if (!canSeek) throw UnsupportedError('Not seekable');
         final target = position + Duration(seconds: seconds);
@@ -816,9 +823,30 @@ class PlaybackSession extends PlaybackEngine {
 
   @override
   Future<PlaybackCommandResult> setRate(double rate) =>
+      _routePartyCommand('rate', rate) ??
       _command('rate', (_) async {
         await _raw?.setRate(rate);
       });
+
+  Future<PlaybackCommandResult>? _routePartyCommand(String action,
+      [double? value]) {
+    if (!interceptsWatchParty || isClosing) return null;
+    return routeWatchPartyCommand(action, value).then((handled) {
+      if (handled) {
+        return const PlaybackCommandResult(PlaybackCommandStatus.applied);
+      }
+      return runZoned(
+          () => switch (action) {
+                'play' => play(),
+                'pause' => pause(),
+                'seek' => seekTo(Duration(milliseconds: value!.round())),
+                'rate' => setRate(value!),
+                _ => Future.value(_cancelled()),
+              },
+          zoneValues: {PlaybackEngine.watchPartyRemoteZone: true});
+    });
+  }
+
   @override
   Future<PlaybackCommandResult> setVolume(double volume) =>
       _command('volume', (_) async {

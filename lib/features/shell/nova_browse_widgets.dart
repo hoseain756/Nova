@@ -1,10 +1,6 @@
-import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
+import '../../shared/widgets/poster_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-
-import '../../core/models/media_item.dart';
-import '../../core/theme/nova_theme.dart';
-import '../../shared/widgets/image_decode.dart';
 
 /// Shared editorial hierarchy for NOVA's browse destinations. The generous
 /// title area wraps instead of assuming a fixed title/toolbar height.
@@ -77,6 +73,7 @@ class NovaBrowseSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final style = watchPosterStyle(context);
     return ExcludeSemantics(
         child: rows
             ? ListView.separated(
@@ -88,151 +85,35 @@ class NovaBrowseSkeleton extends StatelessWidget {
                     decoration: BoxDecoration(
                         color: color, borderRadius: BorderRadius.circular(20))),
               )
-            : GridView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: 12,
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 200,
-                    childAspectRatio: .61,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 24),
-                itemBuilder: (_, __) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                          child: Container(
-                              decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: BorderRadius.circular(16)))),
-                      const SizedBox(height: 12),
-                      Container(height: 12, width: 112, color: color),
-                      const SizedBox(height: 8),
-                      Container(height: 8, width: 64, color: color),
-                    ]),
-              ));
-  }
-}
-
-/// A landscape feature card that keeps the same 16:9 artwork frame on phones
-/// and tablets. Text stays outside the image semantics; the whole card opens.
-class NovaBrowseFeature extends StatelessWidget {
-  const NovaBrowseFeature(
-      {super.key,
-      required this.item,
-      required this.label,
-      required this.actionLabel,
-      required this.onOpen});
-  final MediaItem item;
-  final String label;
-  final String actionLabel;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 32),
-      child: LayoutBuilder(builder: (context, constraints) {
-        final hasLandscapeArtwork = item.background?.trim().isNotEmpty == true;
-        final artworkUrl = hasLandscapeArtwork ? item.background : item.poster;
-        final width = constraints.maxWidth;
-        final compact = width < 600;
-        final showLabel = width * 9 / 16 >= 180 ||
-            MediaQuery.textScalerOf(context).scale(16) <= 22;
-        return AspectRatio(
-          key: const ValueKey('nova-browse-hero'),
-          aspectRatio: 16 / 9,
-          child: Material(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(24),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onOpen,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (artworkUrl != null && artworkUrl.trim().isNotEmpty)
-                    NovaNetworkImage(
-                      artworkUrl,
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: hasLandscapeArtwork ? BoxFit.cover : BoxFit.contain,
-                      cacheWidth: imageCacheWidth(context, width),
-                      excludeFromSemantics: true,
-                    )
-                  else
-                    Center(
-                      child: Icon(LucideIcons.film,
-                          size: 64, color: theme.colorScheme.secondary),
-                    ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          NovaColors.ink.withValues(alpha: .72),
-                          NovaColors.ink.withValues(alpha: .08),
-                          NovaColors.ink.withValues(alpha: .92),
-                        ],
-                        stops: const [0, .35, 1],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.all(compact ? 16 : 32),
-                    child: Column(
+            : LayoutBuilder(builder: (context, constraints) {
+                final metrics = PosterGridMetrics(
+                    context, constraints.maxWidth - 48,
+                    spacing: 16, style: style);
+                return GridView.builder(
+                  padding: const EdgeInsets.all(24),
+                  itemCount: 12,
+                  gridDelegate: metrics.delegate,
+                  itemBuilder: (_, __) => Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (showLabel)
-                          Text(label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: NovaColors.white,
-                                fontWeight: FontWeight.w700,
-                              )),
-                        const Spacer(),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Text(item.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: (compact
-                                          ? theme.textTheme.titleLarge
-                                          : theme.textTheme.headlineLarge)
-                                      ?.copyWith(
-                                          color: NovaColors.white,
-                                          fontWeight: FontWeight.w800)),
-                            ),
-                            const SizedBox(width: 12),
-                            Tooltip(
-                              message: actionLabel,
-                              child: CircleAvatar(
-                                radius: 24,
-                                backgroundColor: theme.colorScheme.primary,
-                                child: Icon(LucideIcons.arrowUpRight,
-                                    color: theme.colorScheme.onPrimary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }),
-    );
+                        Expanded(
+                            child: Container(
+                                decoration: BoxDecoration(
+                                    color: color,
+                                    borderRadius:
+                                        BorderRadius.circular(style.radius)))),
+                        if (!style.hideTitles) ...[
+                          const SizedBox(height: 12),
+                          Container(height: 12, width: 112, color: color),
+                          const SizedBox(height: 8),
+                          Container(height: 8, width: 64, color: color),
+                        ],
+                      ]),
+                );
+              }));
   }
 }
 
-/// Same logical spacing for both directions, with generous touch/focus bounds.
 class NovaBrowseDestination extends StatelessWidget {
   const NovaBrowseDestination(
       {super.key,

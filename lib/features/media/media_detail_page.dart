@@ -31,23 +31,15 @@ import 'episode_data.dart';
 import 'episode_views.dart';
 import 'sources_page.dart';
 import 'stream_loading.dart';
-import '../home/widgets/cinematic_cover_scroll.dart';
+import '../../shared/widgets/media_hero.dart';
 import '../home/widgets/async_media_section.dart';
 import '../../core/downloads/download_manager.dart';
 import '../../core/platform/ios_chrome_bridge.dart';
 import 'detail_chrome_registry.dart';
 import 'widgets/linked_comments.dart';
 
-/// Cinematic detail page — the Flutter replica of the Harbor web DetailView:
-/// fixed glass back pill over a full-bleed hero (phone card variant < 700px /
-/// wide band ≥ 700px), start-aligned content column (single-line meta row,
-/// provider ratings, synopsis, CTA + expandable glass menu + lists circle,
-/// cast & crew), the rebuilt episodes system, the similar rail and the
-/// TMDB-enriched artwork — all fail-soft and RTL-mirrored.
-///
-/// The playback machinery (streams → rank → instant-play/source sheet →
-/// debrid/torrent resolve → player) is byte-for-byte the previous contract;
-/// only the presentation around it changed.
+/// Title details share the responsive media hero with browse destinations.
+/// The page owns the source picker, playback actions and episode slivers.
 class MediaDetailPage extends StatefulWidget {
   const MediaDetailPage({
     super.key,
@@ -397,7 +389,6 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     final resume = _resolveResume(app, item, videos);
     final defaultVideo = _defaultVideo(videos);
     final backdrop = _art?.landscape ?? item.background;
-    final logo = _art?.logo ?? item.logo;
     final linkedProgress = app.linkedContinueWatching.where((entry) {
       final linked = entry.item;
       return linked.id == item.id ||
@@ -449,21 +440,47 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     }
 
     final gutter = isWide ? 40.0 : 24.0;
-    final heroHeight = (viewportSize.height * (isWide ? .65 : .60))
-            .clamp(360.0, 640.0) +
-        (MediaQuery.textScalerOf(context).scale(16) - 16).clamp(0.0, 32.0) * 4;
-    return CinematicCoverScroll(
-      storageKey: PageStorageKey('detail-${item.id}'),
-      heroHeight: heroHeight,
-      heroBuilder: (contentVisibility) => DetailHero(
-          item: item,
-          backdropUrl: backdrop,
-          logoUrl: logo,
-          isWide: isWide,
-          viewportHeight: viewportSize.height,
-          viewportWidth: viewportSize.width,
-          contentVisibility: contentVisibility),
+    return CustomScrollView(
+      key: PageStorageKey('detail-${item.id}'),
       slivers: [
+        SliverToBoxAdapter(
+            child: MediaHero(
+          item: item,
+          artworkUrl: backdrop,
+          title: _art?.title,
+          detail: true,
+          topChrome: true,
+          actions: DetailActionRow(
+            english: english,
+            nativeTopActions: _nativeDetailChrome,
+            isWide: true,
+            inList: app.contains(item),
+            showTrackAnime: item.hasAnimeIds &&
+                (app.linkedServices['anilist']?['linked'] == true ||
+                    app.linkedServices['mal']?['linked'] == true),
+            primaryLabel: resume.isResume
+                ? (item.type == 'series'
+                    ? (NovaStrings.lookup(english, 'message175',
+                        {'p0': resume.season, 'p1': resume.episode}))
+                    : (NovaStrings.lookup(english, 'message176')))
+                : (NovaStrings.lookup(english, 'message177')),
+            primaryIsResume: resume.isResume,
+            loading: _loadingStreams,
+            onPrimaryPressed: () => _play(item,
+                video: resume.video ?? defaultVideo,
+                resumePositionMs: resume.positionMs),
+            onToggleWatchlist: () => unawaited(app.toggleWatchlist(item)),
+            onOpenStreams: () =>
+                _play(item, video: resume.video ?? defaultVideo),
+            onTrackAnime: () => unawaited(showAnimeTrackerSheet(context, item)),
+            onShare: () => unawaited(_share(item, english)),
+            onAddToList: () => unawaited(showCustomListPicker(context, item)),
+            onDownload: widget.kidsMode
+                ? null
+                : () => unawaited(
+                    _download(item, video: resume.video ?? defaultVideo)),
+          ),
+        )),
         SliverToBoxAdapter(
             child: Padding(
           padding: EdgeInsetsDirectional.fromSTEB(gutter, 24, gutter, 32),
@@ -478,7 +495,6 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                   child: Text(NovaStrings.lookup(english, 'message174'))),
               const SizedBox(height: 16),
             ],
-            DetailMetaRow(item: item, isWide: true),
             if (linkedProgress.isNotEmpty) ...[
               const SizedBox(height: 14),
               _LinkedProvidersProgress(
@@ -486,51 +502,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                 entries: linkedProgress,
               ),
             ],
-            const SizedBox(height: 20),
-            DetailActionRow(
-              english: english,
-              nativeTopActions: _nativeDetailChrome,
-              isWide: true,
-              inList: app.contains(item),
-              showTrackAnime: item.hasAnimeIds &&
-                  (app.linkedServices['anilist']?['linked'] == true ||
-                      app.linkedServices['mal']?['linked'] == true),
-              primaryLabel: resume.isResume
-                  ? (item.type == 'series'
-                      ? (NovaStrings.lookup(english, 'message175',
-                          {'p0': resume.season, 'p1': resume.episode}))
-                      : (NovaStrings.lookup(english, 'message176')))
-                  : (NovaStrings.lookup(english, 'message177')),
-              primaryIsResume: resume.isResume,
-              loading: _loadingStreams,
-              onPrimaryPressed: () => _play(item,
-                  video: resume.video ?? defaultVideo,
-                  resumePositionMs: resume.positionMs),
-              onToggleWatchlist: () => unawaited(app.toggleWatchlist(item)),
-              onOpenStreams: () =>
-                  _play(item, video: resume.video ?? defaultVideo),
-              onTrackAnime: () =>
-                  unawaited(showAnimeTrackerSheet(context, item)),
-              onShare: () => unawaited(_share(item, english)),
-              onAddToList: () => unawaited(showCustomListPicker(context, item)),
-              onDownload: widget.kidsMode
-                  ? null
-                  : () => unawaited(
-                      _download(item, video: resume.video ?? defaultVideo)),
-            ),
-            const SizedBox(height: 16),
             _ProviderRatings(item: item, startAligned: true),
             if (!widget.kidsMode) _SimklPersonalRating(item: item),
-            if (item.description?.isNotEmpty == true) ...[
-              const SizedBox(height: 32),
-              Text(NovaStrings.lookup(english, 'message178'),
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              DetailSynopsis(
-                  description: item.description!,
-                  isWide: isWide,
-                  viewportWidth: viewportSize.width),
-            ],
           ]),
         )),
         if (episodeSlivers.isNotEmpty)

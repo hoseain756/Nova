@@ -85,6 +85,8 @@ class AppState extends ChangeNotifier {
     'ratingsEnabled': true, 'showImdbBadge': true, 'showMalBadge': true,
     'showQualityBadge': true, 'showCardBadges': true, 'cardBadgeLimit': 3,
     'posterScale': 1.0, 'posterRadius': 12, 'hidePosterTitles': false,
+    'posterShape': 'portrait', 'showPosterLogo': true,
+    'posterLogoPosition': 'bottomStart',
     'posterEffect': 'off', 'episodesView': 'auto',
     'blurEpisodeThumbnails': false, 'instantPlay': true,
     'autoPlayNextEpisode': true, 'autoSelectEpisodeSource': false,

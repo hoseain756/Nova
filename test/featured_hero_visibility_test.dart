@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:nova_mobile/core/api/noor_api.dart';
 import 'package:nova_mobile/core/data/catalog_repository.dart';
+import 'package:nova_mobile/core/models/featured_artwork.dart';
 import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/features/home/widgets/featured_hero.dart';
@@ -14,113 +15,73 @@ const _slides = [
   MediaItem(id: 'third', type: 'movie', name: 'Third slide'),
 ];
 
+class _Catalog extends CatalogRepository {
+  _Catalog(super.api);
+  final requests = <String>[];
+  @override
+  Future<FeaturedArtwork> featuredArtwork(
+    MediaItem item, {
+    String language = 'en-US',
+    String region = 'US',
+    String uiLanguage = 'en',
+  }) async {
+    requests.add(item.id);
+    return FeaturedArtwork(title: item.name);
+  }
+}
+
 void main() {
-  testWidgets('covered hero stops its timer and resumes when the route returns',
+  testWidgets(
+      'manual selection survives opening details and returning; only selected artwork loads',
       (tester) async {
     final api = NoorApi();
-    final app = AppState(api, CatalogRepository(api))
-      ..english = true
-      ..webSettings['tmdbEnabled'] = false;
-    final visibility = ValueNotifier(1.0);
-    final navigator = GlobalKey<NavigatorState>();
-    addTearDown(app.dispose);
+    final catalog = _Catalog(api);
+    final app = AppState(api, catalog)..english = true;
     addTearDown(api.dispose);
-    addTearDown(visibility.dispose);
-
+    addTearDown(app.dispose);
+    final navigator = GlobalKey<NavigatorState>();
+    final active = ValueNotifier(false);
+    addTearDown(active.dispose);
     await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
-      value: app,
-      child: MaterialApp(
-        navigatorKey: navigator,
-        home: Scaffold(
-          body: FeaturedHero(
-            items: _slides,
-            autoplayActive: true,
-            onTap: (_) {},
-            contentVisibility: visibility,
-          ),
-        ),
-      ),
-    ));
-    await tester.pump(const Duration(seconds: 6));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Second slide'), findsOneWidget);
-
-    // A transparent covering route keeps the hero built and painted, making
-    // this prove route visibility independently from offstage layout.
-    navigator.currentState!.push(PageRouteBuilder<void>(
-      opaque: false,
-      pageBuilder: (_, __, ___) => const Center(child: Text('Player route')),
-    ));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 13));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Second slide', skipOffstage: false), findsOneWidget);
-    expect(find.text('First slide', skipOffstage: false), findsNothing);
-    expect(find.text('Third slide', skipOffstage: false), findsNothing);
-
-    navigator.currentState!.pop();
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 6));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Third slide'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  for (final gate in ['tab', 'ticker', 'reduced motion']) {
-    testWidgets('hero respects $gate changes and resumes its timer',
-        (tester) async {
-      final api = NoorApi();
-      final app = AppState(api, CatalogRepository(api))
-        ..english = true
-        ..webSettings['tmdbEnabled'] = false;
-      final visibility = ValueNotifier(1.0);
-      final suspended = ValueNotifier(false);
-      addTearDown(app.dispose);
-      addTearDown(api.dispose);
-      addTearDown(visibility.dispose);
-      addTearDown(suspended.dispose);
-
-      await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
         value: app,
         child: MaterialApp(
-          home: Scaffold(
-            body: ValueListenableBuilder<bool>(
-              valueListenable: suspended,
-              builder: (context, value, _) => MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  disableAnimations: gate == 'reduced motion' && value,
-                ),
-                child: TickerMode(
-                  enabled: gate != 'ticker' || !value,
-                  child: FeaturedHero(
-                    items: _slides,
-                    autoplayActive: gate != 'tab' || !value,
-                    onTap: (_) {},
-                    contentVisibility: visibility,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ));
-      await tester.pump(const Duration(seconds: 6));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Second slide'), findsOneWidget);
-
-      suspended.value = true;
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 13));
-      expect(find.text('Second slide'), findsOneWidget);
-
-      suspended.value = false;
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 6));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('Third slide'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    });
-  }
+            navigatorKey: navigator,
+            home: Scaffold(
+                body: SingleChildScrollView(
+              child: ValueListenableBuilder<bool>(
+                  valueListenable: active,
+                  builder: (context, value, _) => FeaturedHero(
+                      items: _slides,
+                      active: value,
+                      onTap: (item) {
+                        Navigator.of(context).push(MaterialPageRoute<void>(
+                            builder: (_) =>
+                                Scaffold(body: Text('Details: ${item.id}'))));
+                      })),
+            )))));
+    await tester.pump();
+    expect(catalog.requests, isEmpty);
+    active.value = true;
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 12));
+    expect(catalog.requests, ['first']);
+    await tester.tap(find.byTooltip('Second slide'));
+    await tester.pumpAndSettle();
+    expect(catalog.requests, ['first', 'second']);
+    expect(find.text('Second slide'), findsOneWidget);
+    await tester.tap(find.text('Explore title'));
+    await tester.pumpAndSettle();
+    expect(find.text('Details: second'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 13));
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Second slide'), findsOneWidget);
+    expect(catalog.requests, ['first', 'second']);
+    await tester.drag(
+        find.byKey(const ValueKey('media-hero-frame')), const Offset(-90, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Third slide'), findsOneWidget);
+    expect(catalog.requests, ['first', 'second', 'third']);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -4,25 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/models/poster_card_style.dart';
 import '../../core/state/app_state.dart';
 import '../../core/theme/horse_theme.dart';
 import 'image_decode.dart';
 import 'media_quick_look.dart';
+import 'poster_layout.dart';
 
 class PosterCard extends StatelessWidget {
   const PosterCard({
     super.key,
     required this.item,
     required this.onTap,
-    this.width = 122,
+    this.width,
+    this.style,
   });
 
   final MediaItem item;
   final VoidCallback onTap;
-  final double width;
+  final double? width;
+  final PosterCardStyle? style;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedStyle = style ?? watchPosterStyle(context);
+    final resolvedWidth =
+        width ?? resolvedStyle.railWidth(MediaQuery.sizeOf(context).width);
     final (language, tmdbEnabled, basicInfo, artwork) =
         context.select<AppState, (String, bool, bool, bool)>((app) => (
               app.contentTmdbLocale,
@@ -31,7 +38,8 @@ class PosterCard extends StatelessWidget {
               app.webSettings['tmdbUseArtwork'] != false,
             ));
     if (!tmdbEnabled || !basicInfo || !RegExp(r'^tt\d+$').hasMatch(item.id)) {
-      return _PosterCardContent(item: item, onTap: onTap, width: width);
+      return _PosterCardContent(
+          item: item, onTap: onTap, width: resolvedWidth, style: resolvedStyle);
     }
     return FutureBuilder<MediaItem>(
       future: context
@@ -41,7 +49,8 @@ class PosterCard extends StatelessWidget {
       builder: (context, snapshot) => _PosterCardContent(
         item: snapshot.data ?? item,
         onTap: onTap,
-        width: width,
+        width: resolvedWidth,
+        style: resolvedStyle,
       ),
     );
   }
@@ -52,28 +61,26 @@ class _PosterCardContent extends StatelessWidget {
     required this.item,
     required this.onTap,
     required this.width,
+    required this.style,
   });
 
   final MediaItem item;
   final VoidCallback onTap;
   final double width;
+  final PosterCardStyle style;
 
   @override
   Widget build(BuildContext context) {
-    // Task 122-b (F5): every card on every page used to `watch` AppState and
-    // rebuild on ANY notification. Select the exact four settings this card
-    // renders as a positional record (structural equality) — the rebuild now
-    // fires only when one of them actually changes. Same values, same UI.
-    final (radius, showTitle, showRating) =
-        context.select<AppState, (double, bool, bool)>(
-      (app) => (
-        (app.webSettings['posterRadius'] as num?)?.toDouble() ?? 14,
-        app.webSettings['hidePosterTitles'] != true,
-        app.webSettings['showImdbBadge'] != false &&
-            app.webSettings['showCardBadges'] != false,
-      ),
+    // Keep artwork badges independent from unrelated AppState notifications.
+    final showRating = context.select<AppState, bool>(
+      (app) =>
+          app.webSettings['showImdbBadge'] != false &&
+          app.webSettings['showCardBadges'] != false,
     );
-    final ratio = MediaQuery.sizeOf(context).width >= 700 ? 0.72 : 0.72;
+    final radius = style.radius;
+    final showTitle = !style.hideTitles;
+    final artwork =
+        style.landscape ? (item.background ?? item.poster) : item.poster;
     return SizedBox(
       width: width,
       child: Semantics(
@@ -93,16 +100,16 @@ class _PosterCardContent extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AspectRatio(
-                aspectRatio: ratio,
+                aspectRatio: style.aspectRatio,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(radius),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      if (item.poster != null)
+                      if (artwork != null)
                         SizedBox.expand(
                           child: NovaNetworkImage(
-                            item.poster!,
+                            artwork,
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
@@ -127,6 +134,27 @@ class _PosterCardContent extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (style.landscape &&
+                          style.showLogo &&
+                          item.logo != null)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Align(
+                            alignment: switch (style.logoPosition) {
+                              'center' => AlignmentDirectional.center,
+                              'bottomEnd' => AlignmentDirectional.bottomEnd,
+                              _ => AlignmentDirectional.bottomStart,
+                            },
+                            child: FractionallySizedBox(
+                              widthFactor: .65,
+                              heightFactor: .45,
+                              child: NovaNetworkImage(item.logo!,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) =>
+                                      const SizedBox.shrink()),
+                            ),
+                          ),
+                        ),
                       if (showRating && item.rating != null)
                         PositionedDirectional(
                           top: 8,

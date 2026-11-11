@@ -10,6 +10,7 @@ void main() {
     double speed = 1.0,
     BoxFit fit = BoxFit.contain,
     bool hasEpisodes = true,
+    Widget? additionalControls,
     ValueChanged<double>? onSpeed,
     ValueChanged<BoxFit>? onFit,
     VoidCallback? onOpenAudio,
@@ -22,6 +23,7 @@ void main() {
             child: SizedBox(
                 width: 420,
                 child: PlayerSettingsPanelBody(
+                  additionalControls: additionalControls,
                   english: english,
                   speed: speed,
                   fit: fit,
@@ -60,6 +62,65 @@ void main() {
     expect(find.text('Subtitles'), findsOneWidget);
     expect(find.text('Off'), findsOneWidget);
     expect(find.text('Episodes'), findsOneWidget);
+  });
+
+  testWidgets(
+      'moved transport actions use the configured seek steps and episode handlers',
+      (tester) async {
+    final actions = <Object>[];
+    await tester.pumpWidget(host(
+        additionalControls: PlayerTransportOptions(
+      english: true,
+      fullscreen: false,
+      live: false,
+      backStep: 5,
+      forwardStep: 30,
+      onSeek: actions.add,
+      onFullscreen: () => actions.add('fullscreen'),
+      onPrevious: () => actions.add('previous'),
+      onNext: () => actions.add('next'),
+    )));
+    for (final label in [
+      'Full screen',
+      'Rewind 5 seconds',
+      'Forward 30 seconds',
+      'Previous episode',
+      'Next episode'
+    ]) {
+      final action = find.text(label);
+      await Scrollable.ensureVisible(tester.element(action), alignment: .5);
+      await tester.pumpAndSettle();
+      expect(action.hitTestable(), findsOneWidget);
+      await tester.tap(action);
+    }
+    expect(actions, ['fullscreen', -5, 30, 'previous', 'next']);
+  });
+
+  testWidgets('audio volume can be changed and muted in the panel',
+      (tester) async {
+    var volume = .7;
+    var muted = false;
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: StatefulBuilder(
+      builder: (context, update) => PlayerVolumeControl(
+        english: true,
+        volume: volume,
+        muted: muted,
+        onMute: () => update(() => muted = !muted),
+        onVolume: (next) => update(() => volume = next),
+      ),
+    ))));
+    final slider = find.byType(Slider);
+    await tester.tapAt(tester.getCenter(slider));
+    await tester.pumpAndSettle();
+    expect(volume, closeTo(.5, .02));
+    await tester.tap(find.byTooltip('Mute'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(slider).value, 0);
+    await tester.tap(find.byTooltip('Unmute'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(slider).value, volume);
   });
 
   testWidgets('episodes entry hides for movies (no episodes)', (tester) async {

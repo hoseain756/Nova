@@ -1,0 +1,612 @@
+[
+  {
+    "key": "playerImplementation",
+    "title": ["المشغّل", "Player"],
+    "group": "playback",
+    "control": "select",
+    "value": "core",
+    "options": [
+      {
+        "value": "core",
+        "label": ["المشغّل الجديد (Core)", "New player (Core)"]
+      },
+      {
+        "value": "legacy",
+        "label": ["المشغّل السابق (Legacy)", "Previous player (Legacy)"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "playbackBackend",
+    "title": ["محرّك التشغيل", "Playback engine"],
+    "group": "playback",
+    "control": "select",
+    "value": "auto",
+    "options": [
+      {
+        "value": "auto",
+        "label": ["تلقائي (ExoPlayer ثم libmpv)", "Auto (ExoPlayer → libmpv)"]
+      },
+      {
+        "value": "media3",
+        "label": ["Media3 ExoPlayer", "Media3 ExoPlayer"]
+      },
+      {
+        "value": "mpv",
+        "label": ["libmpv", "libmpv"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "autoSelectEpisodeSource",
+    "title": [
+      "اختيار مصدر الحلقة تلقائيًا",
+      "Choose episode source automatically"
+    ],
+    "group": "playback",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "autoPlayNextEpisode",
+    "title": ["تشغيل الحلقة التالية تلقائيًا", "Autoplay next episode"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "resumePlayback",
+    "title": ["استئناف من آخر موضع", "Resume playback"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "resumePrompt",
+    "title": ["السؤال قبل الاستئناف", "Ask before resuming"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "resumeSnapshotRetentionDays",
+    "title": ["مدة الاحتفاظ بلقطة الاستئناف", "Resume screenshot retention"],
+    "group": "playback",
+    "control": "select",
+    "value": "30",
+    "options": [
+      {
+        "value": "30",
+        "label": ["30 يومًا", "30 days"]
+      },
+      {
+        "value": "20",
+        "label": ["20 يومًا", "20 days"]
+      },
+      {
+        "value": "10",
+        "label": ["10 أيام", "10 days"]
+      },
+      {
+        "value": "7",
+        "label": ["أسبوع واحد", "1 week"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "playerConfirmLeave",
+    "title": ["تأكيد الخروج من المشغّل", "Confirm before leaving"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "audioDelayMs",
+    "title": ["تأخير الصوت", "Audio delay"],
+    "group": "playback",
+    "control": "slider",
+    "value": "0",
+    "options": [],
+    "min": -10000,
+    "max": 10000,
+    "step": 100
+  },
+  {
+    "key": "seekBackStepSec",
+    "title": ["مقدار الرجوع", "Seek backward step"],
+    "group": "playback",
+    "control": "select",
+    "value": "10",
+    "options": [
+      {
+        "value": "5",
+        "label": ["٥ ثوانٍ", "5 sec"]
+      },
+      {
+        "value": "10",
+        "label": ["١٠ ثوانٍ", "10 sec"]
+      },
+      {
+        "value": "15",
+        "label": ["١٥ ثانية", "15 sec"]
+      },
+      {
+        "value": "30",
+        "label": ["٣٠ ثانية", "30 sec"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "seekForwardStepSec",
+    "title": ["مقدار التقديم", "Seek forward step"],
+    "group": "playback",
+    "control": "select",
+    "value": "10",
+    "options": [
+      {
+        "value": "5",
+        "label": ["٥ ثوانٍ", "5 sec"]
+      },
+      {
+        "value": "10",
+        "label": ["١٠ ثوانٍ", "10 sec"]
+      },
+      {
+        "value": "15",
+        "label": ["١٥ ثانية", "15 sec"]
+      },
+      {
+        "value": "30",
+        "label": ["٣٠ ثانية", "30 sec"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "defaultAudioLanguage",
+    "title": ["لغة الصوت المفضلة", "Default audio language"],
+    "group": "playback",
+    "control": "select",
+    "value": "source",
+    "options": [
+      {
+        "value": "source",
+        "label": ["لغة المصدر", "Source language"]
+      },
+      {
+        "value": "ar",
+        "label": ["العربية", "Arabic"]
+      },
+      {
+        "value": "en",
+        "label": ["الإنجليزية", "English"]
+      },
+      {
+        "value": "ja",
+        "label": ["اليابانية", "Japanese"]
+      },
+      {
+        "value": "original",
+        "label": ["الصوت الأصلي", "Original audio"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "preferredQuality",
+    "title": ["جودة المصدر المفضلة", "Preferred source quality"],
+    "group": "playback",
+    "control": "select",
+    "value": "auto",
+    "options": [
+      {
+        "value": "auto",
+        "label": ["تلقائي", "Auto"]
+      },
+      {
+        "value": "2160p",
+        "label": ["4K", "4K"]
+      },
+      {
+        "value": "1080p",
+        "label": ["1080p", "1080p"]
+      },
+      {
+        "value": "720p",
+        "label": ["720p", "720p"]
+      },
+      {
+        "value": "480p",
+        "label": ["480p", "480p"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "videoFill",
+    "title": ["ملاءمة الفيديو", "Video fit"],
+    "group": "playback",
+    "control": "select",
+    "value": "fit",
+    "options": [
+      {
+        "value": "fit",
+        "label": ["احتواء", "Fit"]
+      },
+      {
+        "value": "fill",
+        "label": ["ملء الشاشة", "Fill"]
+      },
+      {
+        "value": "zoom",
+        "label": ["تكبير", "Zoom"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "showQualityInfo",
+    "title": ["إظهار معلومات الجودة", "Show quality information"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "customPlaybackSpeeds",
+    "title": ["سرعات التشغيل", "Playback speeds"],
+    "group": "playback",
+    "control": "multiple",
+    "value": "0.75",
+    "options": [
+      {
+        "value": "0.75",
+        "label": ["0.75×", "0.75×"]
+      },
+      {
+        "value": "1",
+        "label": ["1×", "1×"]
+      },
+      {
+        "value": "1.25",
+        "label": ["1.25×", "1.25×"]
+      },
+      {
+        "value": "1.5",
+        "label": ["1.5×", "1.5×"]
+      },
+      {
+        "value": "1.75",
+        "label": ["1.75×", "1.75×"]
+      },
+      {
+        "value": "2",
+        "label": ["2×", "2×"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "pickerLayout",
+    "title": ["طريقة عرض المصادر", "Stream picker layout"],
+    "group": "playback",
+    "control": "select",
+    "value": "stremio",
+    "options": [
+      {
+        "value": "stremio",
+        "label": ["تفصيلي", "Detailed"]
+      },
+      {
+        "value": "condensed",
+        "label": ["مختصر", "Compact"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "streamSort",
+    "title": ["ترتيب المصادر", "Stream sorting"],
+    "group": "playback",
+    "control": "select",
+    "value": "addon",
+    "options": [
+      {
+        "value": "addon",
+        "label": ["حسب الإضافة", "By add-on"]
+      },
+      {
+        "value": "score",
+        "label": ["حسب الجودة", "By quality"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "playableOnly",
+    "title": ["إخفاء المصادر غير المدعومة", "Hide unsupported streams"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "preferH264",
+    "title": ["تفضيل H.264", "Prefer H.264"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "p2pEnabled",
+    "title": ["مصادر التورنت عبر الخادم", "Server torrent engine"],
+    "group": "playback",
+    "control": "toggle",
+    "value": "1",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "preferredSubLangs",
+    "title": ["لغات الترجمة المفضلة", "Preferred subtitle languages"],
+    "group": "subtitles",
+    "control": "multiple",
+    "value": "Arabic",
+    "options": [
+      {
+        "value": "Arabic",
+        "label": ["العربية", "Arabic"]
+      },
+      {
+        "value": "English",
+        "label": ["الإنجليزية", "English"]
+      },
+      {
+        "value": "Japanese",
+        "label": ["اليابانية", "Japanese"]
+      },
+      {
+        "value": "French",
+        "label": ["الفرنسية", "French"]
+      },
+      {
+        "value": "Spanish",
+        "label": ["الإسبانية", "Spanish"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subtitleTranslationLanguage",
+    "title": [
+      "لغة الترجمة المفضلة للمسار",
+      "Preferred subtitle track language"
+    ],
+    "group": "subtitles",
+    "control": "select",
+    "value": "off",
+    "options": [
+      {
+        "value": "off",
+        "label": ["حسب اللغات المفضلة", "Use preferred languages"]
+      },
+      {
+        "value": "ar",
+        "label": ["العربية", "Arabic"]
+      },
+      {
+        "value": "en",
+        "label": ["الإنجليزية", "English"]
+      },
+      {
+        "value": "ja",
+        "label": ["اليابانية", "Japanese"]
+      },
+      {
+        "value": "fr",
+        "label": ["الفرنسية", "French"]
+      },
+      {
+        "value": "es",
+        "label": ["الإسبانية", "Spanish"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subtitlesOffByDefault",
+    "title": ["إيقاف الترجمة تلقائيًا", "Subtitles off by default"],
+    "group": "subtitles",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subUseFileStyle",
+    "title": ["استخدام تنسيق ملف الترجمة", "Use subtitle file styling"],
+    "group": "subtitles",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subFontSize",
+    "title": ["حجم الترجمة", "Subtitle size"],
+    "group": "subtitles",
+    "control": "slider",
+    "value": "28",
+    "options": [],
+    "min": 14,
+    "max": 64,
+    "step": 2
+  },
+  {
+    "key": "subFontBold",
+    "title": ["خط ترجمة عريض", "Bold subtitles"],
+    "group": "subtitles",
+    "control": "toggle",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subFontColor",
+    "title": ["لون النص", "Text color"],
+    "group": "subtitles",
+    "control": "color",
+    "value": "#FFFFFF",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subPos",
+    "title": ["رفع وخفض دقيق", "Fine position"],
+    "group": "subtitles",
+    "control": "slider",
+    "value": "100",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 5
+  },
+  {
+    "key": "subStyle",
+    "title": ["نمط الترجمة", "Subtitle style"],
+    "group": "subtitles",
+    "control": "select",
+    "value": "shadow",
+    "options": [
+      {
+        "value": "shadow",
+        "label": ["ظل", "Shadow"]
+      },
+      {
+        "value": "outline",
+        "label": ["حد خارجي", "Outline"]
+      },
+      {
+        "value": "box",
+        "label": ["خلفية", "Background"]
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subBorderColor",
+    "title": ["لون الحد", "Outline color"],
+    "group": "subtitles",
+    "control": "color",
+    "value": "#000000",
+    "options": [],
+    "min": 0,
+    "max": 100,
+    "step": 1
+  },
+  {
+    "key": "subBorderSize",
+    "title": ["سماكة الحد", "Outline size"],
+    "group": "subtitles",
+    "control": "slider",
+    "value": "0",
+    "options": [],
+    "min": 0,
+    "max": 8,
+    "step": 1
+  },
+  {
+    "key": "subBackgroundOpacity",
+    "title": ["شفافية الخلفية", "Background opacity"],
+    "group": "subtitles",
+    "control": "slider",
+    "value": "0.35",
+    "options": [],
+    "min": 0,
+    "max": 1,
+    "step": 0.05
+  },
+  {
+    "key": "subtitleOffsetMs",
+    "title": ["تقديم أو تأخير الترجمة", "Subtitle offset"],
+    "group": "subtitles",
+    "control": "slider",
+    "value": "0",
+    "options": [],
+    "min": -5000,
+    "max": 5000,
+    "step": 250
+  }
+]

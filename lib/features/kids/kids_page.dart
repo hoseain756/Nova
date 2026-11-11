@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import '../shell/nova_catalog_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -11,6 +12,7 @@ import '../../shared/widgets/poster_card.dart';
 import '../media/media_detail_page.dart';
 import '../shell/noor_dock_tabs.dart';
 import '../shell/nova_browse_widgets.dart';
+import '../home/widgets/featured_hero.dart';
 
 /// A genre is not a safety classification. Unknown or adult certificates are
 /// deliberately withheld; never infer suitability from artwork or a title.
@@ -103,6 +105,7 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     context.select<AppState, bool>((app) => app.english);
     final cardSize = context.select<AppState, String>(
         (app) => app.webSettings['kidsCardSize']?.toString() ?? 'medium');
@@ -120,10 +123,6 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
           final items = all
               .where((item) => _filter == 'all' || item.type == _filter)
               .toList();
-          final featuredItem = items
-                  .where((item) => item.background?.trim().isNotEmpty == true)
-                  .firstOrNull ??
-              items.firstOrNull;
           return CustomScrollView(slivers: [
             SliverToBoxAdapter(
                 child: ColoredBox(
@@ -181,16 +180,16 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
                             onSelected: (_) =>
                                 setState(() => _filter = filter.$1))
                     ]))),
-            if (featuredItem != null)
+            if (items.isNotEmpty)
               SliverToBoxAdapter(
-                child: NovaBrowseFeature(
-                  item: featuredItem,
-                  label: app.tr('message596'),
-                  actionLabel: app.tr('message131'),
-                  onOpen: () => Navigator.of(context).push(
+                child: FeaturedHero(
+                  items: FeaturedHero.browseItems(items),
+                  enrich: false,
+                  showSave: false,
+                  onTap: (item) => Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (_) => MediaDetailPage(
-                        item: featuredItem,
+                        item: item,
                         kidsMode: true,
                       ),
                     ),
@@ -231,21 +230,16 @@ class _KidsPageState extends State<KidsPage> with NovaCatalogRefresh<KidsPage> {
               SliverPadding(
                   padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
                   sliver: SliverLayoutBuilder(builder: (context, constraints) {
-                    final columns =
-                        (constraints.crossAxisExtent / preferredWidth)
-                            .floor()
-                            .clamp(2, 6);
-                    final width =
-                        (constraints.crossAxisExtent - (columns - 1) * 20) /
-                            columns;
+                    final metrics = PosterGridMetrics(
+                        context, constraints.crossAxisExtent,
+                        preferredWidth: preferredWidth,
+                        spacing: 20,
+                        maxColumns: 6,
+                        style: posterStyle);
+                    final width = metrics.width;
                     return SliverGrid.builder(
                         itemCount: items.length,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            mainAxisExtent: width / .72 +
-                                86 * MediaQuery.textScalerOf(context).scale(1),
-                            crossAxisSpacing: 20,
-                            mainAxisSpacing: 24),
+                        gridDelegate: metrics.delegate,
                         itemBuilder: (context, index) => PosterCard(
                             item: items[index],
                             width: width,

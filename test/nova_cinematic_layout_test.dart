@@ -1,3 +1,4 @@
+import 'package:nova_mobile/shared/widgets/media_hero.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/core/models/media_item.dart';
@@ -43,42 +44,29 @@ void main() {
                     textDirection: direction,
                     child: Scaffold(
                         body: ListView(children: [
-                      SizedBox(
-                          height: 400,
-                          child: DetailHero(
-                              item: item,
-                              backdropUrl: null,
-                              logoUrl: null,
+                      MediaHero(
+                          item: item,
+                          detail: true,
+                          actions: DetailActionRow(
+                              english: english,
                               isWide: width >= 700,
-                              viewportHeight: 900,
-                              viewportWidth: width,
-                              contentVisibility: ValueNotifier<double>(1))),
+                              inList: false,
+                              showTrackAnime: true,
+                              primaryLabel: english ? 'Watch now' : 'شاهد الآن',
+                              primaryIsResume: false,
+                              loading: false,
+                              onPrimaryPressed: () {},
+                              onToggleWatchlist: () {},
+                              onOpenStreams: () {},
+                              onTrackAnime: () {},
+                              onShare: () {},
+                              onAddToList: () {},
+                              onDownload: () {})),
                       Padding(
                           padding: const EdgeInsets.all(24),
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                DetailMetaRow(item: item, isWide: width >= 700),
-                                DetailActionRow(
-                                    english: english,
-                                    isWide: width >= 700,
-                                    inList: false,
-                                    showTrackAnime: true,
-                                    primaryLabel:
-                                        english ? 'Watch now' : 'شاهد الآن',
-                                    primaryIsResume: false,
-                                    loading: false,
-                                    onPrimaryPressed: () {},
-                                    onToggleWatchlist: () {},
-                                    onOpenStreams: () {},
-                                    onTrackAnime: () {},
-                                    onShare: () {},
-                                    onAddToList: () {},
-                                    onDownload: () {}),
-                                DetailSynopsis(
-                                    description: item.description!,
-                                    isWide: width >= 700,
-                                    viewportWidth: width),
                                 DetailCastCrew(item: item, english: english),
                                 DetailProduction(item: item, english: english),
                                 DetailFactsTable(item: item, english: english),

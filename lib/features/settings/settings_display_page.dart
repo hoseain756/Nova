@@ -1,4 +1,3 @@
-import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +5,7 @@ import '../../core/state/app_state.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'widgets/settings_tiles.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
+import 'poster_card_settings_page.dart';
 
 class SettingsDisplayPage extends StatelessWidget {
   const SettingsDisplayPage({super.key, this.kidsOnly = false});
@@ -60,10 +60,15 @@ class SettingsDisplayPage extends StatelessWidget {
                               settingKey: 'showImdbBadge',
                               onWhenAbsent: true,
                               title: app.tr('message430')),
-                          _SettingToggle(
-                              settingKey: 'hidePosterTitles',
-                              title: app.tr('message431')),
-                          const _PosterRadiusRow(),
+                          SettingsTile(
+                              icon: LucideIcons.rectangleVertical,
+                              title: app.tr('posterCustomization'),
+                              subtitle:
+                                  app.tr('posterCustomizationDescription'),
+                              onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          const PosterCardSettingsPage()))),
                           _SettingToggle(
                               settingKey: 'blurEpisodeThumbnails',
                               title: app.tr('message432')),
@@ -122,37 +127,6 @@ class SettingsDisplayPage extends StatelessWidget {
               ))),
     );
   }
-}
-
-class _RadiusSlider extends StatefulWidget {
-  const _RadiusSlider({required this.value, required this.onChangeEnd});
-  final double value;
-  final ValueChanged<double> onChangeEnd;
-
-  @override
-  State<_RadiusSlider> createState() => _RadiusSliderState();
-}
-
-class _RadiusSliderState extends State<_RadiusSlider> {
-  late double _value = widget.value;
-
-  @override
-  void didUpdateWidget(covariant _RadiusSlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) _value = widget.value;
-  }
-
-  @override
-  Widget build(BuildContext context) => Slider.adaptive(
-        value: _value.clamp(0, 28),
-        min: 0,
-        max: 28,
-        divisions: 14,
-        label: NovaStrings.of(context)
-            .text('logicalPixelValue', {'value': _value.round()}),
-        onChanged: (value) => setState(() => _value = value),
-        onChangeEnd: widget.onChangeEnd,
-      );
 }
 
 /// Task 122-c: content-language row — a [_SelectRow] reading ONLY
@@ -236,42 +210,6 @@ class _SettingSelect extends StatelessWidget {
       options: options,
       onChanged: (next) =>
           context.read<AppState>().setSetting(settingKey, next),
-    );
-  }
-}
-
-/// Task 122-c F4: poster-radius block lifted out of the page build —
-/// selects (english, radius) so only this block rebuilds on its change.
-class _PosterRadiusRow extends StatelessWidget {
-  const _PosterRadiusRow();
-
-  @override
-  Widget build(BuildContext context) {
-    final (english, radius) =
-        context.select<AppState, (bool, double)>((app) => (
-              app.english,
-              (app.webSettings['posterRadius'] as num?)?.toDouble() ?? 12,
-            ));
-    return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(20, 16, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(NovaStrings.lookup(english, 'message451')),
-          SizedBox(height: 3),
-          Text(
-            '${radius.round()} px',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-          _RadiusSlider(
-            value: radius,
-            onChangeEnd: (value) => context
-                .read<AppState>()
-                .setSetting('posterRadius', value.round()),
-          ),
-        ],
-      ),
     );
   }
 }

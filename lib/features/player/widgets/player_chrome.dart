@@ -5,20 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/theme/horse_theme.dart';
 import 'player_blur_action_pill.dart';
 
-/// Visual language of the cinematic player chrome (reference design):
-/// white controls over the video, a NOVA-red gradient timeline, a large
-/// outlined central play control and slim translucent scrims.
-///
-/// Task 124/125 layout mandate:
-///  · top bar — exit at the directional END, title at the START, with a
-///    zero-padded `S01E12` tag underneath for series;
-///  · progress row (current · timeline · total) sits ABOVE every control and
-///    follows the locale's logical start/end seek direction;
-///  · bottom row: fullscreen+volume at the directional END, source /
-///    subtitles / audio at the START; the [rewind][play][forward] trio is
-///    dead CENTER;
-///  · gesture and rail placement follows the player's directional helpers.
-/// Mirroring follows the inherited Directionality (Arabic RTL / English LTR).
+/// High-contrast controls drawn over fullscreen video.
 class PlayerPalette {
   static const Color gradientStart = NovaColors.red;
   static const Color gradientEnd = NovaColors.redSoft;
@@ -65,8 +52,14 @@ class PlayerTopBar extends StatelessWidget {
     this.streamInfoSemanticLabel,
     this.statusInfo,
     this.wide = false,
+    required this.onLock,
+    this.locked = false,
+    this.onResetZoom,
   });
 
+  final VoidCallback onLock;
+  final bool locked;
+  final VoidCallback? onResetZoom;
   final String title;
 
   /// Empty for movies; `S01E12` for series (rendered under the title).
@@ -81,8 +74,6 @@ class PlayerTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Directional mirror (spec §0): RTL → title right / exit left;
-    // LTR → title left / exit right. START = title, END = exit.
     return PositionedDirectional(
       top: 0,
       start: 0,
@@ -98,16 +89,27 @@ class PlayerTopBar extends StatelessWidget {
         child: SafeArea(
           bottom: false,
           child: Padding(
-            padding: EdgeInsetsDirectional.fromSTEB(12, 6, wide ? 24 : 12, 26),
+            padding: EdgeInsetsDirectional.fromSTEB(
+                wide ? 24 : 16, 6, wide ? 24 : 16, 12),
             child: Row(
               children: [
+                if (locked)
+                  IconButton(
+                      icon: const Icon(LucideIcons.lockOpen,
+                          color: NovaColors.white),
+                      tooltip: NovaStrings.of(context).text('unlock'),
+                      onPressed: onLock)
+                else
+                  PlayerBackButton(onTap: onClose),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         title,
+                        textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -123,6 +125,7 @@ class PlayerTopBar extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsetsDirectional.only(top: 5),
                           child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               if (episodeTag.isNotEmpty)
                                 Directionality(
@@ -207,8 +210,25 @@ class PlayerTopBar extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                PlayerBackButton(onTap: onClose),
+                const SizedBox(width: 8),
+                if (locked)
+                  const SizedBox(width: 48)
+                else ...[
+                  if (onResetZoom != null)
+                    TextButton(
+                        onPressed: onResetZoom,
+                        style: TextButton.styleFrom(
+                            foregroundColor: NovaColors.white),
+                        child: const Text('1×')),
+                  IconButton(
+                      tooltip:
+                          NovaStrings.of(context).text('playerLockControls'),
+                      onPressed: onLock,
+                      icon: const Icon(LucideIcons.lockKeyhole,
+                          color: NovaColors.white),
+                      constraints:
+                          const BoxConstraints.tightFor(width: 48, height: 48)),
+                ],
               ],
             ),
           ),
@@ -234,222 +254,27 @@ class PlayerBackButton extends StatelessWidget {
       );
 }
 
-// ── Rails ──────────────────────────────────────────────────────────────────
-
-class PlayerRailButton extends StatelessWidget {
-  const PlayerRailButton({
-    super.key,
-    required this.icon,
-    required this.semanticLabel,
-    required this.onTap,
-    this.active = false,
-    this.iconSize = 22,
-  });
-
-  final IconData icon;
-  final String semanticLabel;
-  final VoidCallback onTap;
-  final bool active;
-  final double iconSize;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: semanticLabel,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(
-              icon,
-              color: active ? PlayerPalette.thumb : NovaColors.white,
-              size: iconSize,
-              shadows: PlayerPalette.iconShadow,
-            ),
-          ),
-        ),
-      );
-}
-
-/// Task 139 (user mandate): the transport trio [rewind][play/pause][forward]
-/// lives in the MIDDLE of the screen — floating center controls — never
-/// mirrored (rewind always left), with the seek step rendered inside the
-/// circular arrows exactly as configured in settings.
 class PlayerCenterTransport extends StatelessWidget {
-  const PlayerCenterTransport({
-    super.key,
-    required this.isPlaying,
-    required this.backStepSec,
-    required this.forwardStepSec,
-    required this.scale,
-    required this.wide,
-    required this.onPlayPause,
-    required this.onSkip,
-  });
-
+  const PlayerCenterTransport(
+      {super.key, required this.isPlaying, required this.onPlayPause});
   final bool isPlaying;
-  final int backStepSec;
-  final int forwardStepSec;
-  final double scale;
-  final bool wide;
   final VoidCallback onPlayPause;
-  final ValueChanged<int> onSkip;
-
   @override
-  Widget build(BuildContext context) {
-    final big = wide ? 76.0 : 64.0;
-    final skipSize = (wide ? 54.0 : 48.0) * scale;
-    return Positioned.fill(
-      child: Center(
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SkipButton(
-                forward: false,
-                seconds: backStepSec,
-                size: skipSize,
-                onTap: () => onSkip(-backStepSec),
-              ),
-              SizedBox(width: 20 * scale),
-              Semantics(
-                button: true,
-                label: NovaStrings.of(context)
-                    .text(isPlaying ? 'playerPause' : 'message714'),
-                child: GestureDetector(
-                  onTap: onPlayPause,
-                  child: Container(
-                    width: big,
-                    height: big,
-                    decoration: BoxDecoration(
-                      color: NovaColors.white.withValues(alpha: .14),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: NovaColors.white,
-                        width: 2.4,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: NovaColors.ink.withValues(alpha: .38),
-                          blurRadius: 16,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      isPlaying ? LucideIcons.pause : LucideIcons.play,
-                      color: NovaColors.white,
-                      size: big * .5,
-                      shadows: PlayerPalette.iconShadow,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 20 * scale),
-              _SkipButton(
-                forward: true,
-                seconds: forwardStepSec,
-                size: skipSize,
-                onTap: () => onSkip(forwardStepSec),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class PlayerSpeedPill extends StatelessWidget {
-  const PlayerSpeedPill({
-    super.key,
-    required this.label,
-    required this.semanticLabel,
-    required this.onTap,
-  });
-
-  final String label;
-  final String semanticLabel;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: semanticLabel,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(9),
-          onTap: onTap,
-          child: SizedBox(
-            width: 52,
-            height: 44,
-            child: Center(
-              child: Container(
-                width: 52,
-                height: 32,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: NovaColors.ink.withValues(alpha: .30),
-                  borderRadius: BorderRadius.circular(9),
-                  border: Border.all(
-                    color: NovaColors.white.withValues(alpha: .85),
-                  ),
-                ),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: NovaColors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .4,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) => Positioned.fill(
+        child: Center(
+            child: IconButton.filled(
+          tooltip: NovaStrings.of(context)
+              .text(isPlaying ? 'playerPause' : 'message714'),
+          onPressed: onPlayPause,
+          style: IconButton.styleFrom(
+              fixedSize: const Size.square(72),
+              backgroundColor: NovaColors.ink.withValues(alpha: .76),
+              foregroundColor: NovaColors.white),
+          iconSize: 32,
+          icon: Icon(isPlaying ? LucideIcons.pause : LucideIcons.play),
+        )),
       );
 }
-
-class PlayerSideRail extends StatelessWidget {
-  const PlayerSideRail({
-    super.key,
-    required this.side,
-    required this.topInset,
-    required this.children,
-  });
-
-  final AxisSide side;
-  final double topInset;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    final isLeft = side == AxisSide.left;
-    return PositionedDirectional(
-      top: topInset,
-      start: isLeft ? 6 : null,
-      end: isLeft ? null : 6,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: isLeft ? 4 : 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final child in children) ...[
-              child,
-              const SizedBox(height: 10),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-enum AxisSide { left, right }
 
 // ── Gradient timeline ──────────────────────────────────────────────────────
 
@@ -717,11 +542,7 @@ class _GradientTimelineState extends State<GradientTimeline> {
 
 // ── Bottom cluster ─────────────────────────────────────────────────────────
 
-/// Spec-exact bottom block (Task 124/125, trimmed by Task 139): progress row
-/// above ALL controls; fullscreen+volume at the directional END, source /
-/// subtitles / audio at the directional START. The [rewind][play][forward]
-/// trio moved to the MIDDLE OF THE SCREEN (PlayerCenterTransport — Task 139
-/// user mandate), so this row is slimmer and purely positional.
+/// The timeline or live status sits above the localized player tools.
 class PlayerBottomCluster extends StatelessWidget {
   const PlayerBottomCluster({
     super.key,
@@ -729,20 +550,13 @@ class PlayerBottomCluster extends StatelessWidget {
     required this.positionMs,
     required this.bufferedMs,
     required this.showRemaining,
-    required this.volume,
-    required this.muted,
-    required this.fullscreen,
-    required this.canPrev,
-    required this.canNext,
-    required this.scale,
     required this.wide,
     required this.english,
-    required this.onPrev,
-    required this.onNext,
-    required this.onVolumeChanged,
-    required this.onVolumeDragEnd,
-    required this.onMuteToggle,
-    required this.onToggleFullscreen,
+    required this.onOpenSpeed,
+    required this.onOpenSettings,
+    this.onOpenEpisodes,
+    this.onOpenParty,
+    this.live = false,
     required this.onOpenStreams,
     required this.onOpenSubtitles,
     required this.onOpenAudio,
@@ -763,29 +577,12 @@ class PlayerBottomCluster extends StatelessWidget {
   final Object? interactionIdentity;
   final bool showRemaining;
 
-  /// mpv volume, normalized 0..1 (drives the left slider).
-  final double volume;
-  final bool muted;
-
-  /// True = system UI hidden (immersive); false = system UI visible.
-  final bool fullscreen;
-
-  final bool canPrev;
-  final bool canNext;
-  final double scale; // 1.0 phone · ~1.28 tablet
-
-  /// Tablet mode: wider margins, labels under side icons, thicker bar.
   final bool wide;
   final bool english;
-  final VoidCallback? onPrev;
-  final VoidCallback? onNext;
-  final ValueChanged<double> onVolumeChanged;
-  final VoidCallback onVolumeDragEnd;
-  final VoidCallback onMuteToggle;
-  final VoidCallback onToggleFullscreen;
-
-  /// Task 139: the pickers now open the right-half side panel — always
-  /// available (the panel loads/refreshes its own data), never null.
+  final bool live;
+  final VoidCallback onOpenSettings, onOpenSpeed;
+  final VoidCallback? onOpenEpisodes;
+  final VoidCallback? onOpenParty;
   final VoidCallback onOpenStreams;
   final VoidCallback onOpenSubtitles;
   final VoidCallback onOpenAudio;
@@ -796,7 +593,6 @@ class PlayerBottomCluster extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controlSize = 48.0 * scale;
     final margin = wide ? 28.0 : 14.0;
     final thickness = wide ? 6.0 : 4.0;
     return PositionedDirectional(
@@ -809,8 +605,8 @@ class PlayerBottomCluster extends StatelessWidget {
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
             colors: [
-              NovaColors.ink.withValues(alpha: .70),
-              NovaColors.ink.withValues(alpha: .40),
+              NovaColors.ink.withValues(alpha: .97),
+              NovaColors.ink.withValues(alpha: .87),
               NovaColors.ink.withValues(alpha: 0),
             ],
           ),
@@ -818,72 +614,78 @@ class PlayerBottomCluster extends StatelessWidget {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding:
-                EdgeInsetsDirectional.fromSTEB(margin, 30, margin, 8 * scale),
+            padding: EdgeInsetsDirectional.fromSTEB(margin, 12, margin, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // User-selected timeline convention: Arabic begins on the
                 // left, English on the right. Keep fill, thumb, labels and
                 // touch coordinates in the same direction.
-                Directionality(
-                  textDirection:
-                      english ? TextDirection.rtl : TextDirection.ltr,
-                  child: Row(
-                    children: [
-                      _TimeLabel(
-                        text: formatPlayerTime(
-                          Duration(milliseconds: positionMs),
-                        ),
-                        wide: wide,
-                        onTap: onToggleRemaining,
-                      ),
-                      Expanded(
-                        child: GradientTimeline(
-                          durationMs: durationMs,
-                          positionMs: positionMs,
-                          bufferedMs: bufferedMs,
-                          readExactPositionMs: readExactPositionMs,
-                          readExactDurationMs: readExactDurationMs,
-                          interactionIdentity: interactionIdentity,
-                          thickness: thickness,
-                          onScrubStart: onScrubStart,
-                          onScrubUpdate: onScrubUpdate,
-                          onScrubEnd: onScrubEnd,
-                        ),
-                      ),
-                      _TimeLabel(
-                        text: showRemaining && durationMs > 0
-                            ? '-${formatPlayerTime(Duration(milliseconds: durationMs - positionMs))}'
-                            : formatPlayerTime(
-                                Duration(milliseconds: durationMs)),
-                        wide: wide,
-                        onTap: onToggleRemaining,
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 2 * scale),
-                // Control row: side groups mirror with the direction; the
-                // transport trio lives center-screen (Task 139).
-                LayoutBuilder(builder: (context, constraints) {
-                  if (constraints.maxWidth < 600) {
-                    return Column(mainAxisSize: MainAxisSize.min, children: [
-                      SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: _trackGroup(controlSize)),
-                      const SizedBox(height: 4),
-                      _mediaGroup(controlSize),
-                    ]);
-                  }
-                  return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                if (live)
+                  Text(NovaStrings.lookup(english, 'message658'),
+                      style: const TextStyle(color: NovaColors.white))
+                else
+                  Directionality(
+                    textDirection:
+                        english ? TextDirection.rtl : TextDirection.ltr,
+                    child: Row(
                       children: [
-                        _trackGroup(controlSize),
-                        _mediaGroup(controlSize)
-                      ]);
-                }),
+                        _TimeLabel(
+                          text: formatPlayerTime(
+                            Duration(milliseconds: positionMs),
+                          ),
+                          wide: wide,
+                          onTap: onToggleRemaining,
+                        ),
+                        Expanded(
+                          child: GradientTimeline(
+                            durationMs: durationMs,
+                            positionMs: positionMs,
+                            bufferedMs: bufferedMs,
+                            readExactPositionMs: readExactPositionMs,
+                            readExactDurationMs: readExactDurationMs,
+                            interactionIdentity: interactionIdentity,
+                            thickness: thickness,
+                            onScrubStart: onScrubStart,
+                            onScrubUpdate: onScrubUpdate,
+                            onScrubEnd: onScrubEnd,
+                          ),
+                        ),
+                        _TimeLabel(
+                          text: showRemaining && durationMs > 0
+                              ? '-${formatPlayerTime(Duration(milliseconds: durationMs - positionMs))}'
+                              : formatPlayerTime(
+                                  Duration(milliseconds: durationMs)),
+                          wide: wide,
+                          onTap: onToggleRemaining,
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 2),
+                SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      for (final (icon, key, callback) in [
+                        (LucideIcons.volume2, 'message6', onOpenAudio),
+                        (LucideIcons.captions, 'message7', onOpenSubtitles),
+                        (LucideIcons.fastForward, 'message82', onOpenSpeed),
+                        (
+                          LucideIcons.slidersHorizontal,
+                          'message8',
+                          onOpenStreams
+                        ),
+                        (LucideIcons.settings2, 'message9', onOpenSettings),
+                        if (onOpenEpisodes != null)
+                          (LucideIcons.listVideo, 'message43', onOpenEpisodes!),
+                        if (onOpenParty != null)
+                          (LucideIcons.usersRound, 'partyTitle', onOpenParty!),
+                      ])
+                        _PlayerTool(
+                            icon: icon,
+                            label: NovaStrings.lookup(english, key),
+                            onTap: callback),
+                    ])),
               ],
             ),
           ),
@@ -891,186 +693,33 @@ class PlayerBottomCluster extends StatelessWidget {
       ),
     );
   }
-
-  // END side: volume icon (tap = mute) + slider + fullscreen, with small
-  // labels underneath on tablets (spec §0-ب).
-  Widget _mediaGroup(double controlSize) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _RaillessControl(
-            icon: muted
-                ? LucideIcons.volumeX
-                : volume < .5
-                    ? LucideIcons.volume1
-                    : LucideIcons.volume2,
-            semanticLabel:
-                NovaStrings.lookup(english, muted ? 'unmute' : 'mute'),
-            label: wide ? (NovaStrings.lookup(english, 'message36')) : null,
-            scale: scale,
-            onTap: onMuteToggle,
-          ),
-          _VolumeSlider(
-            value: muted ? 0 : volume,
-            width: (wide ? 130 : 84) * scale,
-            onChanged: onVolumeChanged,
-            onChangeEnd: (_) => onVolumeDragEnd(),
-          ),
-          _RaillessControl(
-            icon: fullscreen ? LucideIcons.maximize : LucideIcons.minimize,
-            semanticLabel: NovaStrings.lookup(
-              english,
-              fullscreen ? 'playerExitFullscreen' : 'message37',
-            ),
-            label: wide ? (NovaStrings.lookup(english, 'message37')) : null,
-            scale: scale,
-            onTap: onToggleFullscreen,
-          ),
-        ],
-      );
-
-  // START side: source / subtitles / audio (+ prev & next episode for
-  // series), with small labels underneath on tablets. The pickers open the
-  // right-half side panel (Task 139) — always available.
-  Widget _trackGroup(double controlSize) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (canPrev)
-            _RaillessControl(
-              icon: LucideIcons.skipBack,
-              semanticLabel:
-                  NovaStrings.lookup(english, 'playerPreviousEpisode'),
-              scale: scale,
-              iconSize: 28,
-              onTap: onPrev,
-            ),
-          _RaillessControl(
-            icon: LucideIcons.arrowLeftRight,
-            semanticLabel: NovaStrings.lookup(english, 'playerChangeSource'),
-            label: wide ? (NovaStrings.lookup(english, 'message38')) : null,
-            scale: scale,
-            onTap: onOpenStreams,
-          ),
-          _RaillessControl(
-            icon: LucideIcons.captions,
-            semanticLabel: NovaStrings.lookup(english, 'message7'),
-            label: wide ? (NovaStrings.lookup(english, 'message39')) : null,
-            scale: scale,
-            onTap: onOpenSubtitles,
-          ),
-          _RaillessControl(
-            icon: LucideIcons.audioLines,
-            semanticLabel: NovaStrings.lookup(english, 'message87'),
-            label: wide ? (NovaStrings.lookup(english, 'message40')) : null,
-            scale: scale,
-            onTap: onOpenAudio,
-          ),
-          if (canNext)
-            _RaillessControl(
-              icon: LucideIcons.skipForward,
-              semanticLabel: NovaStrings.lookup(english, 'message23'),
-              scale: scale,
-              iconSize: 28,
-              onTap: onNext,
-            ),
-        ],
-      );
 }
 
-/// Compact persistent volume bar (user mandate: "volume icon AND bar").
-class _VolumeSlider extends StatelessWidget {
-  const _VolumeSlider({
-    required this.value,
-    required this.width,
-    required this.onChanged,
-    required this.onChangeEnd,
-  });
-
-  final double value; // 0..1
-  final double width;
-  final ValueChanged<double> onChanged;
-  final ValueChanged<double> onChangeEnd;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: width,
-        child: SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 3,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-            padding: EdgeInsets.zero,
-          ),
-          child: Slider.adaptive(
-            value: value.clamp(0.0, 1.0),
-            onChanged: onChanged,
-            onChangeEnd: onChangeEnd,
-            activeColor: NovaColors.white,
-            inactiveColor: NovaColors.white.withValues(alpha: .24),
-          ),
-        ),
-      );
-}
-
-/// Circular-arrow skip button with the configurable seconds rendered inside
-/// (replaces the fixed replay_10/forward_10 glyphs).
-class _SkipButton extends StatelessWidget {
-  const _SkipButton({
-    required this.forward,
-    required this.seconds,
-    required this.size,
-    required this.onTap,
-  });
-
-  final bool forward;
-  final int seconds;
-  final double size;
+class _PlayerTool extends StatelessWidget {
+  const _PlayerTool(
+      {required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
   final VoidCallback onTap;
-
   @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: NovaStrings.lookup(
-          Localizations.localeOf(context).languageCode != 'ar',
-          forward ? 'forwardSeconds' : 'rewindSeconds',
-          {'p0': seconds},
-        ),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  forward ? LucideIcons.rotateCw : LucideIcons.rotateCcw,
-                  color: NovaColors.white,
-                  size: size * .62,
-                  shadows: PlayerPalette.iconShadow,
-                ),
-                Padding(
-                  padding: EdgeInsetsDirectional.fromSTEB(
-                    forward ? size * .16 : 0,
-                    size * .08,
-                    forward ? 0 : size * .16,
-                    0,
-                  ),
-                  child: Text(
-                    '$seconds',
-                    style: const TextStyle(
-                      color: NovaColors.white,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final children = [
+      Icon(icon, size: 20),
+      SizedBox(width: compact ? 0 : 6, height: compact ? 3 : 0),
+      Text(label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))
+    ];
+    return TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+            foregroundColor: NovaColors.white,
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+        child: compact
+            ? Column(mainAxisSize: MainAxisSize.min, children: children)
+            : Row(mainAxisSize: MainAxisSize.min, children: children));
+  }
 }
 
 class _TimeLabel extends StatelessWidget {
@@ -1097,79 +746,6 @@ class _TimeLabel extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _RaillessControl extends StatelessWidget {
-  const _RaillessControl({
-    required this.icon,
-    required this.semanticLabel,
-    required this.onTap,
-    required this.scale,
-    this.iconSize = 25,
-    this.label,
-  });
-
-  final IconData icon;
-  final String semanticLabel;
-  final VoidCallback? onTap;
-  final double scale;
-  final double iconSize;
-
-  /// Small caption under the icon — tablet only (spec §0-ب).
-  final String? label;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    final iconWidget = Icon(
-      icon,
-      color:
-          enabled ? NovaColors.white : NovaColors.white.withValues(alpha: .30),
-      size: iconSize * scale,
-      shadows: enabled ? PlayerPalette.iconShadow : null,
-    );
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: Opacity(
-        opacity: enabled ? 1.0 : .55,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: label == null
-              ? SizedBox(
-                  width: 48 * scale,
-                  height: 48 * scale,
-                  child: Center(child: iconWidget),
-                )
-              : Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 48 * scale,
-                        height: 48 * scale,
-                        child: Center(child: iconWidget),
-                      ),
-                      Text(
-                        label!,
-                        style: TextStyle(
-                          color: enabled
-                              ? NovaColors.white.withValues(alpha: .70)
-                              : NovaColors.white.withValues(alpha: .24),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── Double-tap ripple (user mandate: animated ±N feedback) ────────────────

@@ -20,6 +20,15 @@ export 'package:media_kit/media_kit.dart'
 /// [PlayerVideoSurface] widget below), so the engine implementation can be
 /// swapped without touching a single control widget.
 abstract class PlaybackEngine extends ChangeNotifier {
+  /// Installed only by the active route's Party binding. Native ownership,
+  /// opening, lifecycle and resource retirement remain with the engine.
+  Future<bool> Function(String action, double? value)? watchPartyCommand;
+  static const watchPartyRemoteZone = #novaWatchPartyRemote;
+  bool get interceptsWatchParty =>
+      watchPartyCommand != null && Zone.current[watchPartyRemoteZone] != true;
+  Future<bool> routeWatchPartyCommand(String action, [double? value]) async =>
+      interceptsWatchParty ? await watchPartyCommand!(action, value) : false;
+
   Future<String?> readChapterList() async => null;
 
   /// True only after native rendering has accepted the file's subtitle style.
@@ -91,6 +100,7 @@ abstract class PlaybackEngine extends ChangeNotifier {
 
   @override
   void dispose() {
+    watchPartyCommand = null;
     fileSubtitleRendering.dispose();
     super.dispose();
   }
@@ -421,11 +431,13 @@ class MediaKitEngine extends PlaybackEngine {
 
   @override
   Future<void> play() async {
+    if (interceptsWatchParty && await routeWatchPartyCommand('play')) return;
     if (!_disposed) await _player.play();
   }
 
   @override
   Future<void> pause() async {
+    if (interceptsWatchParty && await routeWatchPartyCommand('pause')) return;
     if (!_disposed) await _player.pause();
   }
 
@@ -433,14 +445,19 @@ class MediaKitEngine extends PlaybackEngine {
   Future<void> togglePlayPause() async {
     if (_disposed) return;
     if (_player.state.playing) {
-      await _player.pause();
+      await pause();
     } else {
-      await _player.play();
+      await play();
     }
   }
 
   @override
   Future<void> seekTo(Duration target) async {
+    if (interceptsWatchParty &&
+        await routeWatchPartyCommand(
+            'seek', target.inMilliseconds.toDouble())) {
+      return;
+    }
     if (_disposed || _duration <= Duration.zero) return;
     final clamped = Duration(
       milliseconds: target.inMilliseconds.clamp(0, _duration.inMilliseconds),
@@ -455,6 +472,9 @@ class MediaKitEngine extends PlaybackEngine {
 
   @override
   Future<void> setRate(double rate) async {
+    if (interceptsWatchParty && await routeWatchPartyCommand('rate', rate)) {
+      return;
+    }
     if (_disposed) return;
     await _player.setRate(rate.clamp(0.25, 4.0));
   }

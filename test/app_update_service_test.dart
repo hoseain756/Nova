@@ -32,12 +32,12 @@ class _PlainTextJsonAdapter implements HttpClientAdapter {
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.4',
-    'latest_build': 67,
+    'latest_version': '1.0.5',
+    'latest_build': 68,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
-        'https://github.com/hoseain756/Nova/releases/latest/download/app-release.apk',
+        'https://github.com/hoseain756/Nova/releases/download/v1.0.5/app-release.apk',
     'ios_url': '',
   };
 
@@ -50,14 +50,14 @@ void main() {
       packageInfoProvider: () async => PackageInfo(
         appName: 'NOVA',
         packageName: 'app.nova.mobile',
-        version: '1.0.3',
-        buildNumber: '66',
+        version: '1.0.4',
+        buildNumber: '67',
       ),
     );
 
     final status = await service.checkForUpdates();
 
-    expect(status.manifest.latestBuild, 67);
+    expect(status.manifest.latestBuild, 68);
     expect(status.hasUpdate, isTrue);
     expect(status.forceRequired, isFalse);
   });
@@ -65,12 +65,12 @@ void main() {
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.4');
-    expect(manifest.latestBuild, 67);
+    expect(manifest.latestVersion, '1.0.5');
+    expect(manifest.latestBuild, 68);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
-      'https://github.com/hoseain756/Nova/releases/latest/download/app-release.apk',
+      'https://github.com/hoseain756/Nova/releases/download/v1.0.5/app-release.apk',
     );
   });
 
@@ -100,8 +100,8 @@ void main() {
     expect(current.forceRequired, isFalse);
     final latest = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.0.4',
-      currentBuild: 67,
+      currentVersion: '1.0.5',
+      currentBuild: 68,
     );
     expect(latest.hasUpdate, isFalse);
     expect(latest.forceRequired, isFalse);
@@ -138,7 +138,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 68,
+        'min_build': 69,
       }),
       throwsFormatException,
     );

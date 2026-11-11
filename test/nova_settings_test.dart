@@ -488,7 +488,7 @@ void main() {
             find.descendant(of: header, matching: find.byType(NovaBrand));
         expect(brand, findsOneWidget);
         expect((tester.getCenter(brand).dx - 195).abs(), lessThan(1));
-        expect(find.textContaining('1.0.4+67'), findsOneWidget);
+        expect(find.textContaining('1.0.5+68'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }

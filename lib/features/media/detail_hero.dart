@@ -1,11 +1,11 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/models/media_item.dart';
+import '../../core/theme/nova_theme.dart';
 import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/shimmer_box.dart';
 export '../../shared/widgets/shimmer_box.dart';
@@ -28,187 +28,6 @@ class DetailBackPill extends StatelessWidget {
               onPressed: () => Navigator.of(context).maybePop(),
             )),
       );
-}
-
-/// Uncropped canvas edge: artwork always fills the available width, on phones
-/// and tablets. Content is independent of artwork and covers this hero.
-class DetailHero extends StatelessWidget {
-  const DetailHero(
-      {super.key,
-      required this.item,
-      required this.backdropUrl,
-      required this.logoUrl,
-      required this.isWide,
-      required this.viewportHeight,
-      required this.viewportWidth,
-      required this.contentVisibility});
-  final MediaItem item;
-  final String? backdropUrl;
-  final String? logoUrl;
-  final bool isWide;
-  final double viewportHeight;
-  final double viewportWidth;
-  final ValueListenable<double> contentVisibility;
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final foreground = Theme.of(context).brightness == Brightness.dark
-        ? scheme.onSurface
-        : scheme.surface;
-    final url = backdropUrl?.isNotEmpty == true ? backdropUrl : item.poster;
-    return RepaintBoundary(
-        child: Stack(fit: StackFit.expand, children: [
-      ColoredBox(color: scheme.surfaceContainerHighest),
-      if (url?.isNotEmpty == true)
-        NovaNetworkImage(url!,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: double.infinity,
-            cacheWidth: imageCacheWidth(context, viewportWidth),
-            excludeFromSemantics: true,
-            frameBuilder: (context, child, frame, sync) => AnimatedOpacity(
-                opacity: frame == null ? 0 : 1,
-                duration: MediaQuery.disableAnimationsOf(context)
-                    ? Duration.zero
-                    : const Duration(milliseconds: 320),
-                child: child),
-            errorBuilder: (_, __, ___) => const SizedBox.shrink()),
-      DecoratedBox(
-          decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: const [
-            0,
-            .35,
-            .75,
-            1
-          ],
-                  colors: [
-            scheme.scrim.withValues(alpha: .30),
-            scheme.scrim.withValues(alpha: .05),
-            scheme.scrim.withValues(alpha: .65),
-            scheme.scrim
-          ]))),
-      PositionedDirectional(
-          start: isWide ? 40 : 24,
-          end: isWide ? 40 : 24,
-          bottom: 32,
-          child: ValueListenableBuilder<double>(
-            valueListenable: contentVisibility,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (logoUrl?.isNotEmpty == true)
-                  NovaNetworkImage(logoUrl!,
-                      height: isWide ? 112 : 80,
-                      width: isWide ? 400 : viewportWidth - 48,
-                      fit: BoxFit.contain,
-                      alignment: AlignmentDirectional.centerStart
-                          .resolve(Directionality.of(context)),
-                      cacheWidth: imageCacheWidth(
-                          context, isWide ? 400 : viewportWidth - 48),
-                      semanticLabel: item.name,
-                      errorBuilder: (_, __, ___) => Text(item.name,
-                          style: TextStyle(
-                              color: foreground,
-                              fontSize: isWide ? 48 : 32,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2)))
-                else
-                  Text(item.name,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: foreground,
-                          fontSize: isWide ? 48 : 32,
-                          fontWeight: FontWeight.w800,
-                          height: 1.2)),
-              ],
-            ),
-            builder: (context, visibility, child) => IgnorePointer(
-              key: const ValueKey('detail-hero-content-ignore-pointer'),
-              ignoring: visibility <= .05,
-              child: Opacity(
-                key: const ValueKey('detail-hero-content-opacity'),
-                opacity: visibility,
-                child: child,
-              ),
-            ),
-          )),
-    ]));
-  }
-}
-
-class DetailColumnTitle extends StatelessWidget {
-  const DetailColumnTitle(
-      {super.key,
-      required this.logoUrl,
-      required this.title,
-      required this.isWide,
-      required this.viewportWidth});
-  final String? logoUrl;
-  final String title;
-  final bool isWide;
-  final double viewportWidth;
-  @override
-  Widget build(BuildContext context) =>
-      Text(title, style: Theme.of(context).textTheme.headlineMedium);
-}
-
-class DetailMetaRow extends StatelessWidget {
-  const DetailMetaRow({super.key, required this.item, required this.isWide});
-  final MediaItem item;
-  final bool isWide;
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          if (double.tryParse(item.rating ?? '') != null)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(LucideIcons.star, color: scheme.secondary, size: 16),
-              const SizedBox(width: 4),
-              Text(item.rating!,
-                  style: TextStyle(
-                      color: scheme.secondary, fontWeight: FontWeight.w700))
-            ]),
-          if (item.releaseInfo?.isNotEmpty == true) Text(item.releaseInfo!),
-          if (item.runtime?.isNotEmpty == true)
-            Text(item.runtime!, textDirection: TextDirection.ltr),
-          if (item.certification?.isNotEmpty == true)
-            Container(
-                padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 8, 4),
-                decoration: BoxDecoration(
-                    border: Border.all(color: scheme.outline),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(item.certification!,
-                    style: Theme.of(context).textTheme.labelMedium)),
-          for (final genre in item.genres.take(3))
-            Text(genre, style: TextStyle(color: scheme.onSurfaceVariant)),
-        ]);
-  }
-}
-
-class DetailSynopsis extends StatelessWidget {
-  const DetailSynopsis(
-      {super.key,
-      required this.description,
-      required this.isWide,
-      required this.viewportWidth});
-  final String description;
-  final bool isWide;
-  final double viewportWidth;
-  @override
-  Widget build(BuildContext context) => ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 880),
-      child: SelectableText(description,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              height: 1.7,
-              color: Theme.of(context).colorScheme.onSurfaceVariant)));
 }
 
 class DetailActionRow extends StatelessWidget {
@@ -550,17 +369,152 @@ class DetailFactsTable extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium)),
               ]),
           ]),
-      if (item.trailerUrl case final trailer?)
+      if (item.trailerUrl case final trailer? when trailer.trim().isNotEmpty)
         Padding(
-          padding: const EdgeInsetsDirectional.only(top: 16),
-          child: TextButton.icon(
-            onPressed: () => launchUrl(Uri.parse(trailer),
+          padding: const EdgeInsetsDirectional.only(top: NovaSpace.xl),
+          child: DetailTrailer(
+            item: item,
+            english: english,
+            onPlay: () => launchUrl(Uri.parse(trailer),
                 mode: LaunchMode.externalApplication),
-            icon: const Icon(LucideIcons.play),
-            label: Text(NovaStrings.lookup(english, 'tmdbWatchTrailer')),
           ),
         ),
     ]);
+  }
+}
+
+/// A single, artwork-led trailer entry with a separate, readable caption.
+class DetailTrailer extends StatelessWidget {
+  const DetailTrailer({
+    super.key,
+    required this.item,
+    required this.english,
+    required this.onPlay,
+  });
+
+  final MediaItem item;
+  final bool english;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final label = NovaStrings.lookup(english, 'tmdbWatchTrailer');
+    final artwork = [item.background, item.poster]
+        .whereType<String>()
+        .where((url) => url.trim().isNotEmpty)
+        .firstOrNull;
+    final fallback = ColoredBox(
+      color: scheme.surfaceContainerHighest,
+      child: Center(
+        child: Icon(LucideIcons.clapperboard,
+            size: 96, color: scheme.onSurfaceVariant.withValues(alpha: .16)),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(NovaStrings.lookup(english, 'tmdbUseTrailers'),
+            style: theme.textTheme.titleLarge),
+        const SizedBox(height: NovaSpace.md),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Semantics(
+              button: true,
+              label: '$label، ${item.name}',
+              onTap: onPlay,
+              excludeSemantics: true,
+              child: Material(
+                color: scheme.surfaceContainerLow,
+                clipBehavior: Clip.antiAlias,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: scheme.outlineVariant),
+                ),
+                child: InkWell(
+                  onTap: onPlay,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (artwork != null)
+                              NovaNetworkImage(
+                                artwork,
+                                fit: BoxFit.cover,
+                                cacheWidth: imageCacheWidth(context, 560),
+                                excludeFromSemantics: true,
+                                errorBuilder: (_, __, ___) => fallback,
+                              )
+                            else
+                              fallback,
+                            ColoredBox(
+                                color: NovaColors.ink.withValues(alpha: .24)),
+                            Center(
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: const ShapeDecoration(
+                                  color: NovaColors.red,
+                                  shape: CircleBorder(),
+                                ),
+                                child: const Icon(LucideIcons.play,
+                                    color: NovaColors.white, size: 28),
+                              ),
+                            ),
+                            // Keep focus, hover and press feedback above artwork.
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: onPlay,
+                                canRequestFocus: false,
+                                excludeFromSemantics: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(NovaSpace.md),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(label,
+                                      style: theme.textTheme.titleMedium),
+                                  const SizedBox(height: NovaSpace.xs),
+                                  Text(item.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                              color: scheme.onSurfaceVariant)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: NovaSpace.md),
+                            Icon(LucideIcons.externalLink,
+                                size: 20, color: scheme.onSurfaceVariant),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 

@@ -13,6 +13,7 @@ import '../../core/theme/horse_theme.dart';
 import '../../shared/widgets/media_rail.dart';
 import '../settings/integrations_page.dart';
 import '../shell/nova_browse_widgets.dart';
+import '../home/widgets/featured_hero.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../shell/noor_dock_tabs.dart';
 import '../media/media_detail_page.dart';
@@ -134,10 +135,6 @@ class _AnimePageState extends State<AnimePage>
           final filteredItems = items
               .where((item) => _filter == 'all' || item.type == _filter)
               .toList();
-          final featuredItem = filteredItems
-                  .where((item) => item.background?.trim().isNotEmpty == true)
-                  .firstOrNull ??
-              filteredItems.firstOrNull;
           return CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
@@ -168,15 +165,14 @@ class _AnimePageState extends State<AnimePage>
                               onSelected: (_) =>
                                   setState(() => _filter = entry.$1))
                       ]))),
-              if (featuredItem != null)
+              if (filteredItems.isNotEmpty)
                 SliverToBoxAdapter(
-                    child: NovaBrowseFeature(
-                  item: featuredItem,
-                  label: app.tr('message130'),
-                  actionLabel: app.tr('message527'),
-                  onOpen: () => _open(featuredItem),
-                )),
-              if (featuredItem == null && _addonHeroItems != null)
+                    child: FeaturedHero(
+                        items: FeaturedHero.browseItems(filteredItems),
+                        enrich: false,
+                        actionLabel: app.tr('message527'),
+                        onTap: _open)),
+              if (filteredItems.isEmpty && _addonHeroItems != null)
                 SliverToBoxAdapter(
                   child: FutureBuilder<List<MediaItem>>(
                     future: _addonHeroItems,
@@ -185,18 +181,12 @@ class _AnimePageState extends State<AnimePage>
                           .where((item) =>
                               _filter == 'all' || item.type == _filter)
                           .toList();
-                      final featured = candidates
-                              .where((item) =>
-                                  item.background?.trim().isNotEmpty == true)
-                              .firstOrNull ??
-                          candidates.firstOrNull;
-                      if (featured == null) return const SizedBox.shrink();
-                      return NovaBrowseFeature(
-                        item: featured,
-                        label: app.tr('message130'),
-                        actionLabel: app.tr('message527'),
-                        onOpen: () => _open(featured),
-                      );
+                      if (candidates.isEmpty) return const SizedBox.shrink();
+                      return FeaturedHero(
+                          items: FeaturedHero.browseItems(candidates),
+                          enrich: false,
+                          actionLabel: app.tr('message527'),
+                          onTap: _open);
                     },
                   ),
                 ),

@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'dart:async';
 
@@ -135,6 +136,7 @@ class _AnimeSearchSheetState extends State<_AnimeSearchSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     context.select<AppState, bool>((a) => a.english);
     final app = context.read<AppState>();
     final theme = Theme.of(context);
@@ -243,26 +245,17 @@ class _AnimeSearchSheetState extends State<_AnimeSearchSheet> {
                             }
                             return LayoutBuilder(
                                 builder: (context, constraints) {
-                              final columns = (constraints.maxWidth / 180)
-                                  .floor()
-                                  .clamp(2, 6);
-                              final width = (constraints.maxWidth -
-                                      48 -
-                                      (columns - 1) * 16) /
-                                  columns;
+                              final metrics = PosterGridMetrics(
+                                  context, constraints.maxWidth - 48,
+                                  preferredWidth: 180,
+                                  spacing: 16,
+                                  maxColumns: 6,
+                                  style: posterStyle);
+                              final width = metrics.width;
                               return GridView.builder(
                                   padding: const EdgeInsets.all(24),
                                   itemCount: items.length,
-                                  gridDelegate:
-                                      SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: columns,
-                                          mainAxisExtent: width / .72 +
-                                              78 *
-                                                  MediaQuery.textScalerOf(
-                                                          context)
-                                                      .scale(1),
-                                          mainAxisSpacing: 24,
-                                          crossAxisSpacing: 16),
+                                  gridDelegate: metrics.delegate,
                                   itemBuilder: (_, i) => Stack(children: [
                                         PosterCard(
                                             item: items[i],

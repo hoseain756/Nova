@@ -1,8 +1,8 @@
-import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/models/media_item.dart';
-import '../../shared/widgets/image_decode.dart';
+import '../../shared/widgets/poster_card.dart';
+import '../../shared/widgets/poster_layout.dart';
 import '../../shared/widgets/media_quick_look.dart';
 
 /// NOVA's editorial ranking: clear numbered captions, consistent posters,
@@ -20,7 +20,12 @@ class Top10Rail extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
     final gutter = MediaQuery.sizeOf(context).width >= 700 ? 40.0 : 24.0;
-    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final style = watchPosterStyle(context);
+    final width = style.railWidth(MediaQuery.sizeOf(context).width);
+    final height = width / style.aspectRatio +
+        (style.hideTitles
+            ? 0
+            : posterLabelHeight(context, width, release: false) + 4);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
           padding: EdgeInsetsDirectional.symmetric(horizontal: gutter),
@@ -34,7 +39,7 @@ class Top10Rail extends StatelessWidget {
           ])),
       const SizedBox(height: 20),
       SizedBox(
-          height: Top10Item.itemHeight + (scale - 1) * 44,
+          height: height,
           child: ListView.separated(
               padding: EdgeInsetsDirectional.symmetric(horizontal: gutter),
               scrollDirection: Axis.horizontal,
@@ -58,45 +63,42 @@ class Top10Item extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final style = watchPosterStyle(context);
+    final width = style.railWidth(MediaQuery.sizeOf(context).width);
     return SizedBox(
-        width: 144,
+        width: width,
         child: InkWell(
             onTap: onTap,
             onLongPress: () =>
                 showMediaQuickLook(context, item: item, onOpen: onTap),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(style.radius),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                      width: 144,
-                      height: 216,
-                      child: ColoredBox(
-                          color: scheme.surfaceContainerHighest,
-                          child: item.poster?.isNotEmpty == true
-                              ? NovaNetworkImage(item.poster!,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: imageCacheWidth(context, 144),
-                                  semanticLabel: item.name,
-                                  errorBuilder: (_, __, ___) => Icon(
-                                      LucideIcons.film,
-                                      color: scheme.onSurfaceVariant))
-                              : Icon(LucideIcons.film,
-                                  color: scheme.onSurfaceVariant)))),
-              const SizedBox(height: 12),
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(rank.toString().padLeft(2, '0'),
-                    textDirection: TextDirection.ltr,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: scheme.secondary, fontWeight: FontWeight.w800)),
-                const SizedBox(width: 8),
-                Expanded(
-                    child: Text(item.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall)),
-              ]),
+              PosterCard(
+                  item: item,
+                  onTap: onTap,
+                  width: width,
+                  style: style.copyWith(hideTitles: true)),
+              if (!style.hideTitles) ...[
+                const SizedBox(height: 12),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(rank.toString().padLeft(2, '0'),
+                      textDirection: TextDirection.ltr,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: scheme.secondary,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(item.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                  fontWeight: FontWeight.w600, height: 1.3))),
+                ]),
+              ],
             ])));
   }
 }

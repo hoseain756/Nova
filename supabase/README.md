@@ -18,6 +18,17 @@ The Android Release APK built successfully on 2026-11-02; no physical-device
 auth/profile flow has been verified. The old device sync path remains active
 until cutover.
 
+Watch Party's two migrations (`20261111091937_watch_parties.sql` and
+`20261111092449_watch_party_access_guards.sql`) were deployed on 2026-11-11.
+The public `nova_party` invoker delegates to checked private functions; room,
+member, chat and rate-limit tables have no client grants and explicit deny RLS.
+Realtime topics are private and receive only server-authored messages. The
+rollback SQL smoke passed, including authenticated-role API calls and denial
+of direct table reads, anonymous RPC calls and forged broadcast inserts. Its
+disposable Auth/profile fixtures were rolled back. A public probe verified
+WebSocket connectivity; authenticated private-channel and physical-device
+playback acceptance remain separate. See `../docs/watch-party/README.md`.
+
 ## Release order
 
 1. Remove the legacy direct-Postgres path from the new client. At the later

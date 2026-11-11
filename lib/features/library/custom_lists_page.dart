@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/material.dart';
@@ -136,6 +137,7 @@ class CustomListDetailPage extends StatelessWidget {
   final String listId;
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     final app = context.watch<AppState>();
     final list =
         app.customLists.where((entry) => entry.id == listId).firstOrNull;
@@ -198,23 +200,16 @@ class CustomListDetailPage extends StatelessWidget {
                             const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
                         sliver: SliverLayoutBuilder(
                             builder: (context, constraints) {
-                          final columns = (constraints.crossAxisExtent / 190)
-                              .floor()
-                              .clamp(2, 7);
-                          final width = (constraints.crossAxisExtent -
-                                  (columns - 1) * 20) /
-                              columns;
+                          final metrics = PosterGridMetrics(
+                              context, constraints.crossAxisExtent,
+                              preferredWidth: 190,
+                              spacing: 20,
+                              maxColumns: 7,
+                              style: posterStyle);
+                          final width = metrics.width;
                           return SliverGrid.builder(
                               itemCount: list.items.length,
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                      crossAxisCount: columns,
-                                      mainAxisExtent: width / .72 +
-                                          78 *
-                                              MediaQuery.textScalerOf(context)
-                                                  .scale(1),
-                                      crossAxisSpacing: 20,
-                                      mainAxisSpacing: 24),
+                              gridDelegate: metrics.delegate,
                               itemBuilder: (_, index) {
                                 final entry = list.items[index];
                                 final item = _toMediaItem(entry);

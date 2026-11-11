@@ -17,7 +17,8 @@ import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/features/home/home_page.dart';
-import 'package:nova_mobile/features/home/widgets/cinematic_cover_scroll.dart';
+import 'package:nova_mobile/features/player/widgets/player_chrome.dart';
+import 'package:nova_mobile/shared/widgets/media_hero.dart';
 import 'package:nova_mobile/features/media/detail_hero.dart';
 import 'package:nova_mobile/features/media/media_detail_page.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
@@ -184,6 +185,127 @@ void main() {
         .setMockMethodCallHandler(pathProvider, null);
   });
 
+  for (final english in [false, true]) {
+    final locale = english ? 'en' : 'ar';
+    testWidgets('Player tools, live status and lock in $locale',
+        (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(844, 390);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      ui.Image? frame;
+      if (_writeAcceptanceImages) {
+        frame = await tester.runAsync(() async {
+          final bytes =
+              await File('prototype/public/art/tide.jpg').readAsBytes();
+          final codec = await ui.instantiateImageCodec(bytes);
+          try {
+            return (await codec.getNextFrame()).image;
+          } finally {
+            codec.dispose();
+          }
+        });
+      }
+      final actions = <String>[];
+      String label(String key) => NovaStrings.lookup(english, key);
+      Widget player(
+              {bool live = false,
+              bool locked = false,
+              bool tablet = false,
+              Brightness brightness = Brightness.dark}) =>
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: NovaTheme.build(brightness, arabic: !english),
+            locale: Locale(locale),
+            supportedLocales: const [Locale('ar'), Locale('en')],
+            localizationsDelegates: const [
+              NovaStrings.delegate,
+              ...GlobalMaterialLocalizations.delegates
+            ],
+            home: RepaintBoundary(
+              key: _captureBoundary,
+              child: Scaffold(
+                  body: Stack(fit: StackFit.expand, children: [
+                if (frame != null) RawImage(image: frame, fit: BoxFit.cover),
+                PlayerTopBar(
+                  title: english ? 'Last Light' : 'آخر ضوء',
+                  episodeTag: live || locked ? '' : 'S01E02',
+                  wide: tablet,
+                  locked: locked,
+                  onClose: () => actions.add('exit'),
+                  onLock: () => actions.add('lock'),
+                ),
+                if (!locked) ...[
+                  PlayerCenterTransport(
+                      isPlaying: false, onPlayPause: () => actions.add('play')),
+                  PlayerBottomCluster(
+                    durationMs: 2880000,
+                    positionMs: 872000,
+                    bufferedMs: 1070000,
+                    live: live,
+                    wide: tablet,
+                    english: english,
+                    showRemaining: false,
+                    onOpenAudio: () => actions.add('message6'),
+                    onOpenSubtitles: () => actions.add('message7'),
+                    onOpenSpeed: () => actions.add('message82'),
+                    onOpenStreams: () => actions.add('message8'),
+                    onOpenSettings: () => actions.add('message9'),
+                    onOpenEpisodes:
+                        live ? null : () => actions.add('message43'),
+                    onToggleRemaining: () {},
+                    onScrubStart: () {},
+                    onScrubUpdate: (_) {},
+                    onScrubEnd: (_) {},
+                  ),
+                ],
+              ])),
+            ),
+          );
+
+      await tester.pumpWidget(player());
+      await tester.pumpAndSettle();
+      await _captureIfRequested(tester, 'player-$locale-landscape.png');
+      const keys = [
+        'message6',
+        'message7',
+        'message82',
+        'message8',
+        'message9',
+        'message43'
+      ];
+      await tester.tap(find.byTooltip(label('message714')));
+      for (final key in keys) {
+        final button = find.widgetWithText(TextButton, label(key));
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+      }
+      await tester.tap(find.byTooltip(label('playerLockControls')));
+      expect(actions, ['play', ...keys, 'lock']);
+      await tester.pumpWidget(player(locked: true));
+      expect(find.byType(PlayerBottomCluster), findsNothing);
+      await tester.tap(find.byTooltip(label('unlock')));
+      expect(actions.last, 'lock');
+      await tester.pumpWidget(player(live: true));
+      expect(find.byType(GradientTimeline), findsNothing);
+      expect(find.text(label('message658')), findsOneWidget);
+      expect(find.text(label('message43')), findsNothing);
+      tester.view.physicalSize = const Size(1024, 768);
+      await tester
+          .pumpWidget(player(tablet: true, brightness: Brightness.light));
+      await tester.pumpAndSettle();
+      final controls =
+          keys.map((key) => find.widgetWithText(TextButton, label(key)));
+      for (final control in controls) {
+        expect(control.hitTestable(), findsOneWidget);
+        expect(tester.getSize(control).height, greaterThanOrEqualTo(48));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      frame?.dispose();
+    });
+  }
+
   final surfaces = <(String, Size)>[
     ('phone-320x640', const Size(320, 640)),
     ('tablet-landscape-1024x768', const Size(1024, 768)),
@@ -196,7 +318,7 @@ void main() {
         final themeName = brightness.name;
 
         testWidgets(
-            'Home $surfaceName $localeName $themeName is bounded and coverable',
+            'Home $surfaceName $localeName $themeName is bounded and scrollable',
             (tester) async {
           await _exercisePage(
             tester,
@@ -206,12 +328,11 @@ void main() {
             english: english,
             brightness: brightness,
             pageBuilder: () => const Scaffold(body: HomePage()),
-            heroOpacityKey: const ValueKey('home-hero-content-opacity'),
           );
         });
 
         testWidgets(
-            'Details $surfaceName $localeName $themeName is bounded and coverable',
+            'Details $surfaceName $localeName $themeName is bounded and scrollable',
             (tester) async {
           await _exercisePage(
             tester,
@@ -221,7 +342,6 @@ void main() {
             english: english,
             brightness: brightness,
             pageBuilder: () => MediaDetailPage(item: _fixtureItems.first),
-            heroOpacityKey: const ValueKey('detail-hero-content-opacity'),
             verifyBackPill: true,
           );
         });
@@ -241,7 +361,6 @@ void main() {
         english: english,
         brightness: Brightness.dark,
         pageBuilder: () => const Scaffold(body: HomePage()),
-        heroOpacityKey: const ValueKey('home-hero-content-opacity'),
         textScale: 2,
       );
     });
@@ -272,7 +391,6 @@ Future<void> _exercisePage(
   required bool english,
   required Brightness brightness,
   required Widget Function() pageBuilder,
-  required Key heroOpacityKey,
   bool verifyBackPill = false,
   double textScale = 1,
 }) async {
@@ -339,12 +457,21 @@ Future<void> _exercisePage(
   expect(tester.takeException(), isNull);
   expect(Directionality.of(tester.element(find.byKey(_captureBoundary))),
       english ? TextDirection.ltr : TextDirection.rtl);
-  expect(tester.getSize(find.byType(CinematicLayerStack)), size);
-  expect(
-      find.byKey(const ValueKey('cinematic-content-surface'),
-          skipOffstage: false),
-      findsOneWidget);
-  expect(tester.widget<Opacity>(find.byKey(heroOpacityKey)).opacity, 1);
+  final frame = find.byKey(const ValueKey('media-hero-frame'));
+  final hero = find.byType(MediaHero);
+  expect(hero, findsOneWidget);
+  final art = tester.getRect(frame);
+  final title = tester.widget<MediaHero>(hero).item.name;
+  final heading = tester
+      .getRect(find.descendant(of: hero, matching: find.text(title)).first);
+  if (size.width < 700) {
+    expect(art.width, size.width);
+    expect(heading.top, greaterThanOrEqualTo(art.bottom));
+  } else if (english) {
+    expect(heading.right, lessThanOrEqualTo(art.left));
+  } else {
+    expect(heading.left, greaterThanOrEqualTo(art.right));
+  }
 
   if (verifyBackPill) {
     final button = find.descendant(
@@ -362,10 +489,9 @@ Future<void> _exercisePage(
 
   final position = await _scrollToCoveredState(tester);
   expect(position.pixels, greaterThan(300));
-  expect(tester.widget<Opacity>(find.byKey(heroOpacityKey)).opacity,
-      lessThanOrEqualTo(.05));
+  expect(position.pixels, greaterThanOrEqualTo(art.bottom));
+  expect(frame.hitTestable(), findsNothing);
   expect(tester.takeException(), isNull);
-  expect(tester.getSize(find.byType(CinematicLayerStack)), size);
 
   await _captureIfRequested(
       tester,

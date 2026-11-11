@@ -8,7 +8,7 @@ import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
 import 'package:nova_mobile/core/theme/nova_theme.dart';
 import 'package:nova_mobile/features/kids/kids_page.dart';
-import 'package:nova_mobile/features/shell/nova_browse_widgets.dart';
+import 'package:nova_mobile/features/home/widgets/featured_hero.dart';
 
 class _KidsCatalog extends CatalogRepository {
   _KidsCatalog(super.api);
@@ -53,10 +53,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
 
-    final feature = tester.widget<NovaBrowseFeature>(
-      find.byType(NovaBrowseFeature),
+    final feature = tester.widget<FeaturedHero>(
+      find.byType(FeaturedHero),
     );
-    expect(feature.item.id, 'movie:safe');
+    expect(feature.items.map((item) => item.id), ['movie:safe']);
     expect(tester.takeException(), isNull);
   });
 }

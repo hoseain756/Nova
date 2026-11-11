@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import 'nova_catalog_refresh.dart';
 import 'dart:async';
 
@@ -102,6 +103,7 @@ class _SearchSheetState extends State<SearchSheet>
 
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     context.select<AppState, bool>((a) => a.english);
     final app = context.read<AppState>();
     final theme = Theme.of(context);
@@ -258,33 +260,27 @@ class _SearchSheetState extends State<SearchSheet>
                                             ],
                                           ])))
                               : LayoutBuilder(builder: (context, constraints) {
-                                  final columns = (constraints.maxWidth / 190)
-                                      .floor()
-                                      .clamp(2, 6);
-                                  final width = (constraints.maxWidth -
-                                          48 -
-                                          (columns - 1) * 16) /
-                                      columns;
+                                  final metrics = PosterGridMetrics(
+                                      context, constraints.maxWidth - 48,
+                                      preferredWidth: 190,
+                                      spacing: 16,
+                                      maxColumns: 6,
+                                      style: posterStyle);
+                                  final width = metrics.width;
                                   return GridView.builder(
                                       padding: const EdgeInsets.all(24),
-                                      gridDelegate:
-                                          SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: columns,
-                                              mainAxisExtent: width / .72 +
-                                                  78 *
-                                                      MediaQuery.textScalerOf(
-                                                              context)
-                                                          .scale(1),
-                                              crossAxisSpacing: 16,
-                                              mainAxisSpacing: 24),
+                                      gridDelegate: metrics.delegate,
                                       itemCount: items.length,
-                                      itemBuilder: (context, index) => PosterCard(
-                                          item: items[index],
-                                          width: width,
-                                          onTap: () => Navigator.of(context)
-                                              .push(MaterialPageRoute<void>(
-                                                  builder: (_) => MediaDetailPage(
-                                                      item: items[index])))));
+                                      itemBuilder: (context, index) =>
+                                          PosterCard(
+                                              item: items[index],
+                                              width: width,
+                                              onTap: () => Navigator.of(context)
+                                                  .push(MaterialPageRoute<void>(
+                                                      builder: (_) =>
+                                                          MediaDetailPage(
+                                                              item: items[
+                                                                  index])))));
                                 })),
             ])));
   }

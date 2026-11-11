@@ -208,6 +208,7 @@ void main() {
                           ),
                         ),
                         onClose: () {},
+                        onLock: () {},
                       ),
                     ],
                   ),
@@ -269,33 +270,11 @@ void main() {
                           style: TextStyle(color: Colors.white),
                         ),
                         onClose: () {},
-                      ),
-                      PlayerSideRail(
-                        side: AxisSide.left,
-                        topInset: 144,
-                        children: [
-                          PlayerRailButton(
-                            key: const ValueKey('lock'),
-                            icon: Icons.lock,
-                            semanticLabel: 'Lock controls',
-                            onTap: () {},
-                          ),
-                          PlayerSpeedPill(
-                            key: const ValueKey('speed'),
-                            label: '1.0X',
-                            semanticLabel: 'Playback speed',
-                            onTap: () => speedTaps++,
-                          ),
-                        ],
+                        onLock: () {},
                       ),
                       PlayerCenterTransport(
                         isPlaying: false,
-                        backStepSec: 10,
-                        forwardStepSec: 10,
-                        scale: 1,
-                        wide: false,
                         onPlayPause: () {},
-                        onSkip: (_) {},
                       ),
                       PlayerBottomCluster(
                         key: const ValueKey('footer'),
@@ -303,20 +282,11 @@ void main() {
                         positionMs: 1800000,
                         bufferedMs: 2400000,
                         showRemaining: false,
-                        volume: .8,
-                        muted: false,
-                        fullscreen: true,
-                        canPrev: true,
-                        canNext: true,
-                        scale: 1,
                         wide: false,
                         english: direction == TextDirection.ltr,
-                        onPrev: () {},
-                        onNext: () {},
-                        onVolumeChanged: (_) {},
-                        onVolumeDragEnd: () {},
-                        onMuteToggle: () {},
-                        onToggleFullscreen: () {},
+                        onOpenSpeed: () => speedTaps++,
+                        onOpenSettings: () {},
+                        onOpenEpisodes: () {},
                         onOpenStreams: () {},
                         onOpenSubtitles: () {},
                         onOpenAudio: () {},
@@ -335,24 +305,21 @@ void main() {
 
         expect(tester.takeException(), isNull);
         final header = tester.getRect(find.byKey(const ValueKey('header')));
-        final lock = tester.getRect(find.byKey(const ValueKey('lock')));
-        final speed = tester.getRect(find.byKey(const ValueKey('speed')));
-        final play = tester.getRect(
-          find
-              .descendant(
-                of: find.byType(PlayerCenterTransport),
-                matching: find.byType(GestureDetector),
-              )
-              .at(1),
-        );
+        final english = direction == TextDirection.ltr;
+        final label = english ? 'Speed' : 'السرعة';
+        final speedButton = find.widgetWithText(TextButton, label);
+        final speed = tester.getRect(speedButton);
+        final play = tester.getRect(find.descendant(
+            of: find.byType(PlayerCenterTransport),
+            matching: find.byType(IconButton)));
         final footer = tester.getRect(find.byKey(const ValueKey('footer')));
-        expect(header.bottom, lessThanOrEqualTo(lock.top));
         expect(header.bottom, lessThan(play.top));
-        expect(speed.bottom, lessThanOrEqualTo(footer.top));
+        expect(play.size, const Size(72, 72));
         expect(play.bottom, lessThan(footer.top));
-        expect(speed.height, greaterThanOrEqualTo(44));
-
-        await tester.tap(find.byKey(const ValueKey('speed')));
+        expect(speed.top, greaterThanOrEqualTo(footer.top));
+        expect(speed.height, greaterThanOrEqualTo(48));
+        await tester.ensureVisible(speedButton);
+        await tester.tap(speedButton);
         expect(speedTaps, 1);
       },
     );

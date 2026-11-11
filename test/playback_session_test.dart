@@ -66,6 +66,32 @@ void main() {
     return session;
   }
 
+  test(
+      'Party commands use authority while remote commands retain the session lane',
+      () async {
+    final backend = _Backend();
+    final session = create(backend);
+    await session.open(_request().url, playWhenReady: false);
+    backend.log.clear();
+    final commands = <String>[];
+    session.watchPartyCommand = (action, value) async {
+      commands.add(action);
+      return true;
+    };
+    await session.play();
+    await session.pause();
+    await session.seekTo(const Duration(seconds: 30));
+    await session.setRate(1.5);
+    expect(commands, ['play', 'pause', 'seek', 'rate']);
+    expect(backend.log, isEmpty);
+    await runZoned(() => session.play(),
+        zoneValues: {PlaybackEngine.watchPartyRemoteZone: true});
+    expect(backend.log, ['play']);
+    session.watchPartyCommand = (action, value) async => false;
+    await session.pause();
+    expect(backend.log, ['play', 'pause']);
+  });
+
   test('compatibility fallback retires first decoder before allocation',
       () async {
     final first = _Backend()..openError = StateError('codec');

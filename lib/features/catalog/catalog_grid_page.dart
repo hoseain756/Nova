@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import '../shell/nova_catalog_refresh.dart';
 import 'dart:async';
 
@@ -94,6 +95,7 @@ class _CatalogGridPageState extends State<CatalogGridPage>
 
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     context.select<AppState, bool>((app) => app.english);
     final app = context.read<AppState>();
     final items = _items ?? const <MediaItem>[];
@@ -137,19 +139,16 @@ class _CatalogGridPageState extends State<CatalogGridPage>
             SliverPadding(
                 padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 48),
                 sliver: SliverLayoutBuilder(builder: (context, constraints) {
-                  final columns =
-                      (constraints.crossAxisExtent / 190).floor().clamp(2, 7);
-                  final width =
-                      (constraints.crossAxisExtent - (columns - 1) * 20) /
-                          columns;
+                  final metrics = PosterGridMetrics(
+                      context, constraints.crossAxisExtent,
+                      preferredWidth: 190,
+                      spacing: 20,
+                      maxColumns: 7,
+                      style: posterStyle);
+                  final width = metrics.width;
                   return SliverGrid.builder(
                       itemCount: items.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          mainAxisExtent: width / .72 +
-                              78 * MediaQuery.textScalerOf(context).scale(1),
-                          crossAxisSpacing: 20,
-                          mainAxisSpacing: 24),
+                      gridDelegate: metrics.delegate,
                       itemBuilder: (context, index) => PosterCard(
                           item: items[index],
                           width: width,

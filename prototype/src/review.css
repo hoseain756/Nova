@@ -1,0 +1,74 @@
+.review {
+  display: grid;
+  grid-template-columns: 245px minmax(0, 1fr);
+  min-height: 100svh;
+  background: #0e0e11;
+}
+.review aside {
+  background: #202025;
+  padding: 22px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.review aside > img {
+  width: 80px;
+}
+.review h1 {
+  font-size: 1.4rem;
+  margin: 4px 0;
+}
+.review aside label {
+  font-size: 0.84rem;
+}
+.review aside select {
+  font-size: 0.85rem;
+  padding: 6px;
+  min-height: 42px;
+}
+.review aside .check {
+  min-height: 28px;
+}
+.review .actions a {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: white;
+}
+.review-stage {
+  padding: 20px;
+  overflow: auto;
+  text-align: center;
+  min-width: 0;
+}
+.review-stage > p {
+  color: #bbb;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+}
+.review-stage iframe {
+  border: 1px solid #3a3a42;
+  border-radius: 16px;
+  display: block;
+  margin: auto;
+  background: #141417;
+}
+@media (max-width: 740px) {
+  .review {
+    grid-template-columns: 1fr;
+  }
+  .review aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .review aside > small {
+    grid-column: 1/-1;
+  }
+  .review-stage {
+    padding: 6px;
+  }
+  .review-stage iframe {
+    max-width: 100%;
+    border-radius: 0;
+  }
+}

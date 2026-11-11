@@ -1,3 +1,4 @@
+import '../../shared/widgets/poster_layout.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
@@ -22,6 +23,7 @@ import '../torrent/magnet_opener.dart';
 import 'custom_lists_page.dart';
 import '../media/media_detail_page.dart';
 import '../shared_collections/shared_collections_panel.dart';
+import '../watch_party/watch_party_page.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -36,6 +38,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final posterStyle = watchPosterStyle(context);
     final app = context.watch<AppState>();
     final librarySort = app.webSettings['librarySort']?.toString() ?? 'recent';
     final watchlist = app.watchlist
@@ -64,6 +67,11 @@ class _LibraryPageState extends State<LibraryPage> {
               title: app.tr('message637'),
               subtitle: app.tr('message638'),
               actions: [
+            if (!app.kidsSession)
+              OutlinedButton.icon(
+                  onPressed: () => unawaited(openWatchParty(context)),
+                  icon: const Icon(LucideIcons.usersRound),
+                  label: Text(app.tr('partyTitle'))),
             FilledButton.tonalIcon(
                 onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -133,19 +141,16 @@ class _LibraryPageState extends State<LibraryPage> {
           SliverPadding(
               padding: const EdgeInsetsDirectional.fromSTEB(24, 0, 24, 24),
               sliver: SliverLayoutBuilder(builder: (context, constraints) {
-                final columns =
-                    (constraints.crossAxisExtent / 190).floor().clamp(2, 7);
-                final width =
-                    (constraints.crossAxisExtent - (columns - 1) * 20) /
-                        columns;
+                final metrics = PosterGridMetrics(
+                    context, constraints.crossAxisExtent,
+                    preferredWidth: 190,
+                    spacing: 20,
+                    maxColumns: 7,
+                    style: posterStyle);
+
                 return SliverGrid.builder(
                     itemCount: watchlist.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        mainAxisExtent: width / .72 +
-                            78 * MediaQuery.textScalerOf(context).scale(1),
-                        crossAxisSpacing: 20,
-                        mainAxisSpacing: 24),
+                    gridDelegate: metrics.delegate,
                     itemBuilder: (_, i) => _WatchlistCard(item: watchlist[i]));
               })),
       ] else if (_tab == 1) ...[

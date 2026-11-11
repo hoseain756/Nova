@@ -45,17 +45,18 @@ import 'widgets/player_panel_request.dart';
 import 'widgets/player_side_panel.dart';
 import 'widgets/player_sheets.dart';
 import 'widgets/subtitle_overlay.dart';
+import '../../core/watch_party/watch_party_controller.dart';
+import '../../core/watch_party/watch_party_models.dart';
+import '../watch_party/watch_party_page.dart';
+import 'watch_party_player_binding.dart';
 
-/// Cinematic player (reference design): the video is the screen — white
-/// controls, teal→blue gradient timeline, large outlined central play
-/// control, side rails (orientation / fit / lock · audio / episodes / speed)
-/// and gesture-first interaction:
+/// Fullscreen player with centralized transport, a directional timeline and tool dialogs.
 ///   · tap            — show / hide chrome
 ///   · double-tap     — ±10 s (edges) · play/pause (center)
 ///   · horizontal drag— scrub with live seek HUD
 ///   · vertical drag  — left: brightness · right: system volume
 ///   · pinch          — zoom 1×–4×
-/// Engine is libmpv (media_kit) behind the [PlaybackEngine] facade.
+/// Playback commands and native ownership are managed by the Core session.
 class CoreVideoPlayerPage extends StatefulWidget {
   const CoreVideoPlayerPage({
     super.key,
@@ -110,6 +111,57 @@ enum _GestureMode { none, seek, brightness, volume, zoom }
 class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     with WidgetsBindingObserver {
   PlaybackSession? _engine;
+  WatchPartyPlayerBinding? _partyBinding;
+  WatchPartyMedia get _partyMedia => WatchPartyMedia.fromItem(widget.item,
+      videoId: widget.videoId, season: widget.season, episode: widget.episode);
+  bool get _partyMatching =>
+      _partyBinding?.controller.snapshot?.media?.key == _partyMedia.key;
+  void _attachPartyBinding(PlaybackEngine? engine) {
+    final controller = context.read<WatchPartyController?>();
+    if (identical(_partyBinding?.engine, engine) &&
+        identical(_partyBinding?.controller, controller)) {
+      return;
+    }
+    _partyBinding?.dispose();
+    _partyBinding = null;
+    if (engine == null ||
+        controller == null ||
+        !widget.recordProgress ||
+        _liveChannel ||
+        _app.kidsSession) {
+      return;
+    }
+    _partyBinding = WatchPartyPlayerBinding(
+        controller: controller,
+        engine: engine,
+        media: _partyMedia,
+        isActive: () =>
+            mounted &&
+            !_closing &&
+            (engine is! PlaybackSession || !engine.isClosing) &&
+            !_resuming &&
+            !_resumeTransitioning &&
+            identical(_engine, engine),
+        onError: (key) {
+          if (mounted) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(content: Text(NovaStrings.of(context).text(key))));
+          }
+        });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    Provider.of<WatchPartyHandle?>(context);
+    _attachPartyBinding(_engine);
+  }
+
+  void _openParty() => unawaited(openWatchParty(context,
+      media: _partyMedia,
+      positionMs: _engine?.position.inMilliseconds ?? 0,
+      playing: _engine?.playing ?? false,
+      rate: _engine?.rate ?? 1));
   PlaybackPanelToken? _panelToken;
   Object? _featureProjection;
   late final AppState _app = context.read<AppState>();
@@ -125,7 +177,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   bool _locked = false;
   bool _sheetOpen = false;
 
-  // Task 139: the right-half picker panel (subtitles / audio / sources).
+  // The active in-page tool shares one pause/resume session across panel switches.
   // `_panelWasPlaying` + `_panelEngine` reproduce the A1 pause/resume
   // contract for the in-page overlay: pause on open, resume ONLY if it was
   // playing, and never resume an engine that was swapped mid-panel.
@@ -236,6 +288,11 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     if (continuity != null) {
       _resuming = !continuity.resumeResolved;
       _resumePositionMs = continuity.position.inMilliseconds;
+    }
+    final party = context.read<WatchPartyController?>();
+    if (party?.snapshot?.media?.key == _partyMedia.key) {
+      _resuming = false;
+      _resumePositionMs = party!.snapshot!.targetMs(party.clock.nowMs);
     }
     _fit = NovaPlaybackPreferences.videoFit(_app.webSettings['videoFill']);
     SystemChrome.setPreferredOrientations(const [
@@ -506,6 +563,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       onExactProgress: _onExactProgress,
     );
     _engine = session;
+    _attachPartyBinding(session);
     session.resumeResolved = !_resuming;
     session.addListener(_onEngineTick);
     unawaited(session.open(
@@ -513,7 +571,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       startAt:
           !_resuming ? Duration(milliseconds: _resumePositionMs ?? 0) : null,
       httpHeaders: widget.headers,
-      playWhenReady: !_resuming,
+      playWhenReady: !_resuming && !_partyMatching,
       continuity: widget.continuity,
     ));
     unawaited(Future<void>.delayed(const Duration(seconds: 10), () {
@@ -588,6 +646,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
   /// (autoAdvanceAtMs returns null) — the card stays manual, exactly as
   /// shipped. Honors the Cancel latch and the autoplay preference.
   void _maybeAutoAdvance(PlaybackSession engine) {
+    if (_partyMatching && _partyBinding?.controller.isHost != true) {
+      return;
+    }
     final position = engine.position.inMilliseconds;
     final previous = _lastAutoAdvancePositionMs;
     _lastAutoAdvancePositionMs = position;
@@ -784,6 +845,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _partyBinding?.setForeground(state == AppLifecycleState.resumed);
     final session = _engine;
     if (session == null) return;
     if (state == AppLifecycleState.resumed) {
@@ -882,7 +944,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
     _leaveDialogOpen = true;
     final engine = _engine;
-    final dialogToken = engine?.pauseForPanel();
+    final dialogToken = _partyMatching ? null : engine?.pauseForPanel();
     if (!mounted) return;
     final leave = await showDialog<bool>(
           context: context,
@@ -995,10 +1057,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _bumpControls();
   }
 
-  String get _speedLabel {
-    final rate = _engine?.rate ?? 1.0;
-    return '${rate == rate.roundToDouble() ? rate.toStringAsFixed(1) : rate}X';
-  }
+  bool get _liveChannel =>
+      !widget.recordProgress && widget.item.id.startsWith('live:');
 
   // ── Sheets ──────────────────────────────────────────────────────────────
 
@@ -1016,7 +1076,8 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     // must never leave the player paused, and opening must never auto-start
     // a video the user had paused. The `identical` guard keeps the resume
     // off an engine that was swapped/disposed while the panel was open.
-    final token = pauseVideo ? engine?.pauseForPanel() : null;
+    final token =
+        pauseVideo && !_partyMatching ? engine?.pauseForPanel() : null;
     try {
       await show();
     } finally {
@@ -1030,9 +1091,6 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     }
   }
 
-  /// Task 141 (user mandate): the playback settings open as the SAME
-  /// right-half panel as the subtitle picker — a single setState, no route,
-  /// no await. The old pop-result sheet flow (speed:/fit:/audio/...) is gone.
   void _openSettingsPanel() => _openPanel(PlayerPanelKind.settings);
 
   String get _audioLabel {
@@ -1072,9 +1130,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   void _openStreamsPanel() => _openPanel(PlayerPanelKind.streams);
 
-  /// Opens a right-half side panel INSTANTLY (a single setState — no route,
-  /// no await): the video pauses for the panel's lifetime and resumes ONLY
-  /// if it was playing; never resumes an engine that was swapped mid-panel.
+  /// Pause once on entry and restore the original intent when the last tool closes.
   void _openPanel(PlayerPanelKind kind) {
     _panelRequest.invalidate();
     if (_locked) return;
@@ -1095,7 +1151,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     final switching = _panel != null;
     final wasPlaying =
         switching ? _panelWasPlaying : (engine?.playing ?? false);
-    if (!switching && engine != null) _panelToken = engine.pauseForPanel();
+    if (!switching && engine != null && !_partyMatching) {
+      _panelToken = engine.pauseForPanel();
+    }
     _hideTimer?.cancel();
     setState(() {
       _panel = kind;
@@ -1137,13 +1195,22 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
     _bumpControls();
   }
 
-  /// The right-half panel hosting the currently open picker (Task 139).
-  /// Rendered as an in-page overlay at the END of the build Stack — opening
-  /// is instant, loading happens INSIDE the panel in front of the user,
-  /// and the header refresh button re-fetches without leaving the player.
+  /// Presents the active tool with its current engine state and request results.
   Widget _buildPanel(PlaybackSession? engine) {
     final kind = _panel!;
     switch (kind) {
+      case PlayerPanelKind.speed:
+        return PlayerSidePanel(
+            title: NovaStrings.lookup(english, 'message82'),
+            english: english,
+            onClose: _closePanel,
+            child: SingleChildScrollView(
+                child: PlayerSpeedChoices(
+              speed: engine?.rate ?? 1,
+              speeds: NovaPlaybackPreferences.playbackSpeeds(
+                  _app.webSettings['customPlaybackSpeeds'], engine?.rate ?? 1),
+              onSpeed: (value) => unawaited(engine?.setRate(value)),
+            )));
       case PlayerPanelKind.audio:
         return PlayerSidePanel(
           title: NovaStrings.lookup(english, 'message6'),
@@ -1158,22 +1225,33 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           // enumeration lands after the panel opened).
           onRefresh: () => setState(() {}),
           refreshing: false,
-          child: AudioTracksPanelBody(
-            english: english,
-            tracks: engine?.audioTracks ?? const [],
-            selected: engine?.selectedAudio ?? const AudioTrack('', null, null),
-            onPick: (track) {
-              _preferenceSession.markAudioSelectedManually();
-              unawaited(engine?.selectAudio(track));
-            },
-            delayMs: (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0,
-            onDelayChanged: (ms) async {
-              await engine?.setAudioDelayMs(ms);
-              if (!mounted) return;
-              _lastAudioDelayMs = ms;
-              await _app.setSetting('audioDelayMs', ms);
-            },
-          ),
+          child: Column(children: [
+            if (engine != null)
+              PlayerVolumeControl(
+                  english: english,
+                  volume: engine.volume,
+                  muted: engine.muted,
+                  onMute: () => unawaited(engine.toggleMute()),
+                  onVolume: (value) => unawaited(engine.setVolume(value))),
+            Expanded(
+                child: AudioTracksPanelBody(
+              english: english,
+              tracks: engine?.audioTracks ?? const [],
+              selected:
+                  engine?.selectedAudio ?? const AudioTrack('', null, null),
+              onPick: (track) {
+                _preferenceSession.markAudioSelectedManually();
+                unawaited(engine?.selectAudio(track));
+              },
+              delayMs: (_app.webSettings['audioDelayMs'] as num?)?.toInt() ?? 0,
+              onDelayChanged: (ms) async {
+                await engine?.setAudioDelayMs(ms);
+                if (!mounted) return;
+                _lastAudioDelayMs = ms;
+                await _app.setSetting('audioDelayMs', ms);
+              },
+            )),
+          ]),
         );
       case PlayerPanelKind.subtitles:
         return PlayerSidePanel(
@@ -1222,9 +1300,9 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           ),
         );
       case PlayerPanelKind.settings:
-        // Task 141 (user mandate): the settings fill the SAME right-half
-        // panel as the subtitle picker. No refresh button — everything here
-        // is engine/device state, applied live in front of the user.
+        final index = _currentEpisodeIndex();
+        final previous = index > 0 ? _episodeAt(index - 1) : null;
+        final next = index >= 0 ? _episodeAt(index + 1) : null;
         return PlayerSidePanel(
           title: NovaStrings.lookup(english, 'message9'),
           english: english,
@@ -1234,6 +1312,27 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           onOpenSubtitles: _openSubtitlesPanel,
           onOpenStreams: _openStreamsPanel,
           child: PlayerSettingsPanelBody(
+            additionalControls: PlayerTransportOptions(
+              english: english,
+              fullscreen: _fullscreen,
+              live: _liveChannel,
+              backStep: _backStepSec,
+              forwardStep: _forwardStepSec,
+              onSeek: (step) => unawaited(_seekBy(step)),
+              onFullscreen: () => unawaited(_toggleFullscreen()),
+              onPrevious: previous == null
+                  ? null
+                  : () {
+                      _closePanel();
+                      unawaited(_switchEpisode(previous));
+                    },
+              onNext: next == null
+                  ? null
+                  : () {
+                      _closePanel();
+                      unawaited(_startEpisodeSources(next));
+                    },
+            ),
             english: english,
             speed: _engine?.rate ?? 1.0,
             speeds: NovaPlaybackPreferences.playbackSpeeds(
@@ -1243,7 +1342,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             fit: _fit,
             audioLabel: _audioLabel,
             subtitleLabel: _subtitleLabel,
-            hasEpisodes: widget.item.type == 'series' && _episodes.isNotEmpty,
+            hasEpisodes: index >= 0,
             // Speed + fit apply LIVE — the panel stays open so the user can
             // audition values (same contract as picking audio tracks).
             onSpeed: (value) {
@@ -1256,9 +1355,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
             // _openPanel's switching branch.
             onOpenAudio: () => _openPanel(PlayerPanelKind.audio),
             onOpenSubtitles: () => _openPanel(PlayerPanelKind.subtitles),
-            // Episodes stays a dense bottom sheet (SheetScaffold route); the
-            // panel closes with its normal resume contract, matching the old
-            // flow where playback kept running under the sheet.
+            // Hand the episode chooser to its own route and playback lifecycle.
             onOpenEpisodes: () {
               _closePanel();
               unawaited(_openEpisodesSheet());
@@ -1802,6 +1899,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
       !_temporarySpeed.active;
 
   void _startTemporarySpeed(LongPressStartDetails details) {
+    if (_partyMatching) return;
     final engine = _engine;
     if (!_videoGesturesEnabled ||
         engine == null ||
@@ -2055,6 +2153,7 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
 
   @override
   void dispose() {
+    _partyBinding?.dispose();
     _temporarySpeed.invalidate();
     _hudRevision.dispose();
     _engine?.cancelResolution();
@@ -2147,24 +2246,15 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
           )
         : null;
     final endingVisible = activeSkip?.isEnding ?? false;
-    final nextEpisode = widget.item.type == 'series'
-        ? _episodeAt(_currentEpisodeIndex() + 1)
-        : null;
-    final prevEpisode = widget.item.type == 'series'
-        ? _episodeAt(_currentEpisodeIndex() - 1)
-        : null;
+    final episodeIndex = _currentEpisodeIndex();
+    final nextEpisode = episodeIndex >= 0 ? _episodeAt(episodeIndex + 1) : null;
     final width = MediaQuery.sizeOf(context).width;
     // Spec §0-ب: phone (~844×390) vs tablet (~1180×820) sizing.
     final wide = width >= 900;
     final scale = wide ? 1.28 : 1.0;
     final showStreamInfo = _app.webSettings['showQualityInfo'] == true &&
         widget.streamName.trim().isNotEmpty;
-    final scaledBodyText = MediaQuery.textScalerOf(context).scale(16);
     final hasTorrentInfo = widget.torrent != null && _torrentStatus != null;
-    final hasHeaderMetadata = showStreamInfo || hasTorrentInfo;
-    final metadataInset =
-        120.0 + (scaledBodyText - 16).clamp(0.0, 32.0).toDouble() * 3;
-    final railTopInset = (hasHeaderMetadata ? metadataInset : 108.0) * scale;
 
     Widget buildBottomCluster(
       PlaybackSession engine, {
@@ -2182,38 +2272,16 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
         readExactDurationMs: () =>
             current() && engine.canSeek ? engine.duration.inMilliseconds : 0,
         interactionIdentity: identity,
-        volume: engine.volume,
-        muted: engine.muted,
-        fullscreen: _fullscreen,
         showRemaining: _showRemaining,
-        canPrev: prevEpisode != null,
-        canNext: nextEpisode != null,
-        scale: scale,
         wide: wide,
         english: english,
-        onPrev: prevEpisode == null
+        live: _liveChannel,
+        onOpenSpeed: () => _openPanel(PlayerPanelKind.speed),
+        onOpenSettings: _openSettingsPanel,
+        onOpenParty: !widget.recordProgress || _liveChannel || _app.kidsSession
             ? null
-            : () => unawaited(_switchEpisode(prevEpisode)),
-        // Task 139: NEXT always routes through the sources
-        // page (spec B2.3 — never bypass source selection),
-        // so the next-episode flow is reachable at ANY
-        // time, not only inside the card's last-30 s
-        // window. Prev keeps the fast already-watched path.
-        onNext: nextEpisode == null
-            ? null
-            : () => unawaited(_startEpisodeSources(nextEpisode)),
-        onVolumeChanged: (value) async {
-          await engine.setVolume(value);
-        },
-        onVolumeDragEnd: () => _bumpControls(),
-        onMuteToggle: () async {
-          await engine.toggleMute();
-          _bumpControls();
-        },
-        onToggleFullscreen: () => unawaited(_toggleFullscreen()),
-        // Task 139: the pickers open the right-half panel
-        // INSTANTLY — always available (the panel loads
-        // and refreshes its own data).
+            : _openParty,
+        onOpenEpisodes: episodeIndex >= 0 ? _openEpisodesSheet : null,
         onOpenStreams: _openStreamsPanel,
         onOpenSubtitles: _openSubtitlesPanel,
         onOpenAudio: _openAudioPanel,
@@ -2381,52 +2449,16 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                                   ),
                                 )
                               : null,
+                          onLock: _lock,
+                          onResetZoom: _zoom > 1.01
+                              ? () => setState(() => _zoom = 1)
+                              : null,
                           onClose: () => unawaited(_requestClose()),
                           wide: wide,
                         ),
-                        PlayerSideRail(
-                          side: AxisSide.left,
-                          topInset: railTopInset,
-                          children: [
-                            // Keep episodes directly below the lock.
-                            PlayerRailButton(
-                              icon: LucideIcons.lockKeyhole,
-                              semanticLabel: NovaStrings.lookup(
-                                english,
-                                'playerLockControls',
-                              ),
-                              onTap: _lock,
-                            ),
-                            if (widget.item.type == 'series')
-                              PlayerRailButton(
-                                icon: LucideIcons.listVideo,
-                                semanticLabel: NovaStrings.lookup(
-                                  english,
-                                  'message43',
-                                ),
-                                onTap: _openEpisodesSheet,
-                              ),
-                            PlayerSpeedPill(
-                              label: _speedLabel,
-                              semanticLabel: NovaStrings.lookup(
-                                english,
-                                'playerPlaybackSpeed',
-                              ),
-                              onTap: _openSettingsPanel,
-                            ),
-                          ],
-                        ),
-                        // Task 139 (user mandate): the transport trio
-                        // [rewind][play/pause][forward] lives in the MIDDLE
-                        // of the screen with the configured seek steps.
                         PlayerCenterTransport(
                           isPlaying: engine.playing,
-                          backStepSec: _backStepSec,
-                          forwardStepSec: _forwardStepSec,
-                          scale: scale,
-                          wide: wide,
                           onPlayPause: () => unawaited(_togglePlay()),
-                          onSkip: (s) => unawaited(_seekBy(s)),
                         ),
                         ValueListenableBuilder<PlaybackProgress?>(
                           valueListenable: engine.progress,
@@ -2490,68 +2522,14 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                   },
                 ),
 
-                // Reset-zoom chip.
-                if (_zoom > 1.01 &&
-                    _mode == _GestureMode.none &&
-                    _controlsVisible)
-                  PositionedDirectional(
-                    top: railTopInset + 168,
-                    end: 14,
-                    child: Material(
-                      color: NovaColors.ink.withValues(alpha: .55),
-                      borderRadius: BorderRadius.circular(999),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () => setState(() => _zoom = 1),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.scan,
-                                  size: 14, color: NovaColors.white),
-                              SizedBox(width: 6),
-                              Text(
-                                '1×',
-                                style: TextStyle(
-                                  color: NovaColors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Lock pill — the only chrome while locked.
                 if (_locked)
-                  PositionedDirectional(
-                    bottom: 26,
-                    start: 16,
-                    child: Material(
-                      color: NovaColors.ink.withValues(alpha: .45),
-                      borderRadius: BorderRadius.circular(999),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: _unlock,
-                        child: const SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Icon(
-                            LucideIcons.lock,
-                            color: NovaColors.white,
-                            size: 18,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  PlayerTopBar(
+                      title: widget.item.name,
+                      episodeTag: '',
+                      locked: true,
+                      onClose: _unlock,
+                      onLock: _unlock,
+                      wide: wide),
 
                 // Hint pill.
                 if (_hintVisible && !_temporarySpeed.active)
@@ -2719,42 +2697,11 @@ class _CoreVideoPlayerPageState extends State<CoreVideoPlayerPage>
                   ),
               ],
 
-              // Task 139: the right-half picker panel (subtitles / audio /
-              // sources) — an in-page overlay on the RIGHT HALF of the
-              // screen, opened with a single setState (instant), loading
-              // and refreshing its data in front of the user.
-              if (_panel != null) ...[
-                Positioned.fill(
-                    child: GestureDetector(
-                        onTap: _closePanel,
-                        behavior: HitTestBehavior.opaque,
-                        child: ColoredBox(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .scrim
-                                .withValues(alpha: .32)))),
-                PositionedDirectional(
-                  end: 0,
-                  start: MediaQuery.sizeOf(context).width < 600 &&
-                          MediaQuery.sizeOf(context).height > width
-                      ? 0
-                      : null,
-                  top: MediaQuery.sizeOf(context).width < 600 &&
-                          MediaQuery.sizeOf(context).height > width
-                      ? null
-                      : 0,
-                  bottom: 0,
-                  width: MediaQuery.sizeOf(context).width < 600 &&
-                          MediaQuery.sizeOf(context).height > width
-                      ? null
-                      : playerPanelWidth(width),
-                  height: MediaQuery.sizeOf(context).width < 600 &&
-                          MediaQuery.sizeOf(context).height > width
-                      ? MediaQuery.sizeOf(context).height * .82
-                      : null,
-                  child: _buildPanel(engine),
-                ),
-              ],
+              if (_panel != null)
+                PlayerPanelOverlay(
+                    onClose: _closePanel,
+                    compact: _panel == PlayerPanelKind.speed,
+                    child: _buildPanel(engine)),
             ],
           ),
         ),

@@ -1,10 +1,9 @@
+import '../../../shared/widgets/poster_layout.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../../core/models/media_item.dart';
-import '../../../core/state/app_state.dart';
 import '../../../core/theme/horse_theme.dart';
 import '../../../shared/widgets/media_rail.dart';
 import '../top10_rail.dart';
@@ -99,18 +98,13 @@ class RailLoadingSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Task 122-b (F5): select the single setting the skeleton renders — the
-    // watch used to rebuild every loading rail on ANY AppState notification.
-    final showTitle = context.select<AppState, bool>(
-      (app) => app.webSettings['hidePosterTitles'] != true,
-    );
+    final style = watchPosterStyle(context);
+    final showTitle = !style.hideTitles;
     final width = MediaQuery.sizeOf(context).width;
-    final posterWidth = width >= 700 ? 138.0 : 122.0;
-    final posterHeight = posterWidth / .72;
-    final labelHeight = showTitle
-        ? 8 + MediaQuery.textScalerOf(context).scale(14) * 1.3 * 2
-        : 0.0;
-    final railHeight = posterHeight + labelHeight;
+    final posterWidth = style.railWidth(width);
+    final posterHeight = posterWidth / style.aspectRatio;
+    final railHeight = posterHeight +
+        (showTitle ? posterLabelHeight(context, posterWidth) : 0);
     return Padding(
       padding: EdgeInsetsDirectional.only(
         bottom: MediaRail.sectionSpacing(context),
@@ -142,7 +136,7 @@ class RailLoadingSkeleton extends StatelessWidget {
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: NovaTheme.of(context).surface,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(style.radius),
                         ),
                       ),
                     ),

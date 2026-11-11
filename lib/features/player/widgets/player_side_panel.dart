@@ -1,29 +1,9 @@
-/// Task 139 (user mandate): the player's subtitle / audio / source pickers
-/// no longer take the whole screen — each opens as a RIGHT-HALF panel
-/// (50% of the screen width, full height) the INSTANT its button is pressed,
-/// shows its loading state inside the panel itself, and carries a refresh
-/// button in the header so the lists can be re-fetched in place.
-/// Task 141: the playback-settings picker joined them — same chrome, same
-/// instant open, same full-height right half.
-///
-/// Panels are in-page overlays (not routes): opening is a single setState —
-/// zero route-transition delay — and the video pauses for the panel's
-/// lifetime, resuming only if it was playing before (workstream A1 semantics
-/// preserved). The PAGE owns the data loading (spinner + refresh state live
-/// in the panel header); these bodies render lists and UI-local state.
-/// Icons are Lucide across the whole player surface.
-///
-/// Task 140 (user mandate — "لا فراغات"): the panel's LEFT edge sits at
-/// MID-SCREEN, so the screen's left system inset (a landscape camera cutout
-/// reported on the display's left edge) must NEVER be applied there — the
-/// old SafeArea injected it and opened a ~40dp phantom dead strip inside
-/// every panel. Content now stretches flush to the mid-screen edge with zero
-/// horizontal chrome padding; only the panel's REAL screen edges (top /
-/// right / bottom) keep their system insets.
+/// In-page player dialogs. Routes own the pause token, selections and requests.
 library;
 
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../media/stream_loading.dart';
@@ -32,14 +12,38 @@ import '../engine/playback_engine.dart';
 import '../../../shared/widgets/shimmer_box.dart';
 import 'precise_delay_value.dart';
 import 'player_sheets.dart'
-    show SheetSelectChip, SubtitleChoice, subtitleLanguageName;
+    show
+        PlayerDialogFrame,
+        SheetSelectChip,
+        SubtitleChoice,
+        subtitleLanguageName;
 
 /// Which picker the side panel currently hosts.
-enum PlayerPanelKind { audio, subtitles, streams, settings }
+enum PlayerPanelKind { audio, subtitles, streams, speed, settings }
 
-/// Keep the side panel readable on landscape phones without crowding tablets.
-double playerPanelWidth(double screenWidth) =>
-    (screenWidth * .48).clamp(360.0, 560.0).clamp(0.0, screenWidth);
+class PlayerPanelOverlay extends StatelessWidget {
+  const PlayerPanelOverlay(
+      {super.key,
+      required this.child,
+      required this.onClose,
+      this.compact = false});
+  final Widget child;
+  final VoidCallback onClose;
+  final bool compact;
+  @override
+  Widget build(BuildContext context) => Positioned.fill(
+        child: Stack(children: [
+          ModalBarrier(
+              dismissible: true,
+              onDismiss: onClose,
+              semanticsLabel:
+                  MaterialLocalizations.of(context).modalBarrierDismissLabel,
+              color:
+                  Theme.of(context).colorScheme.scrim.withValues(alpha: .72)),
+          PlayerDialogFrame(compact: compact, child: child),
+        ]),
+      );
+}
 
 /// The chrome every picker panel shares: header (title · optional action ·
 /// refresh · close) over a body. [onRefresh] is supplied whenever the
@@ -74,43 +78,19 @@ class PlayerSidePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final portrait = size.width < 600 && size.height > size.width;
     final scheme = Theme.of(context).colorScheme;
-    final padding = MediaQuery.paddingOf(context);
-    final rtl = Directionality.of(context) == TextDirection.rtl;
     return Material(
       color: scheme.surface,
-      elevation: 12,
-      shadowColor: scheme.shadow.withValues(alpha: .24),
-      borderRadius: portrait
-          ? const BorderRadiusDirectional.vertical(top: Radius.circular(28))
-          : BorderRadius.zero,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: scheme.outlineVariant)),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: EdgeInsetsDirectional.fromSTEB(
-            size.width < 720 ? 12 : 24,
-            portrait ? 12 : padding.top + 16,
-            (size.width < 720 ? 12 : 24) +
-                (portrait
-                    ? 0
-                    : rtl
-                        ? padding.left
-                        : padding.right),
-            padding.bottom + 16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (portrait) ...[
-            Center(
-                child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: scheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(4)))),
-            const SizedBox(height: 16)
-          ],
           LayoutBuilder(builder: (context, constraints) {
-            final compact = constraints.maxWidth < 520;
+            final compact = constraints.maxWidth < 400 ||
+                MediaQuery.textScalerOf(context).scale(16) > 22;
             final utilityActions = <Widget>[
               if (headerAction != null) headerAction!,
               if (onRefresh != null)
@@ -151,20 +131,19 @@ class PlayerSidePanel extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.titleLarge)),
                   if (!compact) ...utilityActions,
-                  ...navigation,
+                  if (!compact) ...navigation,
                   _PanelIconButton(
                       icon: LucideIcons.x,
                       semanticLabel: NovaStrings.lookup(english, 'close'),
                       onTap: onClose),
                 ]),
-                if (compact && utilityActions.isNotEmpty)
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: utilityActions,
-                    ),
-                  ),
+                if (compact &&
+                    (utilityActions.isNotEmpty || navigation.isNotEmpty))
+                  SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [...utilityActions, ...navigation])),
               ],
             );
           }),
@@ -1060,12 +1039,7 @@ class _StreamsPanelBodyState extends State<StreamsPanelBody> {
 
 // ── Playback settings ──────────────────────────────────────────────────────
 
-/// Playback-settings body (Task 141 user mandate): the player's settings now
-/// open as the SAME right-half panel as the subtitle picker — instant,
-/// in-page, full height — instead of a bottom-sheet route. Speed and video
-/// fit apply LIVE with the panel staying open (same contract as picking
-/// audio tracks); the audio / subtitles entries hand the panel over in
-/// place, and episodes keeps its dense bottom sheet.
+/// Playback options apply through the active player while the tool stays open.
 class PlayerSettingsPanelBody extends StatelessWidget {
   const PlayerSettingsPanelBody({
     super.key,
@@ -1081,6 +1055,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
     required this.onOpenAudio,
     required this.onOpenSubtitles,
     required this.onOpenEpisodes,
+    this.additionalControls,
   });
 
   final bool english;
@@ -1095,6 +1070,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
   final VoidCallback onOpenAudio;
   final VoidCallback onOpenSubtitles;
   final VoidCallback onOpenEpisodes;
+  final Widget? additionalControls;
 
   @override
   Widget build(BuildContext context) {
@@ -1114,16 +1090,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 8),
-        _CompactOptionGrid(
-          children: [
-            for (final value in speeds)
-              SheetSelectChip(
-                label: '${value == 1.0 ? '1' : value}×',
-                selected: (speed - value).abs() < .01,
-                onTap: () => onSpeed(value),
-              ),
-          ],
-        ),
+        PlayerSpeedChoices(speed: speed, speeds: speeds, onSpeed: onSpeed),
         SizedBox(height: 16),
         Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 4, 0),
@@ -1210,6 +1177,7 @@ class PlayerSettingsPanelBody extends StatelessWidget {
           ),
           onTap: onOpenSubtitles,
         ),
+        if (additionalControls != null) additionalControls!,
         if (hasEpisodes)
           ListTile(
             dense: false,
@@ -1266,4 +1234,158 @@ class _CompactOptionGrid extends StatelessWidget {
           );
         },
       );
+}
+
+class PlayerSpeedChoices extends StatelessWidget {
+  const PlayerSpeedChoices(
+      {super.key,
+      required this.speed,
+      required this.speeds,
+      required this.onSpeed});
+  final double speed;
+  final List<double> speeds;
+  final ValueChanged<double> onSpeed;
+  @override
+  Widget build(BuildContext context) => _CompactOptionGrid(
+        children: [
+          for (final value in speeds)
+            SheetSelectChip(
+              label: '${value == 1.0 ? '1' : value}×',
+              selected: (speed - value).abs() < .01,
+              onTap: () => onSpeed(value),
+            ),
+        ],
+      );
+}
+
+class PlayerTransportOptions extends StatelessWidget {
+  const PlayerTransportOptions(
+      {super.key,
+      required this.english,
+      required this.fullscreen,
+      required this.live,
+      required this.backStep,
+      required this.forwardStep,
+      required this.onSeek,
+      required this.onFullscreen,
+      this.onPrevious,
+      this.onNext});
+  final bool english, fullscreen, live;
+  final int backStep, forwardStep;
+  final ValueChanged<int> onSeek;
+  final VoidCallback onFullscreen;
+  final VoidCallback? onPrevious, onNext;
+  @override
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        PlayerBrightnessControl(english: english),
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          TextButton.icon(
+              onPressed: onFullscreen,
+              icon: Icon(
+                  fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
+              label: Text(NovaStrings.lookup(
+                  english, fullscreen ? 'playerExitFullscreen' : 'message37'))),
+          if (!live) ...[
+            TextButton.icon(
+                onPressed: () => onSeek(-backStep),
+                icon: const Icon(LucideIcons.rotateCcw),
+                label: Text(NovaStrings.lookup(
+                    english, 'rewindSeconds', {'p0': backStep}))),
+            TextButton.icon(
+                onPressed: () => onSeek(forwardStep),
+                icon: const Icon(LucideIcons.rotateCw),
+                label: Text(NovaStrings.lookup(
+                    english, 'forwardSeconds', {'p0': forwardStep}))),
+          ],
+          if (onPrevious != null)
+            TextButton.icon(
+                onPressed: onPrevious,
+                icon: const Icon(LucideIcons.skipBack),
+                label:
+                    Text(NovaStrings.lookup(english, 'playerPreviousEpisode'))),
+          if (onNext != null)
+            TextButton.icon(
+                onPressed: onNext,
+                icon: const Icon(LucideIcons.skipForward),
+                label: Text(NovaStrings.lookup(english, 'message23'))),
+        ]),
+      ]);
+}
+
+class PlayerVolumeControl extends StatelessWidget {
+  const PlayerVolumeControl(
+      {super.key,
+      required this.volume,
+      required this.muted,
+      required this.onMute,
+      required this.onVolume,
+      required this.english});
+  final double volume;
+  final bool muted, english;
+  final VoidCallback onMute;
+  final ValueChanged<double> onVolume;
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        IconButton(
+            tooltip: NovaStrings.lookup(english, muted ? 'unmute' : 'mute'),
+            onPressed: onMute,
+            icon: Icon(muted ? LucideIcons.volumeX : LucideIcons.volume2)),
+        Expanded(
+            child: Semantics(
+                label: NovaStrings.lookup(english, 'message17'),
+                child: Slider.adaptive(
+                    value: muted ? 0 : volume.clamp(0.0, 1.0),
+                    onChanged: onVolume))),
+      ]);
+}
+
+class PlayerBrightnessControl extends StatefulWidget {
+  const PlayerBrightnessControl({super.key, required this.english});
+  final bool english;
+  @override
+  State<PlayerBrightnessControl> createState() =>
+      _PlayerBrightnessControlState();
+}
+
+class _PlayerBrightnessControlState extends State<PlayerBrightnessControl> {
+  double? _value;
+  final _brightness = ScreenBrightness();
+  @override
+  void initState() {
+    super.initState();
+    _read();
+  }
+
+  Future<void> _read() async {
+    try {
+      final current = await _brightness.application;
+      if (mounted) setState(() => _value = current.clamp(0.0, 1.0));
+    } catch (_) {/* Brightness can be unavailable on this platform. */}
+  }
+
+  Future<void> _change(double next) async {
+    setState(() => _value = next);
+    try {
+      await _brightness.setApplicationScreenBrightness(next);
+    } catch (_) {
+      if (mounted) await _read();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_value == null) return const SizedBox.shrink();
+    final label = NovaStrings.lookup(widget.english, 'message16');
+    return Row(children: [
+      const Icon(LucideIcons.sun, size: 20),
+      const SizedBox(width: 8),
+      Flexible(child: Text(label)),
+      Expanded(
+          flex: 2,
+          child: Semantics(
+              label: label,
+              child: Slider.adaptive(value: _value!, onChanged: _change)))
+    ]);
+  }
 }

@@ -1,3 +1,4 @@
+import 'package:nova_mobile/shared/widgets/media_hero.dart';
 // Widget smoke test — pumps the rebuilt detail presentation widgets
 // (hero + the Task 118 sliver episodes composition) on phone + tablet sizes
 // to catch layout exceptions.
@@ -46,7 +47,6 @@ void main() {
 
   Widget harness(double width, double height) {
     final isWide = width >= 700;
-    final contentVisibility = ValueNotifier<double>(1);
     // Fresh controller per pump — mirrors how the page creates it lazily.
     final controller = EpisodesController(
       item: item,
@@ -61,19 +61,24 @@ void main() {
           body: CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 240,
-                  child: DetailHero(
-                    item: item,
-                    backdropUrl: null,
-                    logoUrl: null,
-                    isWide: isWide,
-                    viewportHeight: height,
-                    viewportWidth: width,
-                    contentVisibility: contentVisibility,
-                  ),
-                ),
-              ),
+                  child: MediaHero(
+                      item: item,
+                      detail: true,
+                      actions: DetailActionRow(
+                        english: false,
+                        isWide: isWide,
+                        inList: false,
+                        showTrackAnime: true,
+                        primaryLabel: 'مشاهدة',
+                        primaryIsResume: false,
+                        loading: false,
+                        onPrimaryPressed: () {},
+                        onToggleWatchlist: () {},
+                        onOpenStreams: () {},
+                        onTrackAnime: () {},
+                        onShare: () {},
+                        onAddToList: () {},
+                      ))),
               ...buildEpisodeSlivers(
                 controller: controller,
                 english: false,
@@ -90,27 +95,6 @@ void main() {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      DetailMetaRow(item: item, isWide: isWide),
-                      DetailSynopsis(
-                        description: item.description!,
-                        isWide: isWide,
-                        viewportWidth: width,
-                      ),
-                      DetailActionRow(
-                        english: false,
-                        isWide: isWide,
-                        inList: false,
-                        showTrackAnime: true,
-                        primaryLabel: 'مشاهدة',
-                        primaryIsResume: false,
-                        loading: false,
-                        onPrimaryPressed: () {},
-                        onToggleWatchlist: () {},
-                        onOpenStreams: () {},
-                        onTrackAnime: () {},
-                        onShare: () {},
-                        onAddToList: () {},
-                      ),
                       DetailCastCrew(item: item, english: false),
                     ],
                   ),
@@ -131,11 +115,19 @@ void main() {
     }
   }
 
+  void setViewport(WidgetTester tester, Size size) {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = size;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   for (final (label, size) in [
     ('phone', const Size(400, 800)),
     ('tablet', const Size(900, 1200)),
   ]) {
     testWidgets('layout smoke — $label', (tester) async {
+      setViewport(tester, size);
       await tester.pumpWidget(harness(size.width, size.height));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
@@ -144,6 +136,7 @@ void main() {
     });
 
     testWidgets('overlay menus smoke — $label', (tester) async {
+      setViewport(tester, size);
       await tester.pumpWidget(harness(size.width, size.height));
       await settleFrames(tester);
 
@@ -171,15 +164,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
       expect(tester.takeException(), isNull);
 
-      // Action menu trigger → glass menu with the 4 entries. The page is a
-      // real CustomScrollView now (Task 118), so the action row may live
-      // below the viewport's build cache — scroll until it's instantiated.
+      // Return to the title header to open its action menu.
       final actionRow = find.byType(DetailActionRow);
-      await tester.scrollUntilVisible(
-        actionRow,
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
+      tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position
+          .jumpTo(0);
       await tester.pump(const Duration(milliseconds: 100));
       final menuTrigger = find
           .descendant(

@@ -17,6 +17,7 @@ import '../features/torrent/magnet_link_handler.dart';
 import '../l10n/nova_strings.dart';
 import '../shared/widgets/app_state_message.dart';
 import 'account_gate.dart';
+import '../features/watch_party/watch_party_scope.dart';
 
 class NovaApp extends StatelessWidget {
   const NovaApp(
@@ -42,51 +43,54 @@ class NovaApp extends StatelessWidget {
         value: state,
         child: Provider<AccountController?>.value(
             value: account,
-            child: Selector<AppState, (bool, String, bool, bool)>(
-              selector: (_, app) => (
-                app.english,
-                (app.webSettings['themeMode'] ?? 'dark').toString(),
-                app.webSettings['reduceMotion'] == true,
-                app.webSettings['oledMode'] == true
-              ),
-              builder: (context, value, _) => MaterialApp(
-                navigatorObservers: [shellChromeRouteObserver],
-                onGenerateTitle: (context) =>
-                    NovaStrings.of(context).text('appName'),
-                debugShowCheckedModeBanner: false,
-                theme: value.$1 ? NovaTheme.light : _lightArabic,
-                darkTheme: value.$1
-                    ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
-                    : (value.$4 ? _darkOledArabic : _darkArabic),
-                themeMode: switch (value.$2) {
-                  'light' => ThemeMode.light,
-                  'system' => ThemeMode.system,
-                  _ => ThemeMode.dark
-                },
-                themeAnimationDuration:
-                    value.$3 ? Duration.zero : NovaMotion.state,
-                locale: Locale(value.$1 ? 'en' : 'ar'),
-                supportedLocales: const [Locale('ar'), Locale('en')],
-                localizationsDelegates: const [
-                  NovaStrings.delegate,
-                  ...GlobalMaterialLocalizations.delegates
-                ],
-                builder: (context, child) {
-                  final media = MediaQuery.of(context);
-                  return MediaQuery(
-                      data: media.copyWith(
-                          disableAnimations:
-                              media.disableAnimations || value.$3),
-                      child: child!);
-                },
-                home: IncomingLinkListener(
-                    child: _LaunchGate(
-                        updateService: updateService,
-                        account: account,
-                        requireAccount: requireAccount,
-                        onLaunchReady: onLaunchReady)),
-              ),
-            )),
+            child: WatchPartyScope(
+                account: account,
+                app: state,
+                child: Selector<AppState, (bool, String, bool, bool)>(
+                  selector: (_, app) => (
+                    app.english,
+                    (app.webSettings['themeMode'] ?? 'dark').toString(),
+                    app.webSettings['reduceMotion'] == true,
+                    app.webSettings['oledMode'] == true
+                  ),
+                  builder: (context, value, _) => MaterialApp(
+                    navigatorObservers: [shellChromeRouteObserver],
+                    onGenerateTitle: (context) =>
+                        NovaStrings.of(context).text('appName'),
+                    debugShowCheckedModeBanner: false,
+                    theme: value.$1 ? NovaTheme.light : _lightArabic,
+                    darkTheme: value.$1
+                        ? (value.$4 ? NovaTheme.darkOled : NovaTheme.dark)
+                        : (value.$4 ? _darkOledArabic : _darkArabic),
+                    themeMode: switch (value.$2) {
+                      'light' => ThemeMode.light,
+                      'system' => ThemeMode.system,
+                      _ => ThemeMode.dark
+                    },
+                    themeAnimationDuration:
+                        value.$3 ? Duration.zero : NovaMotion.state,
+                    locale: Locale(value.$1 ? 'en' : 'ar'),
+                    supportedLocales: const [Locale('ar'), Locale('en')],
+                    localizationsDelegates: const [
+                      NovaStrings.delegate,
+                      ...GlobalMaterialLocalizations.delegates
+                    ],
+                    builder: (context, child) {
+                      final media = MediaQuery.of(context);
+                      return MediaQuery(
+                          data: media.copyWith(
+                              disableAnimations:
+                                  media.disableAnimations || value.$3),
+                          child: child!);
+                    },
+                    home: IncomingLinkListener(
+                        child: _LaunchGate(
+                            updateService: updateService,
+                            account: account,
+                            requireAccount: requireAccount,
+                            onLaunchReady: onLaunchReady)),
+                  ),
+                ))),
       );
 }
 

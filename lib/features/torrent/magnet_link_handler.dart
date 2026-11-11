@@ -13,6 +13,8 @@ import '../../core/auth/account_controller.dart';
 import '../../core/oauth/oauth_redirect.dart';
 import '../../core/shared_collections/invite_link.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
+import '../../core/watch_party/watch_party_invite.dart';
+import '../watch_party/watch_party_page.dart';
 import '../../core/state/app_state.dart';
 import '../../shared/widgets/noor_toast.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
@@ -53,6 +55,12 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
     with WidgetsBindingObserver {
   static const _inviteStorage = FlutterSecureStorage();
   static const _pendingInviteKey = 'nova.shared-collections.pending-invite';
+  static const _pendingPartyKey = 'nova.watch-party.pending-invite';
+  String? _pendingParty;
+  bool _openingParty = false;
+  int _partyGeneration = 0;
+  Future<void> _partyWrite = Future<void>.value();
+  AccountController? _partyAccount;
   StreamSubscription<Object?>? _sub;
   String? _pendingInvite;
   bool _joiningInvite = false;
@@ -67,7 +75,10 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _partyAccount = context.read<AccountController?>();
+    _partyAccount?.addListener(_schedulePartyInvite);
     unawaited(_restorePendingInvite());
+    unawaited(_restorePartyInvite());
     try {
       _sub = const EventChannel('noor/links')
           .receiveBroadcastStream()
@@ -81,6 +92,18 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
 
   void _onLink(Object? data) {
     if (!mounted || data is! String) return;
+    final partyUri = Uri.tryParse(data);
+    if (partyUri?.scheme == 'app.nova.mobile' &&
+        partyUri?.host == 'watch-party') {
+      final code = parseWatchPartyInvite(data);
+      if (code == null) {
+        NoorToast.show(context, NovaStrings.of(context).text('partyNotFound'),
+            error: true);
+      } else {
+        unawaited(_queuePartyInvite(code));
+      }
+      return;
+    }
     final invite = parseSharedCollectionInvite(data);
     if (invite != null) {
       unawaited(_queueInvite(invite));
@@ -132,6 +155,82 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
     } catch (_) {
       // A storage failure does not prevent newly opened links from working.
     }
+  }
+
+  Future<void> _restorePartyInvite() async {
+    final generation = _partyGeneration;
+    try {
+      final code = await _inviteStorage.read(key: _pendingPartyKey);
+      if (!mounted || generation != _partyGeneration || code == null) return;
+      if (validWatchPartyCode(code)) {
+        setState(() => _pendingParty = code);
+      } else {
+        await _inviteStorage.delete(key: _pendingPartyKey);
+      }
+    } catch (_) {/* Newly opened links still work without durable storage. */}
+  }
+
+  Future<void> _queuePartyInvite(String code) async {
+    ++_partyGeneration;
+    setState(() => _pendingParty = code);
+    _partyWrite = _partyWrite.then((_) async {
+      try {
+        await _inviteStorage.write(key: _pendingPartyKey, value: code);
+      } catch (_) {/* Keep in memory. */}
+    });
+    await _partyWrite;
+    if (mounted) _schedulePartyInvite();
+  }
+
+  void _schedulePartyInvite() {
+    if (!mounted || _openingParty || _pendingParty == null) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final account = context.read<AccountController?>();
+    final app = context.read<AppState>();
+    if (account?.isGuest != false ||
+        account?.activeProfileId == null ||
+        app.kidsSession ||
+        app.sync.accountId != account?.user?.id ||
+        app.activeProfileId != account?.activeProfileId) {
+      return;
+    }
+    _openingParty = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final generation = _partyGeneration;
+      final code = _pendingParty;
+      try {
+        await _partyWrite;
+        if (!mounted ||
+            generation != _partyGeneration ||
+            code == null ||
+            context.read<AppState>().kidsSession) {
+          return;
+        }
+        final currentAccount = context.read<AccountController?>();
+        final currentApp = context.read<AppState>();
+        if (currentAccount?.isGuest != false ||
+            currentAccount?.activeProfileId == null ||
+            currentApp.sync.accountId != currentAccount?.user?.id ||
+            currentApp.activeProfileId != currentAccount?.activeProfileId) {
+          return;
+        }
+        setState(() => _pendingParty = null);
+        _partyWrite = _partyWrite.then((_) async {
+          try {
+            await _inviteStorage.delete(key: _pendingPartyKey);
+          } catch (_) {/* Consumed in memory. */}
+        });
+        await _partyWrite;
+        if (mounted) {
+          await Navigator.of(context).push<void>(MaterialPageRoute(
+              builder: (_) => WatchPartyPage(initialCode: code)));
+        }
+      } finally {
+        _openingParty = false;
+        if (mounted && _pendingParty != null) _schedulePartyInvite();
+      }
+    });
   }
 
   Future<void> _queueInvite(String token) async {
@@ -234,6 +333,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _schedulePartyInvite();
     if (state == AppLifecycleState.resumed && _retryInviteOnResume) {
       _retryInviteOnResume = false;
       _scheduleJoinInvite();
@@ -331,6 +431,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
 
   @override
   void dispose() {
+    _partyAccount?.removeListener(_schedulePartyInvite);
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_sub?.cancel());
     super.dispose();
@@ -404,6 +505,7 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
     if (_pendingInvite != null && account?.activeProfileId != null) {
       _scheduleJoinInvite();
     }
+    if (_pendingParty != null) _schedulePartyInvite();
     return widget.child;
   }
 }

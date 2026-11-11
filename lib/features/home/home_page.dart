@@ -2,7 +2,6 @@ import '../shell/nova_catalog_refresh.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -247,13 +246,8 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
     final app = context.watch<AppState>();
     final english = app.english;
     final classicHome = app.webSettings['homeMode'] == 'classic';
-    // EDGE-TO-EDGE (Task 119): the shell no longer SafeArea-pads this page,
-    // so the featured hero bleeds behind the transparent status bar. This
-    // inset is added ONLY where real content must stay clear of the status
-    // icons (classic header / service message) — the hero itself handles
-    // icon readability with its top scrim.
     final safeTop = MediaQuery.paddingOf(context).top;
-    Widget buildHero(ValueListenable<double> contentVisibility) {
+    Widget buildHero() {
       if (classicHome) {
         return Padding(
           padding: EdgeInsetsDirectional.fromSTEB(24, safeTop + 96, 24, 24),
@@ -279,9 +273,9 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
           if (featured != null && featured.isNotEmpty) {
             return FeaturedHero(
                 items: featured,
-                autoplayActive: widget.active,
-                onTap: _open,
-                contentVisibility: contentVisibility);
+                active: widget.active,
+                topChrome: true,
+                onTap: _open);
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const FeaturedSkeleton();
@@ -296,213 +290,220 @@ class _HomePageState extends State<HomePage> with NovaCatalogRefresh<HomePage> {
       );
     }
 
-    return CinematicCoverScroll(
-      storageKey: const PageStorageKey('nova-home'),
-      heroBuilder: buildHero,
-      heroHeight: classicHome ? 360 : featuredHeroHeight(context),
-      slivers: [
+    final slivers = <Widget>[
+      SliverToBoxAdapter(
+          child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 32),
+        child: Wrap(spacing: 8, runSpacing: 8, children: [
+          ActionChip(
+              avatar: const Icon(LucideIcons.film, size: 18),
+              label: Text(NovaStrings.lookup(english, 'message106')),
+              onPressed: () =>
+                  _openSection(const CatalogBrowserPage(initialType: 'movie'))),
+          ActionChip(
+              avatar: const Icon(LucideIcons.tv, size: 18),
+              label: Text(NovaStrings.lookup(english, 'message107')),
+              onPressed: () => _openSection(
+                  const CatalogBrowserPage(initialType: 'series'))),
+          ActionChip(
+              avatar: const Icon(LucideIcons.sparkles, size: 18),
+              label: Text(NovaStrings.lookup(english, 'message108')),
+              onPressed: () => _openSection(const AnimePage())),
+        ]),
+      )),
+      if (app.continueWatching.isNotEmpty ||
+          app.linkedContinueWatching.isNotEmpty)
         SliverToBoxAdapter(
-            child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(24, 24, 24, 32),
-          child: Wrap(spacing: 8, runSpacing: 8, children: [
-            ActionChip(
-                avatar: const Icon(LucideIcons.film, size: 18),
-                label: Text(NovaStrings.lookup(english, 'message106')),
-                onPressed: () => _openSection(
-                    const CatalogBrowserPage(initialType: 'movie'))),
-            ActionChip(
-                avatar: const Icon(LucideIcons.tv, size: 18),
-                label: Text(NovaStrings.lookup(english, 'message107')),
-                onPressed: () => _openSection(
-                    const CatalogBrowserPage(initialType: 'series'))),
-            ActionChip(
-                avatar: const Icon(LucideIcons.sparkles, size: 18),
-                label: Text(NovaStrings.lookup(english, 'message108')),
-                onPressed: () => _openSection(const AnimePage())),
-          ]),
-        )),
-        if (app.continueWatching.isNotEmpty ||
-            app.linkedContinueWatching.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsetsDirectional.only(
-                bottom: MediaRail.sectionSpacing(context),
-              ),
-              child: ContinueWatchingRail(
-                entries: app.continueWatching,
-                linkedEntries: app.linkedContinueWatching,
-                english: english,
-              ),
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              bottom: MediaRail.sectionSpacing(context),
+            ),
+            child: ContinueWatchingRail(
+              entries: app.continueWatching,
+              linkedEntries: app.linkedContinueWatching,
+              english: english,
             ),
           ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message109'),
-            future: _recommendations!,
-            onTap: _open,
-            onRetry: () => setState(() => _load(app)),
-            english: english,
-          ),
         ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message110'),
-            future: _topTen!,
-            numbered: true,
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message109'),
+          future: _recommendations!,
+          onTap: _open,
+          onRetry: () => setState(() => _load(app)),
+          english: english,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message110'),
+          future: _topTen!,
+          numbered: true,
+          onTap: _open,
+          onRetry: () => setState(
+            () => _topTen = app.catalogs.homeTopTen().then(
+                  (items) => _visibleItems(app, items),
+                ),
+          ),
+          english: english,
+          showEmptyState: true,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message111'),
+          future: _series!,
+          onTap: _open,
+          onOpenSection: () => _openSection(
+            const CatalogBrowserPage(initialType: 'series'),
+          ),
+          onRetry: () => setState(
+            () => _series = app.catalogs
+                .catalog('series', 'trailer')
+                .then((items) => _visibleItems(app, items)),
+          ),
+          english: english,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message112'),
+          future: _movies!,
+          onTap: _open,
+          onOpenSection: () => _openSection(
+            const CatalogBrowserPage(initialType: 'movie'),
+          ),
+          onRetry: () => setState(
+            () => _movies = app.catalogs
+                .catalog('movie', 'trailer')
+                .then((items) => _visibleItems(app, items)),
+          ),
+          english: english,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message113'),
+          future: _anime!,
+          onTap: _open,
+          onOpenSection: () => _openSection(const AnimePage()),
+          onRetry: () => setState(() => _reloadAnime()),
+          english: english,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message114'),
+          future: _animeMovies!,
+          onTap: _open,
+          onOpenSection: () => _openSection(const AnimePage()),
+          onRetry: () => setState(() => _reloadAnime()),
+          english: english,
+        ),
+      ),
+      // Build rows on demand. Flutter may mount the first child early to
+      // estimate the sliver, but the remaining offscreen add-ons stay idle.
+      SliverList.builder(
+        itemCount: _catalogRows.length,
+        itemBuilder: (context, index) {
+          final row = _catalogRows[index];
+          return AsyncMediaSection(
+            key: ValueKey(row.key),
+            title: row.title,
+            subtitle: row.subtitle,
+            future: _catalogRowFutures.putIfAbsent(
+                row.key, () => _loadCatalogRow(app, row)),
             onTap: _open,
             onRetry: () => setState(
-              () => _topTen = app.catalogs.homeTopTen().then(
-                    (items) => _visibleItems(app, items),
-                  ),
-            ),
-            english: english,
-            showEmptyState: true,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message111'),
-            future: _series!,
-            onTap: _open,
+                () => _catalogRowFutures[row.key] = _loadCatalogRow(app, row)),
             onOpenSection: () => _openSection(
-              const CatalogBrowserPage(initialType: 'series'),
-            ),
-            onRetry: () => setState(
-              () => _series = app.catalogs
-                  .catalog('series', 'trailer')
-                  .then((items) => _visibleItems(app, items)),
+              CatalogGridPage(
+                title: row.title,
+                subtitle: row.subtitle,
+                onOpen: _open,
+                loader: () => context.read<AppState>().catalogs.catalog(
+                      row.catalog.type,
+                      row.catalog.id,
+                      addon: row.addon,
+                    ),
+              ),
             ),
             english: english,
+          );
+        },
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message115'),
+          future: _newEpisodes!,
+          onTap: _open,
+          onOpenSection: () => _openSection(
+            const CatalogBrowserPage(initialType: 'series'),
           ),
+          onRetry: () => setState(
+            () => _newEpisodes = app.catalogs
+                .catalog('series', 'last-videos')
+                .then((items) => _visibleItems(app, items)),
+          ),
+          english: english,
         ),
+      ),
+      SliverToBoxAdapter(
+        child: AsyncMediaSection(
+          title: NovaStrings.lookup(english, 'message116'),
+          future: _theaters!,
+          onTap: _open,
+          onOpenSection: () => _openSection(
+            const CatalogBrowserPage(initialType: 'movie'),
+          ),
+          onRetry: () => setState(
+            () => _theaters = app.catalogs
+                .catalog('movie', 'top')
+                .then((items) => _visibleItems(app, items)),
+          ),
+          english: english,
+        ),
+      ),
+      // Watchlist rails from the linked services — Trakt / Simkl
+      // watchlists and the AniList / MyAnimeList plan-to-watch lists.
+      for (final rail in _linkedRails(app, english))
         SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message112'),
-            future: _movies!,
-            onTap: _open,
-            onOpenSection: () => _openSection(
-              const CatalogBrowserPage(initialType: 'movie'),
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              bottom: MediaRail.sectionSpacing(context),
             ),
-            onRetry: () => setState(
-              () => _movies = app.catalogs
-                  .catalog('movie', 'trailer')
-                  .then((items) => _visibleItems(app, items)),
-            ),
-            english: english,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message113'),
-            future: _anime!,
-            onTap: _open,
-            onOpenSection: () => _openSection(const AnimePage()),
-            onRetry: () => setState(() => _reloadAnime()),
-            english: english,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message114'),
-            future: _animeMovies!,
-            onTap: _open,
-            onOpenSection: () => _openSection(const AnimePage()),
-            onRetry: () => setState(() => _reloadAnime()),
-            english: english,
-          ),
-        ),
-        // Build rows on demand. Flutter may mount the first child early to
-        // estimate the sliver, but the remaining offscreen add-ons stay idle.
-        SliverList.builder(
-          itemCount: _catalogRows.length,
-          itemBuilder: (context, index) {
-            final row = _catalogRows[index];
-            return AsyncMediaSection(
-              key: ValueKey(row.key),
-              title: row.title,
-              subtitle: row.subtitle,
-              future: _catalogRowFutures.putIfAbsent(
-                  row.key, () => _loadCatalogRow(app, row)),
+            child: MediaRail(
+              title: rail.$1,
+              items: rail.$2,
               onTap: _open,
-              onRetry: () => setState(() =>
-                  _catalogRowFutures[row.key] = _loadCatalogRow(app, row)),
               onOpenSection: () => _openSection(
                 CatalogGridPage(
-                  title: row.title,
-                  subtitle: row.subtitle,
+                  title: rail.$1,
+                  items: rail.$2,
                   onOpen: _open,
-                  loader: () => context.read<AppState>().catalogs.catalog(
-                        row.catalog.type,
-                        row.catalog.id,
-                        addon: row.addon,
-                      ),
-                ),
-              ),
-              english: english,
-            );
-          },
-        ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message115'),
-            future: _newEpisodes!,
-            onTap: _open,
-            onOpenSection: () => _openSection(
-              const CatalogBrowserPage(initialType: 'series'),
-            ),
-            onRetry: () => setState(
-              () => _newEpisodes = app.catalogs
-                  .catalog('series', 'last-videos')
-                  .then((items) => _visibleItems(app, items)),
-            ),
-            english: english,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: AsyncMediaSection(
-            title: NovaStrings.lookup(english, 'message116'),
-            future: _theaters!,
-            onTap: _open,
-            onOpenSection: () => _openSection(
-              const CatalogBrowserPage(initialType: 'movie'),
-            ),
-            onRetry: () => setState(
-              () => _theaters = app.catalogs
-                  .catalog('movie', 'top')
-                  .then((items) => _visibleItems(app, items)),
-            ),
-            english: english,
-          ),
-        ),
-        // Watchlist rails from the linked services — Trakt / Simkl
-        // watchlists and the AniList / MyAnimeList plan-to-watch lists.
-        for (final rail in _linkedRails(app, english))
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsetsDirectional.only(
-                bottom: MediaRail.sectionSpacing(context),
-              ),
-              child: MediaRail(
-                title: rail.$1,
-                items: rail.$2,
-                onTap: _open,
-                onOpenSection: () => _openSection(
-                  CatalogGridPage(
-                    title: rail.$1,
-                    items: rail.$2,
-                    onOpen: _open,
-                  ),
                 ),
               ),
             ),
           ),
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: glassDockContentClearance(context),
-          ),
         ),
-      ],
-    );
+      SliverToBoxAdapter(
+        child: SizedBox(
+          height: glassDockContentClearance(context),
+        ),
+      ),
+    ];
+    const key = PageStorageKey('nova-home');
+    if (classicHome) {
+      return CinematicCoverScroll(
+          storageKey: key,
+          heroHeight: 360,
+          heroBuilder: (_) => buildHero(),
+          slivers: slivers);
+    }
+    return CustomScrollView(key: key, slivers: [
+      SliverToBoxAdapter(child: buildHero()),
+      ...slivers,
+    ]);
   }
 
   void _open(MediaItem item) {
