@@ -43,6 +43,33 @@ class _PendingUpdateService extends AppUpdateService {
   Future<AppUpdateStatus> checkForUpdates() => response.future;
 }
 
+class _IosUpdateService extends AppUpdateService {
+  int opened = 0;
+
+  @override
+  Future<AppUpdateStatus> checkForUpdates() async => const AppUpdateStatus(
+        manifest: AppUpdateManifest(
+          latestVersion: '1.0.5',
+          latestBuild: 68,
+          minBuild: 60,
+          messageAr: '',
+          androidUrl: 'https://example.com/app-release.apk',
+          iosUrl: 'https://example.com/ios-install',
+          iosLatestVersion: '1.0.6',
+          iosLatestBuild: 69,
+        ),
+        currentVersion: '1.0.5',
+        currentBuild: 68,
+        platform: AppUpdatePlatform.ios,
+      );
+
+  @override
+  Future<void> openIosUpdate(String url) async {
+    expect(url, 'https://example.com/ios-install');
+    opened++;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -124,6 +151,28 @@ void main() {
     expect(releases, 1);
     expect(find.byType(OnboardingPage), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    CacheResetService.instance.stop();
+  });
+
+  testWidgets('offers an available iOS update without blocking launch',
+      (tester) async {
+    final app = _LaunchApp();
+    addTearDown(app.dispose);
+    final service = _IosUpdateService();
+    await tester.pumpWidget(NovaApp(
+      state: app,
+      requireAccount: true,
+      updateService: service,
+    ));
+    app.startup.complete();
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('NOVA 1.0.6 is available.'), findsOneWidget);
+    expect(find.text('Open update page'), findsOneWidget);
+    await tester.tap(find.text('Open update page'));
+    await tester.pumpAndSettle();
+    expect(service.opened, 1);
     await tester.pumpWidget(const SizedBox.shrink());
     CacheResetService.instance.stop();
   });

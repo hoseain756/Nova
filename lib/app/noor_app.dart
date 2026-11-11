@@ -114,12 +114,15 @@ class _LaunchGate extends StatefulWidget {
 }
 
 class _LaunchGateState extends State<_LaunchGate> {
+  static const _iosLastNotifiedBuildKey = 'nova.update.ios.lastNotifiedBuild';
   String? _startupError;
   bool _onboarding = false;
   bool _startupReady = false;
   bool _starting = true;
   bool _launchReleased = false;
   AppUpdateStatus? _forcedUpdate;
+  late final AppUpdateService _updateService =
+      widget.updateService ?? AppUpdateService();
   @override
   void initState() {
     super.initState();
@@ -165,13 +168,63 @@ class _LaunchGateState extends State<_LaunchGate> {
 
   Future<void> _checkForForcedUpdate() async {
     try {
-      final status =
-          await (widget.updateService ?? AppUpdateService()).checkForUpdates();
+      final status = await _updateService.checkForUpdates();
       if (mounted && status.forceRequired) {
         setState(() => _forcedUpdate = status);
+      } else if (mounted &&
+          status.platform == AppUpdatePlatform.ios &&
+          status.hasUpdate) {
+        final prefs = await SharedPreferences.getInstance();
+        final build = status.manifest.iosLatestBuild;
+        if (!mounted || prefs.getInt(_iosLastNotifiedBuildKey) == build) return;
+        await prefs.setInt(_iosLastNotifiedBuildKey, build);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_showIosUpdate(status));
+        });
       }
     } catch (_) {
       // An unavailable update manifest must never prevent offline app use.
+    }
+  }
+
+  Future<void> _showIosUpdate(AppUpdateStatus status) async {
+    final strings = NovaStrings.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.text('updateSection')),
+        content: Text(strings.text('updateAvailable', {
+          'version': status.availableVersion,
+        })),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(strings.text('updateDismiss')),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              unawaited(_openIosUpdate(status));
+            },
+            child: Text(strings.text('updateOpenIosAction')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openIosUpdate(AppUpdateStatus status) async {
+    try {
+      await _updateService.openIosUpdate(status.manifest.iosUrl);
+    } catch (error) {
+      if (!mounted) return;
+      final failure = error is AppUpdateException
+          ? error.failure
+          : AppUpdateFailure.iosOpenFailed;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(NovaStrings.of(context).text(appUpdateMessageKey(failure))),
+      ));
     }
   }
 

@@ -32,12 +32,12 @@ class _PlainTextJsonAdapter implements HttpClientAdapter {
 
 void main() {
   const manifestJson = <String, dynamic>{
-    'latest_version': '1.0.5',
-    'latest_build': 68,
+    'latest_version': '1.0.6',
+    'latest_build': 69,
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
-        'https://github.com/hoseain756/Nova/releases/download/v1.0.5/app-release.apk',
+        'https://github.com/hoseain756/Nova/releases/download/v1.0.6/app-release.apk',
     'ios_url': '',
   };
 
@@ -50,14 +50,14 @@ void main() {
       packageInfoProvider: () async => PackageInfo(
         appName: 'NOVA',
         packageName: 'app.nova.mobile',
-        version: '1.0.4',
-        buildNumber: '67',
+        version: '1.0.5',
+        buildNumber: '68',
       ),
     );
 
     final status = await service.checkForUpdates();
 
-    expect(status.manifest.latestBuild, 68);
+    expect(status.manifest.latestBuild, 69);
     expect(status.hasUpdate, isTrue);
     expect(status.forceRequired, isFalse);
   });
@@ -65,12 +65,12 @@ void main() {
   test('parses release metadata and the direct APK URL', () {
     final manifest = AppUpdateManifest.fromJson(manifestJson);
 
-    expect(manifest.latestVersion, '1.0.5');
-    expect(manifest.latestBuild, 68);
+    expect(manifest.latestVersion, '1.0.6');
+    expect(manifest.latestBuild, 69);
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
-      'https://github.com/hoseain756/Nova/releases/download/v1.0.5/app-release.apk',
+      'https://github.com/hoseain756/Nova/releases/download/v1.0.6/app-release.apk',
     );
   });
 
@@ -100,8 +100,8 @@ void main() {
     expect(current.forceRequired, isFalse);
     final latest = AppUpdateStatus(
       manifest: manifest,
-      currentVersion: '1.0.5',
-      currentBuild: 68,
+      currentVersion: '1.0.6',
+      currentBuild: 69,
     );
     expect(latest.hasUpdate, isFalse);
     expect(latest.forceRequired, isFalse);
@@ -118,6 +118,83 @@ void main() {
 
     expect(ios.hasUpdate, isFalse);
     expect(ios.forceRequired, isFalse);
+  });
+
+  test('iOS compares its own build and requires an update destination', () {
+    final manifest = AppUpdateManifest.fromJson({
+      ...manifestJson,
+      'ios_latest_version': '1.0.5',
+      'ios_latest_build': 68,
+      'ios_url': 'https://testflight.apple.com/join/example',
+    });
+    expect(
+      AppUpdateStatus(
+        manifest: manifest,
+        currentVersion: '1.0.4',
+        currentBuild: 67,
+        platform: AppUpdatePlatform.ios,
+      ).hasUpdate,
+      isTrue,
+    );
+    expect(
+      AppUpdateStatus(
+        manifest: manifest,
+        currentVersion: '1.0.5',
+        currentBuild: 68,
+        platform: AppUpdatePlatform.ios,
+      ).hasUpdate,
+      isFalse,
+    );
+    expect(
+      AppUpdateStatus(
+        manifest: AppUpdateManifest.fromJson({
+          ...manifestJson,
+          'ios_latest_version': '1.0.5',
+          'ios_latest_build': 68,
+        }),
+        currentVersion: '1.0.4',
+        currentBuild: 67,
+        platform: AppUpdatePlatform.ios,
+      ).hasUpdate,
+      isFalse,
+    );
+    expect(
+      AppUpdateStatus(
+        manifest: manifest,
+        currentVersion: '1.0.4',
+        currentBuild: 67,
+        platform: AppUpdatePlatform.ios,
+      ).forceRequired,
+      isFalse,
+    );
+  });
+
+  test('iOS opens only a valid HTTPS update destination', () async {
+    Uri? opened;
+    final service = AppUpdateService(
+      iosUpdateOpener: (uri) async {
+        opened = uri;
+        return true;
+      },
+    );
+    await service.openIosUpdate('https://testflight.apple.com/join/example');
+    expect(opened?.host, 'testflight.apple.com');
+    await expectLater(
+      service.openIosUpdate('https://example.com/Nova-release-unsigned.ipa'),
+      throwsA(isA<AppUpdateException>().having(
+        (error) => error.failure,
+        'failure',
+        AppUpdateFailure.iosUnavailable,
+      )),
+    );
+    await expectLater(
+      service.openIosUpdate('http://example.com/install'),
+      throwsA(isA<AppUpdateException>().having(
+        (error) => error.failure,
+        'failure',
+        AppUpdateFailure.iosUnavailable,
+      )),
+    );
   });
 
   test('rejects invalid version metadata and non-HTTPS APK URLs', () {
@@ -138,7 +215,7 @@ void main() {
     expect(
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
-        'min_build': 69,
+        'min_build': 70,
       }),
       throwsFormatException,
     );
@@ -146,6 +223,27 @@ void main() {
       () => AppUpdateManifest.fromJson({
         ...manifestJson,
         'android_url': 'http://example.com/app.apk',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'ios_latest_version': '1.0.5',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'ios_url': 'http://example.com/install',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => AppUpdateManifest.fromJson({
+        ...manifestJson,
+        'ios_url': 'https://example.com/Nova-release-unsigned.ipa',
       }),
       throwsFormatException,
     );

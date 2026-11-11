@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/data/cache_reset_service.dart';
 import '../../core/state/app_state.dart';
@@ -914,14 +913,17 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
       } else if (!automatic) {
         final app = context.read<AppState>();
         final String message;
-        if (status.platform == AppUpdatePlatform.ios) {
-          message = app.tr('updateIosUnavailable');
-        } else if (status.hasUpdate) {
-          message = !app.english && status.manifest.messageAr.isNotEmpty
+        if (status.hasUpdate) {
+          message = !app.english &&
+                  status.platform == AppUpdatePlatform.android &&
+                  status.manifest.messageAr.isNotEmpty
               ? status.manifest.messageAr
               : app.tr('updateAvailable', {
-                  'version': status.manifest.latestVersion,
+                  'version': status.availableVersion,
                 });
+        } else if (status.platform == AppUpdatePlatform.ios &&
+            status.manifest.iosUrl.isEmpty) {
+          message = app.tr('updateIosUnavailable');
         } else {
           message = app.tr('updateCurrent');
         }
@@ -992,43 +994,46 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     setState(() => _downloading = true);
     final app = context.read<AppState>();
     final progress = ValueNotifier<double?>(0);
-    var progressDialogOpen = true;
+    var progressDialogOpen = Platform.isAndroid;
     var operation = AppUpdateOperation.download;
-    unawaited(showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          scrollable: true,
-          title: const Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: NovaBrand(width: 132),
-          ),
-          content: ValueListenableBuilder<double?>(
-            valueListenable: progress,
-            builder: (context, value, _) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(app.tr('updateDownloadProgressTitle'),
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 18),
-                LinearProgressIndicator(value: value),
-                const SizedBox(height: 12),
-                Text(
-                  app.tr('updateDownloadProgress', {
-                    'percent':
-                        value == null ? '—' : (value * 100).round().toString(),
-                  }),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+    if (Platform.isAndroid) {
+      unawaited(showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            scrollable: true,
+            title: const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: NovaBrand(width: 132),
+            ),
+            content: ValueListenableBuilder<double?>(
+              valueListenable: progress,
+              builder: (context, value, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(app.tr('updateDownloadProgressTitle'),
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 18),
+                  LinearProgressIndicator(value: value),
+                  const SizedBox(height: 12),
+                  Text(
+                    app.tr('updateDownloadProgress', {
+                      'percent': value == null
+                          ? '—'
+                          : (value * 100).round().toString(),
+                    }),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    ));
+      ));
+    }
 
     void closeProgressDialog() {
       if (mounted && progressDialogOpen) {
@@ -1059,16 +1064,7 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
       } else if (Platform.isIOS) {
         closeProgressDialog();
         operation = AppUpdateOperation.install;
-        final link = status.manifest.iosUrl.trim();
-        if (link.isEmpty) {
-          throw const AppUpdateException(AppUpdateFailure.iosUnavailable);
-        }
-        final uri = Uri.tryParse(link);
-        if (uri == null ||
-            uri.scheme != 'https' ||
-            !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-          throw const AppUpdateException(AppUpdateFailure.iosOpenFailed);
-        }
+        await _updateService.openIosUpdate(status.manifest.iosUrl);
         if (mounted) {
           await _showUpdateFeedback(app.tr('updateIosOpened'), app: app);
         }
@@ -1127,15 +1123,19 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     final title = _checking
         ? app.tr('updateChecking')
         : status?.hasUpdate == true
-            ? app.tr('updateDownloadAction')
+            ? app.tr(status!.platform == AppUpdatePlatform.ios
+                ? 'updateOpenIosAction'
+                : 'updateDownloadAction')
             : app.tr('updateCheckAction');
     final subtitle = _checking
         ? app.tr('updateChecking')
         : status?.hasUpdate == true
-            ? (!app.english && status!.manifest.messageAr.isNotEmpty
+            ? (!app.english &&
+                    status!.platform == AppUpdatePlatform.android &&
+                    status.manifest.messageAr.isNotEmpty
                 ? status.manifest.messageAr
                 : app.tr('updateAvailable', {
-                    'version': status!.manifest.latestVersion,
+                    'version': status!.availableVersion,
                   }))
             : status != null
                 ? app.tr(status.platform == AppUpdatePlatform.ios
@@ -1148,7 +1148,9 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
         ListTile(
           leading: Icon(
             status?.hasUpdate == true
-                ? LucideIcons.download
+                ? status!.platform == AppUpdatePlatform.ios
+                    ? LucideIcons.externalLink
+                    : LucideIcons.download
                 : LucideIcons.refreshCw,
             color: Theme.of(context).colorScheme.secondary,
           ),

@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const String novaUpdateManifestUrl =
     'https://raw.githubusercontent.com/hoseain756/Nova/main/version.json';
@@ -105,6 +106,8 @@ class AppUpdateManifest {
     required this.messageAr,
     required this.androidUrl,
     required this.iosUrl,
+    this.iosLatestVersion = '',
+    this.iosLatestBuild = 0,
   });
 
   factory AppUpdateManifest.fromJson(Map<String, dynamic> json) {
@@ -132,6 +135,12 @@ class AppUpdateManifest {
       messageAr: stringValue('message_ar'),
       androidUrl: stringValue('android_url'),
       iosUrl: stringValue('ios_url'),
+      iosLatestVersion: json.containsKey('ios_latest_version')
+          ? stringValue('ios_latest_version')
+          : '',
+      iosLatestBuild: json.containsKey('ios_latest_build')
+          ? intValue('ios_latest_build')
+          : 0,
     );
     if (!RegExp(r'^\d+\.\d+\.\d+$').hasMatch(manifest.latestVersion) ||
         manifest.latestBuild == 0 ||
@@ -144,6 +153,20 @@ class AppUpdateManifest {
         androidUri.host.isEmpty) {
       throw const FormatException('Invalid Android update URL');
     }
+    if ((manifest.iosLatestVersion.isEmpty != (manifest.iosLatestBuild == 0)) ||
+        (manifest.iosLatestVersion.isNotEmpty &&
+            !RegExp(r'^\d+\.\d+\.\d+$').hasMatch(manifest.iosLatestVersion))) {
+      throw const FormatException('Invalid iOS update version metadata');
+    }
+    if (manifest.iosUrl.isNotEmpty) {
+      final iosUri = Uri.tryParse(manifest.iosUrl);
+      if (iosUri == null ||
+          iosUri.scheme != 'https' ||
+          iosUri.host.isEmpty ||
+          iosUri.path.toLowerCase().endsWith('.ipa')) {
+        throw const FormatException('Invalid iOS update URL');
+      }
+    }
     return manifest;
   }
 
@@ -153,6 +176,8 @@ class AppUpdateManifest {
   final String messageAr;
   final String androidUrl;
   final String iosUrl;
+  final String iosLatestVersion;
+  final int iosLatestBuild;
 }
 
 class AppUpdateStatus {
@@ -168,12 +193,16 @@ class AppUpdateStatus {
   final int currentBuild;
   final AppUpdatePlatform platform;
 
-  // The current manifest's build numbers and minimum build describe the
-  // Android APK. iOS needs its own release metadata before it can offer or
-  // require an update; the Android minimum must never lock an iPhone out.
-  bool get hasUpdate =>
-      platform == AppUpdatePlatform.android &&
-      manifest.latestBuild > currentBuild;
+  // iOS uses its own build and a configured install destination. An unsigned
+  // IPA is not an install destination. Android's minimum never locks iOS out.
+  bool get hasUpdate => switch (platform) {
+        AppUpdatePlatform.android => manifest.latestBuild > currentBuild,
+        AppUpdatePlatform.ios =>
+          manifest.iosLatestBuild > currentBuild && manifest.iosUrl.isNotEmpty,
+      };
+  String get availableVersion => platform == AppUpdatePlatform.ios
+      ? manifest.iosLatestVersion
+      : manifest.latestVersion;
   bool get forceRequired =>
       platform == AppUpdatePlatform.android && currentBuild < manifest.minBuild;
 }
@@ -193,6 +222,7 @@ class AppUpdateService {
     Future<Directory> Function()? temporaryDirectoryProvider,
     Future<PackageInfo> Function()? packageInfoProvider,
     Future<OpenResult> Function(String path)? apkOpener,
+    Future<bool> Function(Uri uri)? iosUpdateOpener,
   })  : _dio = dio ?? Dio(),
         _temporaryDirectoryProvider =
             temporaryDirectoryProvider ?? getTemporaryDirectory,
@@ -201,12 +231,28 @@ class AppUpdateService {
             ((path) => OpenFilex.open(
                   path,
                   type: 'application/vnd.android.package-archive',
-                ));
+                )),
+        _iosUpdateOpener = iosUpdateOpener ??
+            ((uri) => launchUrl(uri, mode: LaunchMode.externalApplication));
 
   final Dio _dio;
   final Future<Directory> Function() _temporaryDirectoryProvider;
   final Future<PackageInfo> Function() _packageInfoProvider;
   final Future<OpenResult> Function(String path) _apkOpener;
+  final Future<bool> Function(Uri uri) _iosUpdateOpener;
+
+  Future<void> openIosUpdate(String url) async {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.path.toLowerCase().endsWith('.ipa')) {
+      throw const AppUpdateException(AppUpdateFailure.iosUnavailable);
+    }
+    if (!await _iosUpdateOpener(uri)) {
+      throw const AppUpdateException(AppUpdateFailure.iosOpenFailed);
+    }
+  }
 
   Future<AppUpdateStatus> checkForUpdates() async {
     final packageInfo = await _packageInfoProvider();
