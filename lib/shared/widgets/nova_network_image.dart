@@ -40,8 +40,8 @@ class NovaNetworkImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Image(
         image: ResizeImage.resizeIfNeeded(
-            cacheWidth?.clamp(1, 2048),
-            cacheHeight?.clamp(1, 2048),
+            cacheWidth?.clamp(1, 3072),
+            cacheHeight?.clamp(1, 3072),
             CachedNetworkImageProvider(url, headers: headers)),
         width: width,
         height: height,

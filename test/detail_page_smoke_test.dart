@@ -131,6 +131,12 @@ void main() {
       await tester.pumpWidget(harness(size.width, size.height));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(milliseconds: 50));
+      final frame =
+          tester.getRect(find.byKey(const ValueKey('media-hero-frame')));
+      expect(frame.width, size.width);
+      expect(frame.height, closeTo(size.height * .5, 1));
+      expect(tester.getRect(find.text('Smoke Series')).top,
+          greaterThanOrEqualTo(frame.bottom));
       expect(find.text('الحلقات'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });

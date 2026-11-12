@@ -10,6 +10,7 @@ class PosterCardStyle {
     this.hideTitles = false,
     this.showLogo = true,
     this.logoPosition = 'bottomStart',
+    this.artworkQuality = 'balanced',
   });
 
   factory PosterCardStyle.fromSettings(Map<String, dynamic> settings) =>
@@ -23,6 +24,10 @@ class PosterCardStyle {
                 .contains(settings['posterLogoPosition'])
             ? settings['posterLogoPosition'] as String
             : 'bottomStart',
+        artworkQuality: const {'low', 'balanced', 'high'}
+                .contains(settings['posterArtworkQuality'])
+            ? settings['posterArtworkQuality'] as String
+            : 'balanced',
       );
 
   final double scale;
@@ -31,6 +36,7 @@ class PosterCardStyle {
   final bool hideTitles;
   final bool showLogo;
   final String logoPosition;
+  final String artworkQuality;
 
   PosterCardStyle copyWith({bool? hideTitles}) => PosterCardStyle(
         scale: scale,
@@ -39,6 +45,7 @@ class PosterCardStyle {
         hideTitles: hideTitles ?? this.hideTitles,
         showLogo: showLogo,
         logoPosition: logoPosition,
+        artworkQuality: artworkQuality,
       );
 
   double get aspectRatio => landscape ? 16 / 9 : .72;
@@ -54,6 +61,7 @@ class PosterCardStyle {
     'hidePosterTitles': false,
     'showPosterLogo': true,
     'posterLogoPosition': 'bottomStart',
+    'posterArtworkQuality': 'balanced',
   };
 
   static double _number(dynamic raw, double fallback, double min, double max) {
@@ -69,9 +77,10 @@ class PosterCardStyle {
       landscape == other.landscape &&
       hideTitles == other.hideTitles &&
       showLogo == other.showLogo &&
-      logoPosition == other.logoPosition;
+      logoPosition == other.logoPosition &&
+      artworkQuality == other.artworkQuality;
 
   @override
-  int get hashCode =>
-      Object.hash(scale, radius, landscape, hideTitles, showLogo, logoPosition);
+  int get hashCode => Object.hash(scale, radius, landscape, hideTitles,
+      showLogo, logoPosition, artworkQuality);
 }

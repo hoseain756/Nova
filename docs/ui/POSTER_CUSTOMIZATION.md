@@ -64,8 +64,12 @@ roles. Reference source code and assets are not bundled.
 
 - `lib/core/models/poster_card_style.dart` validates the existing `posterScale`,
   `posterRadius`, `hidePosterTitles` keys plus `posterShape`, `showPosterLogo`,
-  `posterLogoPosition`. Invalid/nonfinite numbers fall back or clamp safely.
-- All six keys use the existing `AppState.setSetting` persistence/sync path.
+  `posterLogoPosition` and `posterArtworkQuality`. Invalid/nonfinite numbers fall back or clamp safely.
+- Card and hero quality use `posterArtworkQuality` and `heroArtworkQuality` in
+  the existing `AppState.setSetting` persistence/sync path. Cards default to
+  balanced and heroes to high. Low/balanced/high select bounded decoded image
+  sizes; TMDB artwork also uses a matching source size, with high requesting
+  the original. Add-on image URLs remain unchanged.
   No storage keys, backend schema, account/profile scope or provider secrets change.
 - `poster_card_settings_page.dart` keeps slider drafts local for immediate preview
   and saves on release. Presets and toggles save immediately. Appearance and
@@ -80,9 +84,10 @@ roles. Reference source code and assets are not bundled.
 - Catalogs, Home/Anime/Kids rails, Kids grids, both searches, watchlist and custom
   list grids update without reloading catalog data. Kids retains its existing
   size preference as the base grid density. A wide/large card can use one column.
-- Continue Watching, episode thumbnails, hero artwork and compact inline list
-  thumbnails retain their task-specific layouts; this preference targets media
-  browsing cards.
+- The card quality selector affects media browsing cards and title logos. The
+  hero quality selector affects Home, Anime, Kids and detail artwork. Continue
+  Watching, episode thumbnails and compact inline list thumbnails retain their
+  own image sizing.
 
 ## Verification boundary
 

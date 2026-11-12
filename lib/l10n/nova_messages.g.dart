@@ -1481,6 +1481,14 @@ const Map<String, String> novaEnglish = {
   "posterLogoCenter": "Center",
   "posterLogoEnd": "End",
   "posterReset": "Reset card appearance",
+  "artworkQualityTitle": "Artwork quality",
+  "posterArtworkQuality": "Cards and title logos",
+  "posterArtworkQualityDescription": "Balanced uses less data in browsing rows. High loads sharper images and logos.",
+  "heroArtworkQuality": "Hero artwork",
+  "heroArtworkQualityDescription": "Applies to Home, Anime, Kids and title details. High is recommended for the large image.",
+  "artworkQualityLow": "Low",
+  "artworkQualityBalanced": "Balanced",
+  "artworkQualityHigh": "High",
 };
 const Map<String, String> novaArabic = {
   "appName": "NOVA",
@@ -2964,4 +2972,12 @@ const Map<String, String> novaArabic = {
   "posterLogoCenter": "الوسط",
   "posterLogoEnd": "النهاية",
   "posterReset": "استعادة مظهر البطاقات الافتراضي",
+  "artworkQualityTitle": "جودة الصور",
+  "posterArtworkQuality": "البطاقات وشعارات العناوين",
+  "posterArtworkQualityDescription": "الوضع المتوازن يستهلك بيانات أقل في صفوف البطاقات. العالي يعرض صورًا وشعارات أوضح.",
+  "heroArtworkQuality": "صورة الهيرو",
+  "heroArtworkQualityDescription": "يشمل الرئيسية والأنمي والأطفال وتفاصيل الأعمال. الجودة العالية مناسبة للصورة الكبيرة.",
+  "artworkQualityLow": "منخفضة",
+  "artworkQualityBalanced": "متوازنة",
+  "artworkQualityHigh": "عالية",
 };

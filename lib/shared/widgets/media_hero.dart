@@ -7,8 +7,8 @@ import '../../core/theme/nova_theme.dart';
 import 'image_decode.dart';
 import 'nova_network_image.dart';
 
-/// A panoramic still above the caption on phones, or beside it at 700 dp.
-/// The caption sets its own height, including when accessibility text wraps.
+/// Detail artwork fills the available width at half the screen height.
+/// Its caption stays below so enlarged text can grow and scroll normally.
 class MediaHero extends StatelessWidget {
   const MediaHero({
     super.key,
@@ -25,6 +25,7 @@ class MediaHero extends StatelessWidget {
     this.onArtworkTap,
     this.onSwipeStart,
     this.onSwipe,
+    this.artworkQuality = ArtworkQuality.balanced,
   });
 
   final MediaItem item;
@@ -32,6 +33,7 @@ class MediaHero extends StatelessWidget {
   final Widget actions;
   final Widget? selector;
   final bool detail, immersive, topChrome;
+  final ArtworkQuality artworkQuality;
   final VoidCallback? onArtworkTap;
   final GestureDragStartCallback? onSwipeStart;
   final GestureDragEndCallback? onSwipe;
@@ -64,7 +66,7 @@ class MediaHero extends StatelessWidget {
           final width = constraints.maxWidth;
           final wide = width >= 700;
           final gutter = wide ? 32.0 : 16.0;
-          final artWidth = wide ? width * .56 : width;
+          final artWidth = detail ? width : (wide ? width * .56 : width);
           final url = artwork(item, artworkUrl);
           final overview = story ?? item.description;
           final category = genre ?? item.genres.firstOrNull;
@@ -100,11 +102,13 @@ class MediaHero extends StatelessWidget {
           final caption = Padding(
             padding: EdgeInsetsDirectional.fromSTEB(
                 gutter,
-                wide && topChrome
-                    ? MediaQuery.paddingOf(context).top + 76
-                    : wide
-                        ? 28
-                        : 10,
+                detail
+                    ? (wide ? 24 : 16)
+                    : wide && topChrome
+                        ? MediaQuery.paddingOf(context).top + 76
+                        : wide
+                            ? 28
+                            : 10,
                 wide ? 12 : gutter,
                 22),
             child: Column(
@@ -167,19 +171,25 @@ class MediaHero extends StatelessWidget {
                       child: url == null
                           ? Icon(LucideIcons.film,
                               size: 48, color: colors.onSurfaceVariant)
-                          : NovaNetworkImage(url,
+                          : NovaNetworkImage(
+                              artworkQuality.sourceUrl(url,
+                                  hero: detail, portrait: false),
                               fit: BoxFit.cover,
-                              cacheWidth: imageCacheWidth(context, artWidth),
+                              cacheWidth: detail
+                                  ? artworkQuality.decodedExtent(
+                                      context, artWidth)
+                                  : imageCacheWidth(context, artWidth),
+                              gaplessPlayback: detail,
                               excludeFromSemantics: true)),
                 ),
                 IgnorePointer(
                     child: DecoratedBox(
                         decoration: BoxDecoration(
                             gradient: LinearGradient(
-                  begin: wide
+                  begin: wide && !detail
                       ? AlignmentDirectional.centerStart
                       : Alignment.bottomCenter,
-                  end: wide
+                  end: wide && !detail
                       ? AlignmentDirectional.centerEnd
                       : Alignment.topCenter,
                   colors: [canvas, canvas.withValues(alpha: 0)],
@@ -206,6 +216,20 @@ class MediaHero extends StatelessWidget {
                   PositionedDirectional(
                       start: gutter, end: gutter, bottom: 4, child: selector!),
               ]);
+          if (detail) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: width,
+                  height: MediaQuery.sizeOf(context).height * .5,
+                  child: frame,
+                ),
+                caption,
+              ],
+            );
+          }
           if (!wide) {
             return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -276,14 +300,20 @@ class MediaHero extends StatelessWidget {
                         ? const Center(
                             child: Icon(LucideIcons.film,
                                 size: 56, color: NovaColors.mist))
-                        : NovaNetworkImage(url,
+                        : NovaNetworkImage(
+                            artworkQuality.sourceUrl(url,
+                                hero: true, portrait: !wide),
                             fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            frameBuilder: (context, child, frame, _) => child,
                             alignment:
                                 wide ? Alignment.center : Alignment.topCenter,
-                            cacheWidth:
-                                wide ? imageCacheWidth(context, width) : null,
-                            cacheHeight:
-                                wide ? null : imageCacheWidth(context, height),
+                            cacheWidth: wide
+                                ? artworkQuality.decodedExtent(context, width)
+                                : null,
+                            cacheHeight: wide
+                                ? null
+                                : artworkQuality.decodedExtent(context, height),
                             excludeFromSemantics: true),
                   ),
                 ),

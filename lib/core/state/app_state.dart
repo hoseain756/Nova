@@ -87,6 +87,7 @@ class AppState extends ChangeNotifier {
     'posterScale': 1.0, 'posterRadius': 12, 'hidePosterTitles': false,
     'posterShape': 'portrait', 'showPosterLogo': true,
     'posterLogoPosition': 'bottomStart',
+    'posterArtworkQuality': 'balanced', 'heroArtworkQuality': 'high',
     'posterEffect': 'off', 'episodesView': 'auto',
     'blurEpisodeThumbnails': false, 'instantPlay': true,
     'autoPlayNextEpisode': true, 'autoSelectEpisodeSource': false,

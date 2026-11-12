@@ -78,11 +78,14 @@ void main() {
         8);
     final dots = [
       for (var i = 0; i < 3; i++)
-        tester.getCenter(find.byKey(ValueKey('hero-slide-indicator-$i'))).dx
+        tester.getRect(find.byKey(ValueKey('hero-slide-indicator-$i')))
     ];
-    expect(dots[1] - dots[0], 32);
-    expect(dots[2] - dots[1], 32);
-    expect(dots[1], closeTo(tester.getCenter(hero).dx, 1));
+    expect(dots[1].left - dots[0].right, 8);
+    expect(dots[2].left - dots[1].right, 8);
+    expect((dots.first.left + dots.last.right) / 2,
+        closeTo(tester.getCenter(hero).dx, 1));
+    expect(tester.getSize(find.byKey(const ValueKey('hero-slide-selector'))),
+        const Size(144, 48));
     expect(catalog.requests, isEmpty);
     active.value = true;
     await tester.pump();
@@ -148,21 +151,61 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.widget<MediaHero>(find.byType(MediaHero)).artworkUrl,
-        'https://example.com/portrait.jpg');
+        item.poster);
     final phoneImage = tester.widget<NovaNetworkImage>(find.descendant(
         of: find.byType(MediaHero), matching: find.byType(NovaNetworkImage)));
     expect(phoneImage.fit, BoxFit.cover);
+    expect(phoneImage.gaplessPlayback, isTrue);
+    expect(phoneImage.frameBuilder, isNotNull);
     expect(phoneImage.alignment, Alignment.topCenter);
-    expect(phoneImage.cacheHeight, 624);
+    expect(phoneImage.cacheHeight, 780);
     expect(tester.getSize(find.byKey(const ValueKey('media-hero-frame'))),
         const Size(360, 624));
 
     tester.view.physicalSize = const Size(1024, 768);
     await tester.pump();
     expect(tester.widget<MediaHero>(find.byType(MediaHero)).artworkUrl,
-        'https://example.com/landscape.jpg');
+        item.background);
     final wideImage = tester.widget<NovaNetworkImage>(find.descendant(
         of: find.byType(MediaHero), matching: find.byType(NovaNetworkImage)));
-    expect(wideImage.cacheWidth, 1024);
+    expect(wideImage.cacheWidth, 1280);
+    await app.setSetting('heroArtworkQuality', 'low');
+    await tester.pump();
+    final lowImage = tester.widget<NovaNetworkImage>(find.descendant(
+        of: find.byType(MediaHero), matching: find.byType(NovaNetworkImage)));
+    expect(lowImage.cacheWidth, 768);
+  });
+
+  testWidgets('tight dots remain selectable in RTL', (tester) async {
+    final api = NoorApi();
+    final catalog = _Catalog(api);
+    final app = AppState(api, catalog)..english = false;
+    addTearDown(api.dispose);
+    addTearDown(app.dispose);
+    await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+      value: app,
+      child: MaterialApp(
+        home: Scaffold(
+          body: Directionality(
+            textDirection: TextDirection.rtl,
+            child: FeaturedHero(items: _slides, onTap: (_) {}),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    final dots = [
+      for (var i = 0; i < 3; i++)
+        tester.getRect(find.byKey(ValueKey('hero-slide-indicator-$i')))
+    ]..sort((a, b) => a.left.compareTo(b.left));
+    expect(dots[1].left - dots[0].right, 8);
+    expect(dots[2].left - dots[1].right, 8);
+    await tester.tap(find.byTooltip('Third slide'));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .getSize(find.byKey(const ValueKey('hero-slide-indicator-2')))
+            .width,
+        16);
   });
 }

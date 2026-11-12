@@ -6,6 +6,7 @@ import '../../core/models/media_item.dart';
 import '../../core/models/poster_card_style.dart';
 import '../../core/state/app_state.dart';
 import '../../shared/widgets/poster_card.dart';
+import '../../shared/widgets/image_decode.dart';
 import 'widgets/settings_tiles.dart';
 
 class PosterCardSettingsPage extends StatefulWidget {
@@ -34,6 +35,10 @@ class _PosterCardSettingsPageState extends State<PosterCardSettingsPage> {
     final app = context.read<AppState>();
     final style =
         PosterCardStyle.fromSettings({...app.webSettings, ..._pending});
+    final heroQuality = ArtworkQuality.fromSetting(
+            app.webSettings['heroArtworkQuality'],
+            fallback: ArtworkQuality.high)
+        .name;
     final width = style.railWidth(MediaQuery.sizeOf(context).width);
     final sample = app.watchlist.firstOrNull ??
         MediaItem(
@@ -176,6 +181,20 @@ class _PosterCardSettingsPageState extends State<PosterCardSettingsPage> {
                           ])),
               ],
             ]),
+            SettingsContentSection(
+                title: app.tr('artworkQualityTitle'),
+                children: [
+                  _qualitySelector(context,
+                      title: app.tr('posterArtworkQuality'),
+                      description: app.tr('posterArtworkQualityDescription'),
+                      setting: 'posterArtworkQuality',
+                      value: style.artworkQuality),
+                  _qualitySelector(context,
+                      title: app.tr('heroArtworkQuality'),
+                      description: app.tr('heroArtworkQualityDescription'),
+                      setting: 'heroArtworkQuality',
+                      value: heroQuality),
+                ]),
             TextButton.icon(
                 icon: const Icon(LucideIcons.rotateCcw),
                 label: Text(app.tr('posterReset')),
@@ -183,6 +202,7 @@ class _PosterCardSettingsPageState extends State<PosterCardSettingsPage> {
                   for (final entry in PosterCardStyle.defaults.entries) {
                     app.setSetting(entry.key, entry.value);
                   }
+                  app.setSetting('heroArtworkQuality', 'high');
                   setState(_pending.clear);
                 }),
           ],
@@ -190,6 +210,39 @@ class _PosterCardSettingsPageState extends State<PosterCardSettingsPage> {
       )),
     );
   }
+
+  Widget _qualitySelector(BuildContext context,
+          {required String title,
+          required String description,
+          required String setting,
+          required String value}) =>
+      Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(description, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          SettingsLanguageDropdown(
+            key: ValueKey(setting),
+            value: value,
+            expanded: true,
+            items: [
+              for (final quality in ArtworkQuality.values)
+                DropdownMenuItem(
+                    value: quality.name,
+                    child: Text(context.read<AppState>().tr(
+                          switch (quality) {
+                            ArtworkQuality.low => 'artworkQualityLow',
+                            ArtworkQuality.balanced => 'artworkQualityBalanced',
+                            ArtworkQuality.high => 'artworkQualityHigh',
+                          },
+                        ))),
+            ],
+            onChanged: (next) => _save(setting, next),
+          ),
+        ]),
+      );
 
   Widget _slider(BuildContext context,
           {required String title,

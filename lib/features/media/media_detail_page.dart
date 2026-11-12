@@ -17,6 +17,7 @@ import '../../core/theme/horse_theme.dart';
 import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
 import '../../shared/widgets/media_rail.dart';
+import '../../shared/widgets/image_decode.dart';
 import '../../shared/widgets/noor_toast.dart';
 import '../../shared/widgets/nova_ios_controls.dart';
 import '../../shared/widgets/nova_parental_gate.dart';
@@ -449,6 +450,9 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           artworkUrl: backdrop,
           title: _art?.title,
           detail: true,
+          artworkQuality: ArtworkQuality.fromSetting(
+              app.webSettings['heroArtworkQuality'],
+              fallback: ArtworkQuality.high),
           topChrome: true,
           actions: DetailActionRow(
             english: english,

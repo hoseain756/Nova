@@ -13,8 +13,10 @@ import 'package:nova_mobile/features/home/top10_rail.dart';
 import 'package:nova_mobile/features/catalog/catalog_grid_page.dart';
 import 'package:nova_mobile/features/home/widgets/async_media_section.dart';
 import 'package:nova_mobile/features/settings/poster_card_settings_page.dart';
+import 'package:nova_mobile/features/settings/widgets/settings_tiles.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/media_rail.dart';
+import 'package:nova_mobile/shared/widgets/image_decode.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:nova_mobile/shared/widgets/poster_card.dart';
 import 'package:nova_mobile/shared/widgets/poster_layout.dart';
@@ -76,6 +78,22 @@ Widget _host(AppState app, Widget child,
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('artwork quality requests TMDB sizes and preserves add-on URLs', () {
+    const url = 'https://image.tmdb.org/t/p/w500/example.jpg';
+    expect(ArtworkQuality.low.sourceUrl(url, hero: true, portrait: true),
+        'https://image.tmdb.org/t/p/w500/example.jpg');
+    expect(ArtworkQuality.balanced.sourceUrl(url, hero: true),
+        'https://image.tmdb.org/t/p/w1280/example.jpg');
+    expect(ArtworkQuality.high.sourceUrl(url),
+        'https://image.tmdb.org/t/p/original/example.jpg');
+    expect(ArtworkQuality.high.sourceUrl('https://addon.test/t/p/w500/a.jpg'),
+        'https://addon.test/t/p/w500/a.jpg');
+    expect(
+        PosterCardStyle.fromSettings({'posterArtworkQuality': 'invalid'})
+            .artworkQuality,
+        'balanced');
+  });
 
   test('old settings retain their values; malformed synced values are bounded',
       () {
@@ -190,23 +208,38 @@ void main() {
       'unrelated': 'keep'
     };
     await tester.pumpWidget(_host(app, const PosterCardSettingsPage()));
+    final cardQuality = tester.widget<SettingsLanguageDropdown>(
+        find.byKey(const ValueKey('posterArtworkQuality')));
+    final heroQuality = tester.widget<SettingsLanguageDropdown>(
+        find.byKey(const ValueKey('heroArtworkQuality')));
+    expect(cardQuality.value, 'balanced');
+    expect(heroQuality.value, 'high');
+    cardQuality.onChanged('high');
+    heroQuality.onChanged('low');
+    await tester.pump();
+    expect(app.webSettings['posterArtworkQuality'], 'high');
+    expect(app.webSettings['heroArtworkQuality'], 'low');
     final slider =
         tester.widget<Slider>(find.byKey(const ValueKey('posterScale')));
     slider.onChanged!(1.5);
     await tester.pump();
-    expect(app.writes, isEmpty);
+    expect(app.writes, ['posterArtworkQuality', 'heroArtworkQuality']);
     final preview = tester
         .widget<PosterCard>(find.byKey(const ValueKey('poster-style-preview')));
     expect(preview.style?.scale, 1.5);
     slider.onChangeEnd!(1.5);
     await tester.pump();
-    expect(app.writes, ['posterScale']);
-    await tester.ensureVisible(find.text('Reset card appearance'));
+    expect(app.writes,
+        ['posterArtworkQuality', 'heroArtworkQuality', 'posterScale']);
+    await tester.scrollUntilVisible(find.text('Reset card appearance'), 300,
+        scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Reset card appearance'));
     await tester.pumpAndSettle();
     expect(
         PosterCardStyle.fromSettings(app.webSettings), const PosterCardStyle());
     expect(app.webSettings['unrelated'], 'keep');
+    expect(app.webSettings['heroArtworkQuality'], 'high');
+    expect(app.webSettings['posterArtworkQuality'], 'balanced');
   });
 
   testWidgets(
@@ -218,7 +251,8 @@ void main() {
       ...app.webSettings,
       'posterShape': 'landscape',
       'posterLogoPosition': 'bottomEnd',
-      'hidePosterTitles': true
+      'hidePosterTitles': true,
+      'posterArtworkQuality': 'high'
     };
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(_host(
@@ -229,14 +263,15 @@ void main() {
                     id: 'art',
                     type: 'movie',
                     name: 'Artwork title',
-                    poster: 'https://example.test/poster.jpg',
-                    background: 'https://example.test/wide.jpg',
-                    logo: 'https://example.test/logo.png'),
+                    poster: 'https://image.tmdb.org/t/p/w500/poster.jpg',
+                    background: 'https://image.tmdb.org/t/p/w780/wide.jpg',
+                    logo: 'https://image.tmdb.org/t/p/w300/logo.png'),
                 onTap: () {}))));
     final images = tester
         .widgetList<NovaNetworkImage>(find.byType(NovaNetworkImage))
         .toList();
-    expect(images.first.url, 'https://example.test/wide.jpg');
+    expect(images.first.url, 'https://image.tmdb.org/t/p/original/wide.jpg');
+    expect(images.last.url, 'https://image.tmdb.org/t/p/original/logo.png');
     expect(find.text('Artwork title'), findsNothing);
     expect(find.bySemanticsLabel('Artwork title'), findsOneWidget);
     expect(
@@ -263,7 +298,9 @@ void main() {
       'posterShape': 'landscape',
       'hidePosterTitles': true,
       'showPosterLogo': false,
-      'posterLogoPosition': 'center'
+      'posterLogoPosition': 'center',
+      'posterArtworkQuality': 'high',
+      'heroArtworkQuality': 'low',
     }.entries) {
       await first.setSetting(entry.key, entry.value);
     }
@@ -283,6 +320,7 @@ void main() {
     addTearDown(second.dispose);
     await second.initialize();
     expect(PosterCardStyle.fromSettings(second.webSettings), expected);
+    expect(second.webSettings['heroArtworkQuality'], 'low');
   });
 
   testWidgets(

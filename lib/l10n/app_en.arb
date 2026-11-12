@@ -1480,5 +1480,13 @@
   "posterLogoStart": "Start",
   "posterLogoCenter": "Center",
   "posterLogoEnd": "End",
-  "posterReset": "Reset card appearance"
+  "posterReset": "Reset card appearance",
+  "artworkQualityTitle": "Artwork quality",
+  "posterArtworkQuality": "Cards and title logos",
+  "posterArtworkQualityDescription": "Balanced uses less data in browsing rows. High loads sharper images and logos.",
+  "heroArtworkQuality": "Hero artwork",
+  "heroArtworkQualityDescription": "Applies to Home, Anime, Kids and title details. High is recommended for the large image.",
+  "artworkQualityLow": "Low",
+  "artworkQualityBalanced": "Balanced",
+  "artworkQualityHigh": "High"
 }

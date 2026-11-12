@@ -78,6 +78,7 @@ class _PosterCardContent extends StatelessWidget {
           app.webSettings['showCardBadges'] != false,
     );
     final radius = style.radius;
+    final quality = ArtworkQuality.fromSetting(style.artworkQuality);
     final showTitle = !style.hideTitles;
     final artwork =
         style.landscape ? (item.background ?? item.poster) : item.poster;
@@ -109,12 +110,14 @@ class _PosterCardContent extends StatelessWidget {
                       if (artwork != null)
                         SizedBox.expand(
                           child: NovaNetworkImage(
-                            artwork,
+                            quality.sourceUrl(artwork,
+                                portrait: !style.landscape),
                             width: double.infinity,
                             height: double.infinity,
                             fit: BoxFit.cover,
                             // Task 136: decode at the card's on-screen size.
-                            cacheWidth: imageCacheWidth(context, width),
+                            cacheWidth: quality.decodedExtent(context, width),
+                            gaplessPlayback: true,
                             errorBuilder: (_, __, ___) =>
                                 const _PosterFallback(),
                           ),
@@ -148,8 +151,12 @@ class _PosterCardContent extends StatelessWidget {
                             child: FractionallySizedBox(
                               widthFactor: .65,
                               heightFactor: .45,
-                              child: NovaNetworkImage(item.logo!,
+                              child: NovaNetworkImage(
+                                  quality.sourceUrl(item.logo!, logo: true),
                                   fit: BoxFit.contain,
+                                  cacheWidth: quality.decodedExtent(
+                                      context, width * .65),
+                                  gaplessPlayback: true,
                                   errorBuilder: (_, __, ___) =>
                                       const SizedBox.shrink()),
                             ),
