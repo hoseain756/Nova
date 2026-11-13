@@ -40,12 +40,19 @@ void main() {
     expect(manifest.latestVersion, noorVersion);
     expect(manifest.latestBuild, noorBuild);
     expect(manifest.androidUrl,
-        'https://github.com/hoseain756/Nova/releases/download/v$noorVersion/app-release.apk');
-    expect(
-        AppUpdateStatus(
-                manifest: manifest, currentVersion: '1.0.7', currentBuild: 70)
-            .hasUpdate,
-        isTrue);
+        'https://github.com/novastremio/nova-mobile/releases/download/v$noorVersion/app-release.apk');
+    expect(novaUpdateManifestUrl,
+        'https://raw.githubusercontent.com/novastremio/nova-mobile/main/version.json');
+    final previous = AppUpdateStatus(
+        manifest: manifest, currentVersion: '1.0.10', currentBuild: 73);
+    expect(previous.hasUpdate, isTrue);
+    expect(previous.forceRequired, isTrue);
+    final installed = AppUpdateStatus(
+        manifest: manifest,
+        currentVersion: noorVersion,
+        currentBuild: noorBuild);
+    expect(installed.hasUpdate, isFalse);
+    expect(installed.forceRequired, isFalse);
   });
 
   const manifestJson = <String, dynamic>{
@@ -54,7 +61,7 @@ void main() {
     'min_build': 60,
     'message_ar': 'يتوفر تحديث جديد.',
     'android_url':
-        'https://github.com/hoseain756/Nova/releases/download/v1.0.7/app-release.apk',
+        'https://github.com/novastremio/nova-mobile/releases/download/v1.0.7/app-release.apk',
     'ios_url': '',
   };
 
@@ -87,7 +94,7 @@ void main() {
     expect(manifest.minBuild, 60);
     expect(
       manifest.androidUrl,
-      'https://github.com/hoseain756/Nova/releases/download/v1.0.7/app-release.apk',
+      'https://github.com/novastremio/nova-mobile/releases/download/v1.0.7/app-release.apk',
     );
   });
 

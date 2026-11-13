@@ -1222,19 +1222,6 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
                   ),
                   Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(app.tr('message412')),
-                        const SizedBox(height: 8),
-                        const SelectableText(
-                          'github.com/harborstremio/harbor',
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(20),
                     child: Text(app.tr('message413')),
                   ),
                 ],

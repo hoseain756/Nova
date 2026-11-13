@@ -3,7 +3,7 @@ Pod::Spec.new do |s|
   s.version          = '0.1.0'
   s.summary          = 'Embedded on-device torrent engine for NOVA on iOS.'
   s.description      = 'NOVA bridge to the locally bound TorrServerKit engine.'
-  s.homepage         = 'https://github.com/hoseain756/Nova'
+  s.homepage         = 'https://github.com/novastremio/nova-mobile'
   s.license          = { :type => 'GPL-3.0' }
   s.author           = { 'NOVA' => 'NOVA' }
   s.source           = { :path => '.' }

@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const String novaUpdateManifestUrl =
-    'https://raw.githubusercontent.com/hoseain756/Nova/main/version.json';
+    'https://raw.githubusercontent.com/novastremio/nova-mobile/main/version.json';
 
 enum AppUpdateOperation { check, download, install }
 
