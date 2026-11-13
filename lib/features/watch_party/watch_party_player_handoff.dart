@@ -42,13 +42,16 @@ Future<void> handoffWatchPartyPlayback(
   BuildContext roomContext, {
   required WatchPartySnapshot room,
   required WatchPartyMedia currentMedia,
+  WatchPartySource? currentSource,
   required Route<dynamic> playerRoute,
   required Future<void> Function() retirePlayback,
   WatchPartyHandoffLauncher launch = launchWatchPartyPlayback,
 }) async {
   if (!roomContext.mounted) return;
   final navigator = Navigator.of(roomContext);
-  if (room.media?.key == currentMedia.key) {
+  if (room.media?.key == currentMedia.key &&
+      (!room.sourceLocked ||
+          currentSource != null && currentSource.key == room.source?.key)) {
     navigator.pop();
     return;
   }

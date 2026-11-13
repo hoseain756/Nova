@@ -248,8 +248,11 @@ class Media3Engine extends PlaybackEngine {
   @override
   Future<void> toggleMute() => setVolume(muted ? _lastVolume : 0);
   @override
-  Future<void> selectAudio(AudioTrack track) =>
-      _command('audio', {'track': track.id});
+  Future<void> selectAudio(AudioTrack track) async {
+    if (interceptsWatchPartyAudio && await routeWatchPartyAudio(track)) return;
+    await _command('audio', {'track': track.id});
+  }
+
   @override
   Future<void> selectSubtitle(SubtitleTrack track) async {
     if (track.uri) return setSubtitleUri(track.id, title: track.title);

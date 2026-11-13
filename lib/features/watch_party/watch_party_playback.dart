@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/media_item.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_models.dart';
+import '../../l10n/nova_strings.dart';
 import '../media/media_playback_launcher.dart';
 
 typedef WatchPartySourceLauncher = Future<void> Function(
@@ -11,6 +12,7 @@ typedef WatchPartySourceLauncher = Future<void> Function(
   required MediaItem item,
   required Map<String, dynamic>? video,
   int? resumePositionMs,
+  WatchPartySource? lockedSource,
   bool Function()? canLaunch,
   ValueChanged<bool>? onLoadingChanged,
 });
@@ -27,13 +29,27 @@ Future<void> launchWatchPartyPlayback(
   final media = room.media;
   if (controller == null || media == null || !media.supported) return;
 
-  bool current() =>
-      context.mounted &&
-      controller.snapshot?.id == room.id &&
-      controller.snapshot?.selfId == room.selfId &&
-      controller.snapshot?.media?.key == media.key;
+  final locked = room.sourceLocked && !room.isHost;
+  bool current() {
+    final live = controller.snapshot;
+    return context.mounted &&
+        live != null &&
+        live.id == room.id &&
+        live.selfId == room.selfId &&
+        live.media?.key == media.key &&
+        (live.sourceLocked && !live.isHost) == locked &&
+        (!locked || live.source?.key == room.source?.key);
+  }
 
   if (!current()) return;
+  if (locked && room.source == null) {
+    final english = Localizations.localeOf(context).languageCode == 'en';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content:
+          Text(NovaStrings.lookup(english, 'partyLockedSourceUnavailable')),
+    ));
+    return;
+  }
   if (returnToPlayer) {
     Navigator.of(context).pop();
     return;
@@ -48,6 +64,7 @@ Future<void> launchWatchPartyPlayback(
       if (media.episode != null) 'episode': media.episode,
     }),
     resumePositionMs: room.targetMs(controller.clock.nowMs),
+    lockedSource: locked ? room.source : null,
     canLaunch: current,
   );
 }

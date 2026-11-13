@@ -27,7 +27,6 @@ import 'package:nova_mobile/features/kids/kids_page.dart';
 import 'package:nova_mobile/features/library/library_page.dart';
 import 'package:nova_mobile/features/settings/settings_page.dart';
 import 'package:nova_mobile/features/shell/main_shell.dart';
-import 'package:nova_mobile/shared/widgets/glass_navigation.dart';
 
 /// Offline, instant repository: every catalog source resolves empty so the
 /// shell can be pumped deterministically without network access.
@@ -141,10 +140,19 @@ void main() {
 
     // 3) The glass search button clears the status icons: safeTop + 12.
     expect(
-      tester.getTopLeft(find.byType(GlassSearchButton)).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('home-search-button'))).dy,
       44 + 12,
       reason: 'shell chrome must sit below the status bar',
     );
+    final partyJoin = find.byKey(const ValueKey('home-party-join-button'));
+    expect(partyJoin, findsOneWidget);
+    expect(tester.getSize(partyJoin), const Size(48, 48));
+    expect(tester.getTopLeft(partyJoin).dy, 44 + 12);
+    expect(
+        tester.getRect(partyJoin).right,
+        lessThan(tester
+            .getRect(find.byKey(const ValueKey('home-search-button')))
+            .left));
 
     // 4) Scrolling the home page keeps working (content flows under the
     //    transparent bar) — drag up and expect no exceptions.

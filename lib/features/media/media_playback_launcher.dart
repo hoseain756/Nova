@@ -7,6 +7,7 @@ import '../../core/models/media_item.dart';
 import '../../core/state/app_state.dart';
 import '../../core/torrent/torrent_models.dart';
 import '../../core/torrent/torrent_service.dart';
+import '../../core/watch_party/watch_party_models.dart';
 import '../../l10n/nova_strings.dart';
 import '../player/playback_entry_page.dart';
 import '../player/session/playback_session.dart';
@@ -24,6 +25,7 @@ Future<void> launchMediaPlayback(
   required MediaItem item,
   required Map<String, dynamic>? video,
   int? resumePositionMs,
+  WatchPartySource? lockedSource,
   bool Function()? canLaunch,
   ValueChanged<bool>? onLoadingChanged,
   // Navigation seams keep source identity/cancellation testable without a
@@ -44,11 +46,46 @@ Future<void> launchMediaPlayback(
     english: english,
     loader: () => loadRankedSources(app: app, item: item, videoId: id),
   );
-  final picked = sourcePicker != null
-      ? await sourcePicker(sources)
-      : await Navigator.of(context).push<Map<String, dynamic>>(
-          MaterialPageRoute(builder: (_) => sources),
-        );
+  Map<String, dynamic>? picked;
+  var exactPeerFile = false;
+  if (lockedSource != null) {
+    final candidates = await sources.loader!();
+    if (!context.mounted || !current()) return;
+    for (final candidate in candidates) {
+      if (candidate[unavailableTorrentSourceKey] != true &&
+          isPlayableStreamMap(candidate) &&
+          WatchPartySource.fromStream(candidate)?.key == lockedSource.key) {
+        picked = candidate;
+        break;
+      }
+    }
+    // A locked peer file with a known index can be resolved from metadata
+    // even if the guest's add-ons did not list the host's release.
+    final index = lockedSource.fileIndex;
+    final hash = lockedSource.infoHash;
+    if (picked == null &&
+        index != null &&
+        index >= 0 &&
+        hash != null &&
+        lockedSource.key == 'torrent:$hash:$index' &&
+        app.webSettings['p2pEnabled'] != false) {
+      picked = {'infoHash': hash, 'fileIdx': index, 'title': lockedSource.name};
+      exactPeerFile = true;
+    }
+    if (picked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content:
+            Text(NovaStrings.lookup(english, 'partyLockedSourceUnavailable')),
+      ));
+      return;
+    }
+  } else {
+    picked = sourcePicker != null
+        ? await sourcePicker(sources)
+        : await Navigator.of(context).push<Map<String, dynamic>>(
+            MaterialPageRoute(builder: (_) => sources),
+          );
+  }
   if (picked == null || !context.mounted || !current()) return;
 
   PreparedTorrent? prepared;
@@ -87,9 +124,20 @@ Future<void> launchMediaPlayback(
         hints: torrentHints,
         magnet: magnet,
         isCurrent: current,
+        forcePeerFile: exactPeerFile,
       );
       if (resolved == null) return;
       prepared = resolved.torrent;
+      if (lockedSource?.fileIndex != null &&
+          prepared != null &&
+          prepared.fileIndex != lockedSource!.fileIndex) {
+        if (context.mounted && current()) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(NovaStrings.lookup(
+                  english, 'partyLockedSourceUnavailable'))));
+        }
+        return;
+      }
       url = resolved.url;
     }
     if (!context.mounted || !current()) return;
@@ -143,10 +191,11 @@ Future<({String url, PreparedTorrent? torrent})?> _resolveTorrentStream(
   required TorrentStreamHints hints,
   required String? magnet,
   required bool Function() isCurrent,
+  required bool forcePeerFile,
 }) async {
   final api = app.api;
   final english = app.english;
-  final debridConfigured = api.debridService != null;
+  final debridConfigured = !forcePeerFile && api.debridService != null;
   var engineSupported = false;
   if (!debridConfigured) {
     try {
@@ -188,6 +237,10 @@ Future<({String url, PreparedTorrent? torrent})?> _resolveTorrentStream(
       );
       if (!context.mounted || !current()) return null;
       if (url != null && url.isNotEmpty) return (url: url, torrent: null);
+      if (app.webSettings['p2pEnabled'] == false) {
+        _showNoTorrentPathMessage(context, english, debridFailed: true);
+        return null;
+      }
       try {
         engineSupported = await TorrentService.instance.isSupported;
       } catch (_) {

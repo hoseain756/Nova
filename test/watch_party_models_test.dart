@@ -49,13 +49,16 @@ void main() {
       'invitations require the correct host, one valid code, and no authority extras',
       () {
     expect(parseWatchPartyInvite(watchPartyInvite('ABCDEFGH')), 'ABCDEFGH');
+    expect(parseWatchPartyInvite(watchPartyInvite('ABCDEF')), 'ABCDEF');
     expect(
         parseWatchPartyInvite('app.nova.mobile://watch-party?code=abcd-efgh'),
         'ABCDEFGH');
     for (final link in [
       'https://evil.test/watch-party?code=ABCDEFGH',
       'app.nova.mobile://callback?code=ABCDEFGH',
-      'app.nova.mobile://watch-party?code=ABCDEF',
+      'app.nova.mobile://watch-party?code=ABCDE',
+      'app.nova.mobile://watch-party?code=ABCDEFG',
+      'app.nova.mobile://watch-party?code=ABCDEFGH&endpoint=https://evil.test',
       'app.nova.mobile://watch-party?code=ABCDEFGH&code=JKLMNPQR',
       'app.nova.mobile://user@watch-party?code=ABCDEFGH',
       'app.nova.mobile://watch-party:42?code=ABCDEFGH',
@@ -64,6 +67,57 @@ void main() {
     ]) {
       expect(parseWatchPartyInvite(link), isNull, reason: link);
     }
+  });
+  test(
+      'join input accepts six and legacy eight character codes and invitations',
+      () {
+    expect(watchPartyCodeFromInput('abc def'), 'ABCDEF');
+    expect(watchPartyCodeFromInput('ABCD-EFGH'), 'ABCDEFGH');
+    expect(
+        watchPartyCodeFromInput(' ${watchPartyInvite('ABCDEF')} '), 'ABCDEF');
+    expect(
+        watchPartyCodeFromInput('app.nova.mobile://watch-party?code=ABCDEFGH'),
+        'ABCDEFGH');
+    expect(formatWatchPartyCode('ABCDEF'), 'ABC DEF');
+    expect(formatWatchPartyCode('ABCDEFGH'), 'ABCD EFGH');
+    for (final input in [
+      'ABCDE',
+      'ABCDEFG',
+      'ABCDEFGHI',
+      'ABC0EF',
+      'ABCIEF',
+      'https://evil.test/ABCDEF',
+      'app.nova.mobile://watch-party?code=ABCDEF&code=ABCDEF'
+    ]) {
+      expect(watchPartyCodeFromInput(input), isNull, reason: input);
+    }
+  });
+  test('relay invitations retain origin metadata without a silent legacy join',
+      () {
+    final text =
+        watchPartyInvite('ABCDEF', relay: Uri.https('rooms.example.com'));
+    final invitation = parseWatchPartyInvitation(text)!;
+    expect(invitation.code, 'ABCDEF');
+    expect(invitation.relay.toString(), 'https://rooms.example.com');
+    expect(parseWatchPartyInvite(text), isNull);
+    for (final relay in [
+      'http://rooms.example.com',
+      'https://localhost',
+      'https://127.0.0.1',
+      'https://user:secret@rooms.example.com',
+      'https://rooms.example.com/private',
+      'https://rooms.example.com?token=secret'
+    ]) {
+      expect(
+          parseWatchPartyInvitation(
+              'app.nova.mobile://watch-party?code=ABCDEF&relay=${Uri.encodeComponent(relay)}'),
+          isNull,
+          reason: relay);
+    }
+    expect(
+        parseWatchPartyInvitation(
+            '$text&relay=https%3A%2F%2Fother.example.com'),
+        isNull);
   });
   test(
       'media identity includes exact episode video ID and never transport credentials',

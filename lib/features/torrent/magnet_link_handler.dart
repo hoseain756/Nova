@@ -14,6 +14,7 @@ import '../../core/oauth/oauth_redirect.dart';
 import '../../core/shared_collections/invite_link.dart';
 import '../../core/shared_collections/shared_collections_service.dart';
 import '../../core/watch_party/watch_party_invite.dart';
+import '../watch_party/watch_party_join_dialog.dart';
 import '../watch_party/watch_party_page.dart';
 import '../../core/state/app_state.dart';
 import '../../shared/widgets/noor_toast.dart';
@@ -95,12 +96,13 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
     final partyUri = Uri.tryParse(data);
     if (partyUri?.scheme == 'app.nova.mobile' &&
         partyUri?.host == 'watch-party') {
-      final code = parseWatchPartyInvite(data);
-      if (code == null) {
+      final invite = parseWatchPartyInvitation(data);
+      if (invite == null) {
         NoorToast.show(context, NovaStrings.of(context).text('partyNotFound'),
             error: true);
       } else {
-        unawaited(_queuePartyInvite(code));
+        unawaited(_queuePartyInvite(
+            watchPartyInvite(invite.code, relay: invite.relay)));
       }
       return;
     }
@@ -162,7 +164,8 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
     try {
       final code = await _inviteStorage.read(key: _pendingPartyKey);
       if (!mounted || generation != _partyGeneration || code == null) return;
-      if (validWatchPartyCode(code)) {
+      if (validWatchPartyCode(code) ||
+          parseWatchPartyInvitation(code) != null) {
         setState(() => _pendingParty = code);
       } else {
         await _inviteStorage.delete(key: _pendingPartyKey);
@@ -223,8 +226,14 @@ class _IncomingLinkListenerState extends State<IncomingLinkListener>
         });
         await _partyWrite;
         if (mounted) {
-          await Navigator.of(context).push<void>(MaterialPageRoute(
-              builder: (_) => WatchPartyPage(initialCode: code)));
+          if (parseWatchPartyInvitation(code) != null) {
+            final joined =
+                await showWatchPartyJoinDialog(context, initialInvite: code);
+            if (mounted && joined == true) await openWatchParty(context);
+          } else {
+            await Navigator.of(context).push<void>(MaterialPageRoute(
+                builder: (_) => WatchPartyPage(initialCode: code)));
+          }
         }
       } finally {
         _openingParty = false;

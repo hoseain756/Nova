@@ -48,6 +48,8 @@ import '../../core/watch_party/watch_party_models.dart';
 import '../watch_party/watch_party_page.dart';
 import '../watch_party/watch_party_player_handoff.dart';
 import 'watch_party_player_binding.dart';
+import 'watch_party_player_policy.dart';
+import 'watch_party_follow_prompt.dart';
 
 /// Fullscreen player with centralized transport, a directional timeline and tool dialogs.
 ///   · tap            — show / hide chrome
@@ -112,8 +114,23 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     with WidgetsBindingObserver {
   MediaKitEngine? _engine;
   WatchPartyPlayerBinding? _partyBinding;
+  bool _partyUiReady = false;
   WatchPartyMedia get _partyMedia => WatchPartyMedia.fromItem(widget.item,
       videoId: widget.videoId, season: widget.season, episode: widget.episode);
+  WatchPartySource? get _partySource {
+    final original = _streamIndex >= 0 && _streamIndex < widget.streams.length
+        ? widget.streams[_streamIndex]
+        : null;
+    final torrent = widget.torrent;
+    return WatchPartySource.fromStream(torrent?.fileIndex == null
+        ? original
+        : {
+            ...?original,
+            'infoHash': torrent!.infoHash,
+            'fileIdx': torrent.fileIndex,
+          });
+  }
+
   bool get _partyMatching =>
       _partyBinding?.controller.snapshot?.media?.key == _partyMedia.key;
   void _attachPartyBinding(PlaybackEngine? engine) {
@@ -136,6 +153,8 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         controller: controller,
         engine: engine,
         media: _partyMedia,
+        source: _partySource,
+        onFollowRequired: _showPartyFollowRequired,
         isActive: () =>
             mounted &&
             !_closing &&
@@ -153,17 +172,38 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _partyUiReady = true;
     Provider.of<WatchPartyHandle?>(context);
     _attachPartyBinding(_engine);
   }
 
   Future<void>? _partyRetirement;
 
-  void _openParty() {
+  bool get _canShowPartyFollow =>
+      _partyUiReady &&
+      mounted &&
+      !_closing &&
+      _partyRetirement == null &&
+      !_resuming &&
+      !_resumeTransitioning &&
+      _panel == null &&
+      !_episodeTransitionBusy &&
+      ModalRoute.of(context)?.isCurrent == true;
+
+  bool _showPartyFollowRequired(String messageKey) =>
+      showWatchPartyFollowPrompt(context,
+          messageKey: messageKey,
+          canShow: () => _canShowPartyFollow,
+          onFollow: () => _openParty(followPlayback: true));
+
+  void _openParty({bool followPlayback = false}) {
+    if (followPlayback && !_canShowPartyFollow) return;
     final route = ModalRoute.of(context);
     if (route == null) return;
     unawaited(openWatchParty(context,
         media: _partyMedia,
+        source: _partySource,
+        followPlayback: followPlayback,
         positionMs: _engine?.position.inMilliseconds ?? 0,
         playing: _engine?.playing ?? false,
         rate: _engine?.rate ?? 1,
@@ -171,6 +211,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
               roomContext,
               room: room,
               currentMedia: _partyMedia,
+              currentSource: _partySource,
               playerRoute: route,
               retirePlayback: _retireForParty,
             )));
@@ -519,6 +560,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
 
   void _applyPreferredTracks(MediaKitEngine engine) {
     final settings = _app.webSettings;
+    if (_partyMatching && _preferenceSession.canApplyAudio) {
+      _preferenceSession.markAudioPreferenceApplied();
+    }
     if (_preferenceSession.canApplyAudio) {
       final preference = settings['defaultAudioLanguage'];
       final automatic = NovaPlaybackPreferences.canonicalLanguage(preference);
@@ -1735,6 +1779,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   Future<void> _switchEpisode(Map<String, dynamic> episode) async {
     final episodeId = (episode['id'] ?? widget.item.id).toString();
     if (episodeId == widget.videoId || _episodeTransitionBusy) return;
+    if (!_allowPartyEpisode(episodeId)) return;
     _episodeTransitionBusy = true;
     try {
       final playable = await _fetchPlayableStreams(episodeId);
@@ -1785,6 +1830,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
     required List<Map<String, dynamic>> streams,
   }) async {
     if (_partyRetirement != null) return;
+    if (!_allowPartySource(stream, videoId)) return;
     await _endTemporarySpeed();
     final resolved = await _resolveForPlayback(_app, stream);
     if (!mounted) return;
@@ -1796,6 +1842,12 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
           ),
         ),
       );
+      return;
+    }
+    if (!_allowPartySource(stream, videoId)) {
+      if (!identical(resolved.torrent, widget.torrent)) {
+        await resolved.torrent?.stop();
+      }
       return;
     }
     final pickedIndex = streams.indexOf(stream);
@@ -1817,6 +1869,29 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
         fullscreenDialog: true,
       ),
     );
+  }
+
+  bool _allowPartySource(Map<String, dynamic> stream, String videoId) {
+    return _allowPartyChange(videoId,
+        source: WatchPartySource.fromStream(stream), checkSource: true);
+  }
+
+  bool _allowPartyEpisode(String videoId) => _allowPartyChange(videoId);
+
+  bool _allowPartyChange(String videoId,
+      {WatchPartySource? source, bool checkSource = false}) {
+    final error = watchPartyPlayerChangeError(
+        room: _partyBinding?.controller.snapshot,
+        currentMedia: _partyMedia,
+        videoId: videoId,
+        source: source,
+        checkSource: checkSource);
+    if (error == null) return true;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(NovaStrings.of(context).text(error))));
+    }
+    return false;
   }
 
   /// Playable-stream fetch shared by the episode-switch paths (the same
@@ -1845,10 +1920,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage>
   /// AND by the auto-advance when a data-provided countdown exists.
   Future<void> _startEpisodeSources(Map<String, dynamic> episode) async {
     if (_episodeTransitionBusy || _partyRetirement != null) return;
+    final episodeId = (episode['id'] ?? widget.item.id).toString();
+    if (episodeId == widget.videoId || !_allowPartyEpisode(episodeId)) return;
     _episodeTransitionBusy = true;
     try {
-      final episodeId = (episode['id'] ?? widget.item.id).toString();
-      if (episodeId == widget.videoId) return;
       final picked = await Navigator.of(context).push<Map<String, dynamic>>(
         MaterialPageRoute(
           builder: (_) => SourcesPage(

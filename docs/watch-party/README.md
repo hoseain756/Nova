@@ -6,21 +6,29 @@ native library or hosted reference service is bundled or contacted by NOVA.
 
 ## Using the feature
 
-- Open **Watch together / المشاهدة الجماعية** from Library or the fullscreen
-  player's tool row. A full signed-in NOVA account and active profile are
+- The people icon next to Search on Home opens the join dialog. Open
+  **Watch together / المشاهدة الجماعية** from Library or the fullscreen
+  player to create a room. A full signed-in NOVA account and active profile are
   required. Anonymous Auth guests, Kids, live channels and non-recording
   playback routes are excluded.
-- Create a room, or enter its eight-character code. The paste button accepts a
-  code or full invitation. Share/copy uses
-  `app.nova.mobile://watch-party?code=ABCDEFGH`.
+- Enter a six-character code such as `ABC DEF` or paste the invitation.
+  Existing eight-character codes remain valid. Cloudflare invitations carry
+  the relay origin so the guest can confirm the server before connecting.
 - A room created from the player uses that movie/episode and current playback.
   An empty room adopts the host's next supported playback route. Each member
-  uses **Join playback** inside the room to open their own source picker for
-  the exact room movie/episode. This bypasses detail metadata and local resume
+  uses **Join playback** inside the room. In personal-source mode this opens
+  the exact room episode in the local source picker. In locked mode the guest
+  resolves the leader's source fingerprint through their own installed add-ons.
+  With local P2P enabled, an exact torrent hash and file index can also open
+  directly. NOVA checks the selected file index after native preparation.
+  A missing match displays a message and keeps the guest in the room.
+  This bypasses detail metadata and local resume
   history, preserving the shared playback identity. No playable URL, torrent
   endpoint, HTTP header or service credential is
   included in the Party media descriptor.
-- New rooms allow every member to play/pause/seek/change speed by default.
+- New rooms allow every member to play/pause/seek/change speed and select a
+  shared audio track by default. The client matches the track to local engine
+  IDs using language and track metadata. Device speaker volume stays local.
   The host can restrict control in **Viewers & controls**; existing rooms keep
   their previous mode. The current control mode is visible beside the playback
   action. Only the host can change room media,
@@ -42,7 +50,7 @@ Opening a link presents the join screen and does not silently join a room.
 
 `lib/core/watch_party/` contains immutable media/member/message snapshots, the
 monotonic server clock, invitation parsing, `WatchPartyController`, and the
-Supabase gateway. Room membership outlives an individual player route.
+Supabase and Cloudflare gateways. Room membership outlives an individual player route.
 Generation checks discard responses after scope/room changes. A reconnect
 refreshes the snapshot and chat history. Five-second RPC refreshes recover
 state while Realtime reconnects; network operations have a ten-second timeout.
@@ -99,12 +107,15 @@ The client anchors server time to a monotonic clock using the lowest observed
 RPC RTT midpoint. Projection respects playback speed and local duration. First
 application seeks only above 250 ms of drift, so a zero-start source does not
 need seek capability merely to begin. Periodic correction seeks
-above 1500 ms while playing or 500 ms while paused. Smaller playing drift starts
+above 1500 ms while playing. Paused positions use an 80 ms tolerance and
+up to three accepted corrections for a stable target. Smaller playing drift starts
 a local ±5% rate adjustment above 250 ms and stops inside 80 ms. Seek attempts
 are spaced by at least 500 ms. Host exact samples publish every two seconds
 after seek settling, using the current revision; samples cannot overwrite a
 new play/pause/rate command. A runtime mismatch exceeding a bounded duration
-tolerance suspends synchronization and reports the different source version.
+tolerance reports a different edition while both members continue to receive
+transport commands. Different edits can show different scenes at the same time.
+Lock the room source to select the same edition on both devices.
 
 Loading and buffering statuses are scoped to the exact media key. Buffering is
 reported after one second. The server pauses for a loading/buffering member,
@@ -120,8 +131,9 @@ Apply the migrations in order:
 1. `20261111091937_watch_parties.sql`
 2. `20261111092449_watch_party_access_guards.sql`
 3. `20261111133733_watch_party_shared_controls.sql`
+4. `20261112235452_watch_party_sources_audio_relay.sql`
 
-They were applied to the existing configured NOVA project on 2026-11-11.
+All four migrations are deployed to the configured NOVA project.
 Their filenames match the versions returned by the deployed migration history.
 No legacy sync table or account/profile sync contract was modified.
 
@@ -169,6 +181,20 @@ offline local Leave stops client synchronization immediately; the server
 membership expires if its leave request cannot reach the service.
 
 ## Validation
+
+Two separate signed-in test accounts on the deployed Supabase project each
+subscribed to their private member WebSocket. Both received identical snapshots
+for guest play, host seek to 128000 ms, guest pause at 128250 ms and a switch
+to the Arabic audio track. End-to-end RPC and broadcast observations from the
+Windows test host were 879, 819, 826 and 769 ms respectively. The server also
+rejected a guest command in host-only mode, a mismatched locked source and a
+relay ticket used for a different origin. The two fixture accounts were
+removed. This test exercises the network protocol. Native playback latency and
+speaker-to-speaker alignment on Android/iOS still require a two-phone run.
+
+Cloudflare uses a Worker and a SQLite-backed Durable Object for the room.
+The connection settings support provisioning an account-owned Worker or
+testing an existing NOVA relay. See [Harbor and the NOVA relay](HARBOR_RELAY.md).
 
 `supabase/tests/watch_party_smoke.sql` creates isolated Auth/profile fixtures,
 checks server behavior, executes the invoker as `authenticated`, rejects direct

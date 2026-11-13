@@ -1,3 +1,4 @@
+import 'core/auth/nova_backend_config.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
@@ -47,16 +48,12 @@ Future<void> main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
       noorSystemBarOverlayStyle(Brightness.dark));
-  const supabaseUrl = String.fromEnvironment('NOVA_SUPABASE_URL',
-      defaultValue: 'https://hcyysnagdumpviromdzl.supabase.co');
-  const publishableKey = String.fromEnvironment('NOVA_SUPABASE_PUBLISHABLE_KEY',
-      defaultValue: 'sb_publishable__wLpouQl59aYu9pD4O1utg_Vtzb8OhX');
   AccountController? account;
-  if (publishableKey.isNotEmpty) {
+  if (novaSupabasePublishableKey.isNotEmpty) {
     try {
       await Supabase.initialize(
-        url: supabaseUrl,
-        publishableKey: publishableKey,
+        url: novaSupabaseUrl,
+        publishableKey: novaSupabasePublishableKey,
         authOptions: const FlutterAuthClientOptions(
           localStorage: NovaSecureAuthStorage(),
           pkceAsyncStorage: NovaSecurePkceStorage(),

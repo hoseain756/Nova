@@ -120,6 +120,8 @@ import UIKit
               state["active"] is Bool,
               state["searchVisible"] is Bool,
               state["searchLabel"] is String,
+              (state["partyJoinVisible"] == nil || state["partyJoinVisible"] is Bool),
+              (state["partyJoinLabel"] == nil || state["partyJoinLabel"] is String),
               (state["detail"] is NSNull || state["detail"] is [String: Any]) else {
           result(FlutterError(code: "invalid_presentation", message: nil, details: nil))
           return

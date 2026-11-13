@@ -2,7 +2,7 @@ import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 // Only the public application URL/key are used. No Auth user or chat message
 // is created. Joining starts Supabase's managed Realtime partition window.
-const main=readFileSync(new URL('../../lib/main.dart',import.meta.url),'utf8');
+const main=readFileSync(new URL('../../lib/core/auth/nova_backend_config.dart',import.meta.url),'utf8');
 const base=main.match(/defaultValue: '(https:\/\/[^']+\.supabase\.co)'/)?.[1];
 const key=main.match(/defaultValue: '(sb_publishable_[^']+)'/)?.[1];
 if(!base||!key)throw new Error('Public application configuration not found');

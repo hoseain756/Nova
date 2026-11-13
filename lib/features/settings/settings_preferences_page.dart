@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
+import '../../core/watch_party/watch_party_controller.dart';
+import '../../core/watch_party/watch_party_relay_settings.dart';
+import '../watch_party/widgets/watch_party_connection_settings.dart';
 import '../player/playback_entry_page.dart' show useCorePlayerByDefault;
 import '../player/engine/picture_quality.dart';
 import '../player/widgets/subtitle_font_picker.dart';
@@ -418,6 +421,9 @@ class SettingsPreferencesPage extends StatelessWidget {
   Widget build(BuildContext context) {
     context.select<AppState, bool>((app) => app.english);
     final app = context.read<AppState>();
+    final party = context.watch<WatchPartyController?>();
+    final relay = context.watch<WatchPartyRelaySettings?>();
+    final kids = context.select<AppState, bool>((app) => app.kidsSession);
     final rows = subtitles ? _subtitlePreferences : _playerPreferences;
     final groups = subtitles
         ? <String, List<String>>{
@@ -490,6 +496,24 @@ class SettingsPreferencesPage extends StatelessWidget {
                       icon: subtitles
                           ? LucideIcons.captions
                           : LucideIcons.circlePlay),
+                  if (!subtitles &&
+                      !kids &&
+                      party?.eligible == true &&
+                      relay != null)
+                    SettingsContentSection(
+                        title: app.tr('partyTitle'),
+                        children: [
+                          SettingsTile(
+                              key:
+                                  const ValueKey('settings-watch-party-server'),
+                              icon: LucideIcons.usersRound,
+                              title: app.tr('partyRelayTitle'),
+                              subtitle: app.tr(relay.enabled
+                                  ? 'partyRelayCustom'
+                                  : 'partyRelayDefault'),
+                              onTap: () =>
+                                  showWatchPartyConnectionDialog(context))
+                        ]),
                   for (final group in groups.entries) ...[
                     SettingsContentSection(title: group.key, children: [
                       if (subtitles && group.key == app.tr('message497'))

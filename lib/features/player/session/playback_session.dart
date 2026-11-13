@@ -857,10 +857,15 @@ class PlaybackSession extends PlaybackEngine {
         await _raw?.toggleMute();
       });
   @override
-  Future<PlaybackCommandResult> selectAudio(AudioTrack track) =>
-      _command('audio', (_) async {
-        await _raw?.selectAudio(track);
-      });
+  Future<PlaybackCommandResult> selectAudio(AudioTrack track) async {
+    if (interceptsWatchPartyAudio && await routeWatchPartyAudio(track)) {
+      return const PlaybackCommandResult(PlaybackCommandStatus.applied);
+    }
+    return _command('audio', (_) async {
+      await _raw?.selectAudio(track);
+    });
+  }
+
   @override
   Future<PlaybackCommandResult> selectSubtitle(SubtitleTrack track) async {
     // Local imports can use formats beyond Media3's SRT/VTT/SSA parser. The

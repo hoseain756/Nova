@@ -1,0 +1,13 @@
+{
+  "name": "nova-watch-party-relay",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0"
+  },
+  "overrides": { "undici": "7.30.1", "sharp": "0.35.5" }
+}

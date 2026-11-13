@@ -6,7 +6,7 @@ import 'watch_party_fixture.dart';
 /// responses identify their recipient; private broadcasts deliberately do not.
 class WatchPartyTestServer {
   WatchPartyTestServer({bool hostOnly = false, bool playing = false})
-      : data = partyData(hostOnly: hostOnly, playing: playing);
+      : data = clonePartyData(partyData(hostOnly: hostOnly, playing: playing));
 
   final Map<String, dynamic> data;
   final clients = <WatchPartyTestGateway>[];
@@ -48,6 +48,25 @@ class WatchPartyTestServer {
     final action = params['p_action'];
     final payload = params['p_payload'] as Map? ?? const {};
     if (action == 'resume') return {'snapshot': null};
+    if (action == 'media') {
+      if (client.memberId != room['host_member_id']) {
+        return {'error': 'host_required'};
+      }
+      if (payload['revision'] != revision) {
+        return {'error': 'conflict', 'snapshot': snapshot(client.memberId)};
+      }
+      room['media'] = payload['media'];
+      room['source'] = payload['source'];
+      room['audio_track'] = payload['audio_track'];
+      room['position_ms'] = payload['position_ms'];
+      room['duration_ms'] = 0;
+      room['playing'] = payload['playing'];
+      room['rate'] = payload['rate'];
+      room['at'] = 100000 + now;
+      room['revision'] = revision + 1;
+      broadcast();
+      return snapshot(client.memberId);
+    }
     if (action == 'leave') {
       (data['members'] as List)
           .removeWhere((row) => (row as Map)['id'] == client.memberId);
@@ -64,15 +83,26 @@ class WatchPartyTestServer {
         return {'error': 'host_required'};
       }
       if (action == 'configure') {
-        room['host_only'] = payload['host_only'];
+        for (final field in ['host_only', 'source', 'source_locked']) {
+          if (payload.containsKey(field)) room[field] = payload[field];
+        }
       } else {
-        if (payload['media_key'] != partyMedia.key) {
+        final media = room['media'] as Map;
+        if (payload['media_key'] !=
+            '${media['type']}|${media['id']}|${media['video_id']}') {
           return {'error': 'media_mismatch'};
+        }
+        if (!host &&
+            room['source_locked'] == true &&
+            payload['source_key'] != (room['source'] as Map?)?['key']) {
+          return {'error': 'source_mismatch'};
         }
         _advance();
         if (action == 'publish') {
           room['position_ms'] = payload['position_ms'];
           room['duration_ms'] = payload['duration_ms'];
+          room['source'] ??= payload['source'];
+          room['audio_track'] ??= payload['audio_track'];
         } else {
           commands.add({...payload, 'member_id': client.memberId});
           switch (payload['command']) {
@@ -80,10 +110,15 @@ class WatchPartyTestServer {
               room['playing'] = true;
             case 'pause':
               room['playing'] = false;
+              if (host && payload['position_ms'] is num) {
+                room['position_ms'] = payload['position_ms'];
+              }
             case 'seek':
               room['position_ms'] = payload['position_ms'];
             case 'rate':
               room['rate'] = payload['rate'];
+            case 'audio':
+              room['audio_track'] = payload['audio_track'];
           }
         }
       }

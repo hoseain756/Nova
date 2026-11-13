@@ -9,6 +9,8 @@ declare
   room_id uuid; ha uuid; mb uuid; code text; r jsonb; s jsonb; message_id bigint;
   media jsonb:='{"id":"tt-nova-party-smoke","type":"movie","title":"Smoke test","video_id":"tt-nova-party-smoke","url":"https://private.invalid","headers":{"Authorization":"dummy"}}';
   rev bigint; n integer; client_id uuid:=gen_random_uuid();
+  src jsonb:=jsonb_build_object('key','stream:'||repeat('a',64),'name','Same edition');
+  relay text:='https://nova-relay.workers.dev'; ticket jsonb;
 begin
   insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data,is_anonymous) values
     (a,'nova-party-smoke-'||a||'@example.invalid','{"provider":"email","providers":["email"]}','{}',false),
@@ -50,6 +52,28 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','is_anonymous',false)::text,true);
   r:=public.nova_party('join',db,pb,null,code); mb:=(r->>'self_member_id')::uuid;
   assert r->>'error' is null and mb is not null,'guest join';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',false)::text,true);
+  r:=public.nova_party('configure',da,pa,room_id,null,jsonb_build_object(
+      'revision',r->'room'->'revision','source_locked',true,'source',src||'{"url":"private"}'::jsonb));
+  assert r->'room'->'source'=src and (r->'room'->>'source_locked')::boolean,'public-only locked source descriptor';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','is_anonymous',false)::text,true);
+  rev:=(r->'room'->>'revision')::bigint;
+  r:=public.nova_party('command',db,pb,room_id,null,jsonb_build_object('revision',rev,'command','play','media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke'));
+  assert r->>'error'='source_mismatch','locked guest needs matching source';
+  r:=public.nova_party('command',db,pb,room_id,null,jsonb_build_object('revision',rev,'command','audio',
+    'audio_track',jsonb_build_object('mode','track','language','ar','index',1,'source_key',src->>'key'),
+    'media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke','source_key',src->>'key'));
+  assert r->'room'->'audio_track'->>'language'='ar','guest audio selection';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','is_anonymous',false)::text,true);
+  r:=public.nova_party('publish',da,pa,room_id,null,jsonb_build_object('revision',r->'room'->'revision',
+    'duration_ms',60000,'position_ms',0,'media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke','audio_track','{"mode":"auto"}'::jsonb));
+  assert r->'room'->'audio_track'->>'language'='ar','sample must preserve explicit audio';
+  r:=public.nova_party('configure',da,pa,room_id,null,jsonb_build_object('revision',r->'room'->'revision','source_locked',false));
+  ticket:=public.nova_party_relay_ticket(da,pa,relay);
+  assert public.nova_party_relay_verify(ticket->>'token',relay)->'identity'->>'account_id'=a::text,'origin-bound relay identity';
+  assert public.nova_party_relay_verify(ticket->>'token','https://other.workers.dev')->>'error'='invalid_ticket','origin isolation';
+  assert public.nova_party_relay_ticket(da,pb,relay)->>'error'='profile_required','cross-account relay ticket issuance';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','is_anonymous',false)::text,true);
   rev:=(r->'room'->>'revision')::bigint;
   r:=public.nova_party('command',db,pb,room_id,null,jsonb_build_object('revision',rev,'command','play','media_key','movie|tt-nova-party-smoke|tt-nova-party-smoke'));
   assert r->>'error' is null and (r->'room'->>'playing')::boolean,'guest can play in a new shared-control room';
@@ -128,8 +152,9 @@ set local role authenticated;
 do $roles$
 declare r jsonb; mid text;
 begin
-  r:=public.nova_party('create',current_setting('nova.party.test_device')::uuid,current_setting('nova.party.test_profile')::uuid);
+  r:=public.nova_party('create',current_setting('nova.party.test_device')::uuid,current_setting('nova.party.test_profile')::uuid,null,null,'{"code_length":6}');
   assert r->>'error' is null,'authenticated invoker API must work';
+  assert length(r->'room'->>'code')=6,'current clients create short codes';
   mid:=r->>'self_member_id';
   begin
     perform 1 from app_private.nova_party_rooms;

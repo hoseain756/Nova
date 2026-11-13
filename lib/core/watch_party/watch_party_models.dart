@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import '../models/media_item.dart';
 
 String newWatchPartyId() {
@@ -61,6 +63,180 @@ class WatchPartyMedia {
       };
 }
 
+/// Public identity of the original add-on row, before debrid/local resolution.
+/// It never contains URLs, request headers or provider credentials.
+class WatchPartySource {
+  const WatchPartySource(
+      {required this.key, required this.name, this.infoHash, this.fileIndex});
+  final String key, name;
+  final String? infoHash;
+  final int? fileIndex;
+
+  static WatchPartySource? tryParse(Object? value) {
+    if (value is! Map || value['key'] is! String) return null;
+    final key = value['key'] as String;
+    if (!RegExp(
+            r'^(torrent:([a-f0-9]{40}|[a-f0-9]{64}):(-1|[0-9]{1,8})|stream:[a-f0-9]{64})$')
+        .hasMatch(key)) {
+      return null;
+    }
+    return WatchPartySource(
+        key: key,
+        name: _publicLabel(value['name']),
+        infoHash:
+            value['info_hash'] is String ? value['info_hash'] as String : null,
+        fileIndex: (value['file_index'] as num?)?.toInt());
+  }
+
+  static WatchPartySource? fromStream(Map<String, dynamic>? stream) {
+    if (stream == null) return null;
+    final hints = stream['behaviorHints'] is Map
+        ? stream['behaviorHints'] as Map
+        : const {};
+    final uri = Uri.tryParse(stream['url']?.toString() ?? '');
+    final magnetHash = uri?.scheme == 'magnet'
+        ? uri?.queryParameters['xt']?.split(':').last
+        : null;
+    final hash = (stream['infoHash'] ?? magnetHash)?.toString().toLowerCase();
+    final rawIndex = stream['fileIdx'] ?? stream['fileIndex'];
+    final parsedIndex = rawIndex is num
+        ? rawIndex.toInt()
+        : int.tryParse(rawIndex?.toString() ?? '');
+    final index =
+        parsedIndex != null && parsedIndex >= 0 && parsedIndex <= 99999999
+            ? parsedIndex
+            : null;
+    final name =
+        _publicLabel(stream['title'] ?? hints['filename'] ?? stream['name']);
+    if (hash != null &&
+        RegExp(r'^([a-f0-9]{40}|[a-f0-9]{64})$').hasMatch(hash)) {
+      if (index == null) {
+        final filename =
+            (hints['filename'] ?? stream['filename'])?.toString().trim();
+        if (filename == null || filename.isEmpty) return null;
+        final identity = 'torrent-file:$hash:${filename.replaceAll('\\', '/')}';
+        return WatchPartySource(
+            key: 'stream:${sha256.convert(utf8.encode(identity))}', name: name);
+      }
+      return WatchPartySource(
+          key: 'torrent:$hash:$index',
+          name: name,
+          infoHash: hash,
+          fileIndex: index);
+    }
+    String? identity;
+    final videoHash = hints['videoHash'];
+    if (videoHash is String && videoHash.isNotEmpty) {
+      identity = 'video:${videoHash.toLowerCase()}:${hints['videoSize'] ?? ''}';
+    } else if (uri != null &&
+        const ['https', 'http'].contains(uri.scheme) &&
+        uri.userInfo.isEmpty &&
+        uri.host.isNotEmpty &&
+        !const ['localhost', '127.0.0.1', '::1'].contains(uri.host)) {
+      // Query parameters may identify the video itself (/stream?id=...).
+      // Hash the complete opaque resource rather than guess which parameters
+      // are authentication. Device-specific signed URLs safely fail to match.
+      identity = '${uri.scheme.toLowerCase()}://${uri.host.toLowerCase()}'
+          '${uri.hasPort ? ':${uri.port}' : ''}${uri.path}'
+          '${uri.hasQuery ? '?${uri.query}' : ''}';
+    }
+    if (identity == null) return null;
+    return WatchPartySource(
+        key: 'stream:${sha256.convert(utf8.encode(identity))}', name: name);
+  }
+
+  static String _publicLabel(Object? raw) {
+    final text = raw?.toString().trim() ?? '';
+    if (text.isEmpty ||
+        RegExp(r'(://|magnet:|(?:token|password|secret|api.?key|authorization|signature)\s*[:=])',
+                caseSensitive: false)
+            .hasMatch(text)) {
+      return 'Source';
+    }
+    return String.fromCharCodes(text.runes.take(160));
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'name': name,
+        if (infoHash != null) 'info_hash': infoHash,
+        if (fileIndex != null) 'file_index': fileIndex,
+      };
+}
+
+/// Portable selection, independent of backend-specific track IDs.
+class WatchPartyAudioSelection {
+  const WatchPartyAudioSelection(
+      {required this.mode,
+      this.language,
+      this.title,
+      this.index,
+      this.sourceKey});
+  final String mode;
+  final String? language, title;
+  final int? index;
+  final String? sourceKey;
+  static WatchPartyAudioSelection? tryParse(Object? value) {
+    if (value is! Map ||
+        !const ['auto', 'off', 'track'].contains(value['mode'])) {
+      return null;
+    }
+    return WatchPartyAudioSelection(
+        mode: value['mode'] as String,
+        language: normalizeLanguage(value['language']?.toString()),
+        title: normalizeTitle(value['title']?.toString()),
+        index: (value['index'] as num?)?.toInt(),
+        sourceKey: value['source_key'] as String?);
+  }
+
+  static String? normalizeLanguage(String? value) {
+    final clean = value?.trim().toLowerCase().replaceAll('_', '-');
+    if (clean == null || clean.isEmpty || clean == 'und') return null;
+    final primary = clean.split('-').first;
+    final mapped = const {
+      'eng': 'en',
+      'ara': 'ar',
+      'jpn': 'ja',
+      'spa': 'es',
+      'fra': 'fr',
+      'fre': 'fr',
+      'deu': 'de',
+      'ger': 'de',
+      'zho': 'zh',
+      'chi': 'zh',
+      'kor': 'ko',
+      'por': 'pt',
+      'rus': 'ru',
+      'ita': 'it'
+    }[primary];
+    final normalized =
+        mapped == null ? clean : clean.replaceFirst(primary, mapped);
+    return normalized.length <= 35 ? normalized : normalized.substring(0, 35);
+  }
+
+  static String? normalizeTitle(String? value) {
+    final clean = value?.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (clean != null &&
+        RegExp(r'(://|(?:token|password|secret|api.?key|authorization|signature)\s*[:=])',
+                caseSensitive: false)
+            .hasMatch(clean)) {
+      return null;
+    }
+    return clean == null || clean.isEmpty
+        ? null
+        : String.fromCharCodes(clean.runes.take(160));
+  }
+
+  String get key => jsonEncode(toJson());
+  Map<String, dynamic> toJson() => {
+        'mode': mode,
+        if (language != null) 'language': language,
+        if (title != null) 'title': title,
+        if (index != null) 'index': index,
+        if (sourceKey != null) 'source_key': sourceKey,
+      };
+}
+
 class WatchPartyMember {
   WatchPartyMember.fromJson(Map<String, dynamic> json)
       : id = json['id'] as String,
@@ -106,6 +282,10 @@ class WatchPartySnapshot {
         code = (json['room'] as Map)['code'] as String,
         hostId = (json['room'] as Map)['host_member_id'] as String?,
         hostOnly = (json['room'] as Map)['host_only'] == true,
+        sourceLocked = (json['room'] as Map)['source_locked'] == true,
+        source = WatchPartySource.tryParse((json['room'] as Map)['source']),
+        audioTrack = WatchPartyAudioSelection.tryParse(
+            (json['room'] as Map)['audio_track']),
         media = (json['room'] as Map)['media'] == null
             ? null
             : WatchPartyMedia.fromJson(Map<String, dynamic>.from(
@@ -123,6 +303,9 @@ class WatchPartySnapshot {
   final String id, code, selfId;
   final String? hostId;
   final bool hostOnly, playing, waiting, ended;
+  final bool sourceLocked;
+  final WatchPartySource? source;
+  final WatchPartyAudioSelection? audioTrack;
   final WatchPartyMedia? media;
   final int positionMs, durationMs, atMs, revision;
   final double rate;
@@ -170,6 +353,9 @@ class WatchPartyException implements Exception {
   String get messageKey => switch (code) {
         'account_required' || 'profile_required' => 'partyAccountRequired',
         'host_required' => 'partyHostRequired',
+        'source_mismatch' => 'partySourceLockedMismatch',
+        'relay_check_failed' => 'partyRelayCheckFailed',
+        'relay_invalid' => 'partyRelayInvalid',
         'not_found' => 'partyNotFound',
         'full' => 'partyFull',
         'ended' || 'not_member' => 'partyEnded',

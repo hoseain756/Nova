@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/state/app_state.dart';
+import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/platform/ios_chrome_bridge.dart';
 import '../../core/theme/system_bars.dart';
 import '../../shared/widgets/glass_navigation.dart';
@@ -24,6 +25,8 @@ import '../media/detail_chrome_registry.dart';
 import '../settings/addons_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/stats_page.dart';
+import '../watch_party/watch_party_join_dialog.dart';
+import '../watch_party/watch_party_page.dart';
 import 'dock_tab.dart';
 import 'glass_dock.dart';
 import 'noor_dock_tabs.dart';
@@ -189,6 +192,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           _chromeVisible &&
           shellRouteVisible.value) {
         unawaited(_openSearch());
+      } else if (id == 'watchParty.join' &&
+          _selected == 0 &&
+          _chromeVisible &&
+          shellRouteVisible.value &&
+          (ModalRoute.of(context)?.isCurrent ?? true) &&
+          !context.read<AppState>().kidsSession) {
+        unawaited(_openPartyJoin());
       } else if (IosDetailActionId.all.contains(id)) {
         detailChromeRegistry.dispatch(shellTopRoute.value, id);
       }
@@ -228,6 +238,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       active: _appActive,
       searchVisible: _selected == 0 && shellVisible && detail == null,
       searchLabel: app.tr('message679'),
+      partyJoinVisible:
+          _selected == 0 && shellVisible && detail == null && !app.kidsSession,
+      partyJoinLabel: app.tr('partyJoinShortcut'),
       detail: detail,
     );
     final signature = jsonEncode(state.toMap()..remove('revision'));
@@ -348,6 +361,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         builder: (_) => const SearchSheet(),
       );
 
+  Future<void> _openPartyJoin() async {
+    if (_selected != 0 || context.read<AppState>().kidsSession) return;
+    if (context.read<WatchPartyController?>()?.snapshot != null) {
+      await openWatchParty(context);
+      return;
+    }
+    final joined = await showWatchPartyJoinDialog(context);
+    if (!mounted || !joined || context.read<AppState>().kidsSession) return;
+    await openWatchParty(context);
+  }
+
   Future<void> _openSecondary(Widget page) async {
     if (!await _mayLeaveKids() || !mounted) return;
     if (_selected == 2) {
@@ -369,6 +393,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       WidgetsBinding.instance.addPostFrameCallback((_) => _publishIosChrome());
     }
     final english = context.select<AppState, bool>((app) => app.english);
+    final kidsSession =
+        context.select<AppState, bool>((app) => app.kidsSession);
     final reduceSetting = context.select<AppState, bool>(
         (app) => app.webSettings['reduceMotion'] == true);
     final reduceTransparency = context.select<AppState, bool>(
@@ -405,7 +431,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 selected: _selected,
                 onTabSelected: (i) => unawaited(_selectTab(i)),
                 onPageSelected: (page) => unawaited(_openSecondary(page)),
-                onSearch: _selected == 2 ? null : _openSearch),
+                onSearch: _selected == 2 ? null : _openSearch,
+                onPartyJoin:
+                    _selected == 0 && !kidsSession ? _openPartyJoin : null),
           Expanded(
               child: Stack(children: [
             Positioned.fill(
@@ -420,9 +448,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       child: AnimatedOpacity(
                           opacity: _chromeVisible ? 1 : 0,
                           duration: duration,
-                          child: GlassSearchButton(
-                              tooltip: app.tr('message679'),
-                              onPressed: _openSearch)))),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            if (!kidsSession) ...[
+                              GlassSearchButton(
+                                  key: const ValueKey('home-party-join-button'),
+                                  tooltip: app.tr('partyJoinShortcut'),
+                                  icon: LucideIcons.usersRound,
+                                  onPressed: _openPartyJoin),
+                              const SizedBox(width: 8)
+                            ],
+                            GlassSearchButton(
+                                key: const ValueKey('home-search-button'),
+                                tooltip: app.tr('message679'),
+                                onPressed: _openSearch)
+                          ])))),
             if (!tablet && !useNativeChrome)
               PositionedDirectional(
                   start: 0,
@@ -451,12 +490,14 @@ class _TabletNavigation extends StatelessWidget {
     required this.onTabSelected,
     required this.onPageSelected,
     required this.onSearch,
+    required this.onPartyJoin,
   });
 
   final int selected;
   final ValueChanged<int> onTabSelected;
   final ValueChanged<Widget> onPageSelected;
   final VoidCallback? onSearch;
+  final VoidCallback? onPartyJoin;
 
   @override
   Widget build(BuildContext context) {
@@ -529,6 +570,9 @@ class _TabletNavigation extends StatelessWidget {
             if (onSearch != null)
               destination(
                   LucideIcons.search, app.tr('message679'), false, onSearch!),
+            if (onPartyJoin != null)
+              destination(LucideIcons.usersRound, app.tr('partyJoinShortcut'),
+                  false, onPartyJoin!),
             for (final tab in tabs)
               destination(
                 tab.iconOutline,

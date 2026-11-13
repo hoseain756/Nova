@@ -72,6 +72,8 @@ void main() {
 
   Future<void> openRoom(WidgetTester tester,
       {required WatchPartyMedia currentMedia,
+      WatchPartySource? currentSource,
+      WatchPartySnapshot? snapshot,
       required Future<void> Function() retire,
       required WatchPartyHandoffLauncher launch}) async {
     await tester.pumpWidget(MaterialApp(
@@ -92,8 +94,9 @@ void main() {
                             onPressed: () =>
                                 unawaited(handoffWatchPartyPlayback(
                               roomContext,
-                              room: room,
+                              room: snapshot ?? room,
                               currentMedia: currentMedia,
+                              currentSource: currentSource,
                               playerRoute: playerRoute,
                               retirePlayback: retire,
                               launch: (context, {required room}) {
@@ -119,6 +122,28 @@ void main() {
     await tester.tap(find.text('Open room'));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+      'same episode with a different locked source retires before relaunch',
+      (tester) async {
+    final first =
+        WatchPartySource.fromStream({'url': 'https://example.test/a'})!;
+    final other =
+        WatchPartySource.fromStream({'url': 'https://example.test/b'})!;
+    final data = partyData();
+    (data['room'] as Map)['source_locked'] = true;
+    (data['room'] as Map)['source'] = first.toJson();
+    final steps = <String>[];
+    await openRoom(tester,
+        currentMedia: partyMedia,
+        currentSource: other,
+        snapshot: WatchPartySnapshot.fromJson(data),
+        retire: () async => steps.add('retire'),
+        launch: (_, {required room}) async => steps.add('sources'));
+    await tester.tap(find.text('Join playback'));
+    await tester.pumpAndSettle();
+    expect(steps, ['retire', 'sources']);
+  });
 
   testWidgets(
       'a different room title waits for native retirement before sources',

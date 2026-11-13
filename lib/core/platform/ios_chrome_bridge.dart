@@ -123,6 +123,8 @@ class IosChromePresentation {
     required this.active,
     this.searchVisible = false,
     this.searchLabel = '',
+    this.partyJoinVisible = false,
+    this.partyJoinLabel = '',
     this.detail,
   });
 
@@ -136,6 +138,8 @@ class IosChromePresentation {
   final bool active;
   final bool searchVisible;
   final String searchLabel;
+  final bool partyJoinVisible;
+  final String partyJoinLabel;
   final IosDetailChrome? detail;
 
   Map<String, Object?> toMap() => {
@@ -149,6 +153,8 @@ class IosChromePresentation {
         'active': active,
         'searchVisible': searchVisible,
         'searchLabel': searchLabel,
+        'partyJoinVisible': partyJoinVisible,
+        'partyJoinLabel': partyJoinLabel,
         'detail': detail?.toMap(),
       };
 }
@@ -168,6 +174,7 @@ class IosChromeBridge {
   bool _tabsVisible = false;
   Set<String> _enabledTabs = const {};
   bool _searchVisible = false;
+  bool _partyJoinVisible = false;
   Set<String> _detailActions = const {};
   IosChromeCapabilities? _capabilities;
   void Function(String id, int revision)? onSelectIntent;
@@ -211,6 +218,8 @@ class IosChromeBridge {
             }
           : const {};
       _searchVisible = state.visible && state.active && state.searchVisible;
+      _partyJoinVisible =
+          state.visible && state.active && state.partyJoinVisible;
       _detailActions = state.active && state.detail != null
           ? state.detail!.enabledActions
           : const {};
@@ -230,6 +239,7 @@ class IosChromeBridge {
     _tabsVisible = false;
     _enabledTabs = const {};
     _searchVisible = false;
+    _partyJoinVisible = false;
     _detailActions = const {};
   }
 
@@ -253,6 +263,10 @@ class IosChromeBridge {
         } else if (call.method == 'actionIntent' &&
             id == 'search' &&
             _searchVisible) {
+          onActionIntent?.call(id, revision);
+        } else if (call.method == 'actionIntent' &&
+            id == 'watchParty.join' &&
+            _partyJoinVisible) {
           onActionIntent?.call(id, revision);
         } else if (call.method == 'actionIntent' &&
             _detailActions.contains(id)) {

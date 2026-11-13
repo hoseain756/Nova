@@ -9,6 +9,7 @@ import 'package:nova_mobile/core/data/catalog_repository.dart';
 import 'package:nova_mobile/core/models/addon.dart';
 import 'package:nova_mobile/core/models/media_item.dart';
 import 'package:nova_mobile/core/state/app_state.dart';
+import 'package:nova_mobile/core/watch_party/watch_party_models.dart';
 import 'package:nova_mobile/features/media/media_playback_launcher.dart';
 import 'package:nova_mobile/features/player/playback_entry_page.dart';
 
@@ -119,6 +120,40 @@ void main() {
     await tester.pump();
     expect(launches, 0);
     expect(loading, isEmpty);
+  });
+
+  testWidgets('locked file opens directly with local credentials',
+      (tester) async {
+    PlaybackEntryPage? page;
+    await tester.pumpWidget(harness((context) => launchMediaPlayback(context,
+        item: _item,
+        video: const {'id': 'episode:custom:42'},
+        lockedSource: WatchPartySource.fromStream(_source)!,
+        sourcePicker: (_) => throw StateError('unexpected source picker'),
+        playerLauncher: (selected) async => page = selected)));
+    await tester.tap(find.text('Launch'));
+    await tester.pumpAndSettle();
+    expect(catalogs.requests.single, ('anime', 'episode:custom:42'));
+    expect(page?.url, 'https://example.com/video.mkv');
+    expect(page?.headers?['Referer'], 'https://example.com/');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unavailable locked edition never launches a substitute',
+      (tester) async {
+    var launches = 0;
+    await tester.pumpWidget(harness((context) => launchMediaPlayback(context,
+        item: _item,
+        video: null,
+        lockedSource: WatchPartySource.fromStream(
+            {'url': 'https://example.com/another-cut.mkv'})!,
+        sourcePicker: (_) => throw StateError('unexpected source picker'),
+        playerLauncher: (_) async => launches++)));
+    await tester.tap(find.text('Launch'));
+    await tester.pump();
+    expect(launches, 0);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('rechecks validity immediately before the player push',

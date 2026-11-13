@@ -4,45 +4,62 @@ import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_models.dart';
 import 'engine/playback_engine.dart';
 import 'session/playback_state.dart';
+import 'watch_party_audio.dart';
 
 /// Uses exact engine reads, never the coalesced display timeline. Its own
 /// timer/listener never calls setState on either fullscreen player page.
 class WatchPartyPlayerBinding {
+  static const pausedToleranceMs = 80;
+  static const maxPausedCorrectionAttempts = 3;
   WatchPartyPlayerBinding(
       {required this.controller,
       required this.engine,
       required this.media,
+      this.source,
       required this.isActive,
+      this.onFollowRequired,
       this.onError}) {
     _handler = _intercept;
     engine.watchPartyCommand = _handler;
+    _audioHandler = _interceptAudio;
+    engine.watchPartyAudioCommand = _audioHandler;
     _canChangeMedia = controller.snapshot?.isHost ?? false;
+    _observedSnapshot = controller.snapshot;
     controller.addListener(_changed);
-    _timer = Timer.periodic(
-        const Duration(milliseconds: 250), (_) => unawaited(_tick()));
+    _timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
+      _immediateFollowUpAvailable = true;
+      unawaited(_tick());
+    });
     unawaited(_tick());
   }
   final WatchPartyController controller;
   final PlaybackEngine engine;
   final WatchPartyMedia media;
+  final WatchPartySource? source;
   final bool Function() isActive;
   final void Function(String messageKey)? onError;
+  final bool Function(String messageKey)? onFollowRequired;
   late final Future<bool> Function(String, double?) _handler;
+  late final Future<bool> Function(AudioTrack) _audioHandler;
   Timer? _timer;
   bool _disposed = false,
       _working = false,
       _tickPending = false,
+      _immediateFollowUpAvailable = true,
       _foreground = true,
       _canChangeMedia = false;
-  bool _wasMatching = false,
-      _nudging = false,
-      _compatible = true,
-      _announcedMismatch = false;
+  bool _wasMatching = false, _nudging = false, _announcedMismatch = false;
   String? _adoptedRoom;
-  String? _notifiedMediaKey;
+  String? _followNoticeKey;
   int _lastSeek = -10000, _lastPublish = -10000, _bufferSince = -1;
+  int _lastMediaAttempt = -10000, _lastSourceAttempt = -10000;
+  WatchPartySnapshot? _observedSnapshot;
   double? _baseRate;
   bool _reportedNativeFailure = false;
+  String? _sourcePublishedRoom, _audioAppliedKey, _audioUnavailableKey;
+  String? _pausedCorrectionKey;
+  int _pausedCorrectionAttempts = 0;
+  bool _pausedCorrectionWarned = false;
   bool get _active =>
       !_disposed &&
       isActive() &&
@@ -51,21 +68,113 @@ class WatchPartyPlayerBinding {
 
   Future<bool> _intercept(String action, double? value) async {
     final room = controller.snapshot;
-    if (!_active || !_compatible || room?.media?.key != media.key) return false;
-    if (!room!.canControl) {
+    if (!_active || room == null) return false;
+    if (_awaitingRoomMedia(room)) {
+      _requestFollow(room, 'partyTitleChanged', force: true);
+      return true;
+    }
+    if (room.media?.key != media.key) return false;
+    if (_sourceMismatch(room)) {
+      _requestFollow(room, 'partySourceLockedMismatch', force: true);
+      return true;
+    }
+    if (!room.canControl) {
       onError?.call('partyHostRequired');
       return true;
     }
     try {
       await controller.command(action,
           mediaKey: media.key,
-          positionMs:
-              action == 'seek' ? value?.round().clamp(0, 43200000) : null,
+          sourceKey: source?.key,
+          positionMs: action == 'seek'
+              ? value?.round().clamp(0, 43200000)
+              : action == 'pause' && room.isHost
+                  ? engine.position.inMilliseconds.clamp(0, 43200000)
+                  : null,
           rate: action == 'rate' ? value?.clamp(0.25, 4).toDouble() : null);
     } on WatchPartyException catch (error) {
       if (!_disposed) onError?.call(error.messageKey);
     }
     return true;
+  }
+
+  bool _sourceMismatch(WatchPartySnapshot room) =>
+      !room.isHost &&
+      room.sourceLocked &&
+      (source == null || room.source?.key != source!.key);
+
+  bool _awaitingRoomMedia(WatchPartySnapshot room) =>
+      !room.isHost && room.media != null && room.media!.key != media.key;
+
+  void _requestFollow(WatchPartySnapshot room, String messageKey,
+      {bool force = false}) {
+    final key = '${room.id}|${room.media?.key}|'
+        '${room.sourceLocked ? room.source?.key : ''}';
+    if (!force && _followNoticeKey == key) return;
+    final notify = onFollowRequired;
+    if (notify != null) {
+      if (notify(messageKey)) _followNoticeKey = key;
+    } else {
+      onError?.call(messageKey);
+      _followNoticeKey = key;
+    }
+  }
+
+  Future<bool> _interceptAudio(AudioTrack track) async {
+    final room = controller.snapshot;
+    if (!_active || room == null) return false;
+    if (_awaitingRoomMedia(room)) {
+      _requestFollow(room, 'partyTitleChanged', force: true);
+      return true;
+    }
+    if (room.media?.key != media.key) return false;
+    if (_sourceMismatch(room)) {
+      _requestFollow(room, 'partySourceLockedMismatch', force: true);
+      return true;
+    }
+    if (!room.canControl) {
+      onError?.call('partyHostRequired');
+      return true;
+    }
+    try {
+      await controller.command('audio',
+          mediaKey: media.key,
+          sourceKey: source?.key,
+          audioTrack: describeWatchPartyAudio(engine, source, selected: track));
+    } on WatchPartyException catch (error) {
+      if (_active && error.code != 'cancelled') onError?.call(error.messageKey);
+    }
+    return true;
+  }
+
+  Future<void> _syncAudio(WatchPartySnapshot room) async {
+    final desired = room.audioTrack;
+    if (desired == null) return;
+    final signature = '${room.id}|${desired.key}|${engine.selectedAudio.id}|'
+        '${engine.audioTracks.map((t) => '${t.id}:${t.language}:${t.title}').join('|')}';
+    if (_audioAppliedKey == signature) return;
+    final track = matchWatchPartyAudio(desired, engine.audioTracks, source);
+    if (track == null) {
+      if (engine.audioTracks.isNotEmpty && _audioUnavailableKey != signature) {
+        _audioUnavailableKey = signature;
+        onError?.call('partyAudioTrackUnavailable');
+      }
+      return;
+    }
+    try {
+      if (engine.selectedAudio.id != track.id) {
+        await _native(() => engine.selectAudio(track));
+      }
+      if (_active && controller.snapshot?.audioTrack?.key == desired.key) {
+        _audioAppliedKey = signature;
+        _audioUnavailableKey = null;
+      }
+    } catch (_) {
+      if (_active && _audioUnavailableKey != signature) {
+        _audioUnavailableKey = signature;
+        onError?.call('partyAudioTrackUnavailable');
+      }
+    }
   }
 
   void setForeground(bool value) {
@@ -75,12 +184,28 @@ class WatchPartyPlayerBinding {
     } else {
       _wasMatching = false;
       _lastSeek = -10000;
+      _resetPausedCorrection();
       unawaited(controller.refresh());
     }
   }
 
   void _changed() {
-    if (!_disposed) unawaited(_tick());
+    if (_disposed) return;
+    final previous = _observedSnapshot;
+    final current = controller.snapshot;
+    _observedSnapshot = current;
+    final intentChanged = previous?.id != current?.id ||
+        (previous != null &&
+            current != null &&
+            (!_sameTransport(previous, current) ||
+                previous.audioTrack?.key != current.audioTrack?.key));
+    if (_working) {
+      _tickPending = true;
+    } else if (intentChanged) {
+      // Error/status notifications are not fresh playback intent. Reacting
+      // immediately to our own failed RPC would otherwise retry in a loop.
+      unawaited(_tick());
+    }
   }
 
   Future<void> _native(Future<dynamic> Function() action) async {
@@ -100,6 +225,12 @@ class WatchPartyPlayerBinding {
     if (restore) await _native(() => engine.setRate(rate));
   }
 
+  void _resetPausedCorrection() {
+    _pausedCorrectionKey = null;
+    _pausedCorrectionAttempts = 0;
+    _pausedCorrectionWarned = false;
+  }
+
   Future<void> _tick() async {
     if (!_active) return;
     if (_working) {
@@ -114,20 +245,25 @@ class WatchPartyPlayerBinding {
         _wasMatching = false;
         _lastSeek = -10000;
         _reportedNativeFailure = false;
+        _resetPausedCorrection();
         return;
       }
       if (room.isHost &&
           (room.media == null || _canChangeMedia) &&
           room.media?.key != media.key &&
           _adoptedRoom != room.id &&
+          controller.clock.monotonicMs - _lastMediaAttempt >= 1000 &&
           engine.ready &&
           !engine.failed) {
+        _lastMediaAttempt = controller.clock.monotonicMs;
         _adoptedRoom = room.id;
         try {
           await controller.setMedia(media,
               positionMs: engine.position.inMilliseconds,
               playing: engine.playing,
-              rate: engine.rate);
+              rate: engine.rate,
+              source: source,
+              audioTrack: describeWatchPartyAudio(engine, source));
         } on WatchPartyException catch (error) {
           _adoptedRoom = null;
           if (_active) onError?.call(error.messageKey);
@@ -135,34 +271,61 @@ class WatchPartyPlayerBinding {
         return;
       }
       if (room.media?.key != media.key) {
+        if (_awaitingRoomMedia(room)) {
+          _requestFollow(room, 'partyTitleChanged');
+          if (engine.playing) await _native(() => engine.pause());
+        }
         await _restoreRate();
         if (!_active) return;
         controller.setPlaybackStatus('browsing', null, owner: this);
-        if (_wasMatching &&
-            room.media != null &&
-            _notifiedMediaKey != room.media!.key) {
-          _notifiedMediaKey = room.media!.key;
-          onError?.call('partyTitleChanged');
-        }
         _wasMatching = false;
         _lastSeek = -10000;
+        _resetPausedCorrection();
         return;
       }
       _adoptedRoom = room.id;
+      if (room.isHost &&
+          engine.ready &&
+          !engine.failed &&
+          _sourcePublishedRoom != room.id) {
+        if (room.source?.key != source?.key) {
+          if (controller.clock.monotonicMs - _lastSourceAttempt >= 1000) {
+            _lastSourceAttempt = controller.clock.monotonicMs;
+            try {
+              await controller.setSource(source);
+              if (!_active) return;
+              _sourcePublishedRoom = room.id;
+              return;
+            } on WatchPartyException catch (error) {
+              if (_active) onError?.call(error.messageKey);
+            }
+          }
+        } else {
+          _sourcePublishedRoom = room.id;
+        }
+      }
+      if (_sourceMismatch(room)) {
+        _requestFollow(room, 'partySourceLockedMismatch');
+        if (engine.playing) await _native(() => engine.pause());
+        controller.setPlaybackStatus('browsing', null, owner: this);
+        _wasMatching = false;
+        _lastSeek = -10000;
+        _resetPausedCorrection();
+        return;
+      }
+      _followNoticeKey = null;
       final now = controller.clock.monotonicMs;
-      _compatible = room.durationMs <= 0 ||
+      final runtimeCompatible = room.durationMs <= 0 ||
           engine.duration.inMilliseconds <= 0 ||
           (room.durationMs - engine.duration.inMilliseconds).abs() <=
               (room.durationMs / 100).clamp(10000, 30000);
-      if (!_compatible) {
-        await _restoreRate();
-        if (!_active) return;
-        controller.setPlaybackStatus('browsing', null, owner: this);
+      if (!runtimeCompatible) {
         if (!_announcedMismatch) {
           _announcedMismatch = true;
           onError?.call('partyDifferentVersion');
         }
-        return;
+      } else {
+        _announcedMismatch = false;
       }
       final roomId = room.id;
       bool validTransport() =>
@@ -198,6 +361,16 @@ class WatchPartyPlayerBinding {
         await controller.command('pause', mediaKey: media.key);
         return;
       }
+      // A shorter independent edition can end before the host's file. Keep
+      // the shared clock running, without replaying its final frames locally.
+      if (!room.isHost &&
+          engine.completed &&
+          engine.duration > Duration.zero &&
+          room.targetMs(controller.clock.nowMs) >=
+              engine.duration.inMilliseconds - 250) {
+        _wasMatching = true;
+        return;
+      }
       // A paused-open backend may require play intent to finish filling its
       // buffer. Waiting for buffering=false before play would deadlock it.
       if (engine.buffering) {
@@ -211,15 +384,34 @@ class WatchPartyPlayerBinding {
       final drift = target - engine.position.inMilliseconds;
       // An already aligned paused-open source can play even when seeking is
       // unavailable. Only meaningful initial drift needs an alignment seek.
-      final forceSeek = !_wasMatching && drift.abs() > 250;
-      final shouldSeek =
-          forceSeek || (room.playing ? drift.abs() > 1500 : drift.abs() > 500);
+      bool shouldSeek;
+      if (room.playing) {
+        _resetPausedCorrection();
+        shouldSeek = (!_wasMatching && drift.abs() > 250) || drift.abs() > 1500;
+      } else {
+        final pausedKey = '${room.id}|${media.key}|$target';
+        if (_pausedCorrectionKey != pausedKey) {
+          _pausedCorrectionKey = pausedKey;
+          _pausedCorrectionAttempts = 0;
+          _pausedCorrectionWarned = false;
+          _lastSeek = -10000;
+        }
+        shouldSeek = drift.abs() > pausedToleranceMs &&
+            _pausedCorrectionAttempts < maxPausedCorrectionAttempts;
+        if (!shouldSeek &&
+            drift.abs() > pausedToleranceMs &&
+            !_pausedCorrectionWarned) {
+          _pausedCorrectionWarned = true;
+          onError?.call('partySyncFailed');
+        }
+      }
       if (shouldSeek) {
         // A throttled correction is still pending; do not play or announce a
         // successful match until that seek has actually been accepted.
         if (now - _lastSeek < 500 || !current()) return;
         _lastSeek = now;
         await _native(() => engine.seekTo(Duration(milliseconds: target)));
+        if (!room.playing) _pausedCorrectionAttempts++;
         if (!current()) return;
       }
       _baseRate = room.rate;
@@ -237,6 +429,8 @@ class WatchPartyPlayerBinding {
         await _native(() => room.playing ? engine.play() : engine.pause());
         if (!current()) return;
       }
+      await _syncAudio(room);
+      if (!current()) return;
       _wasMatching = true;
       _reportedNativeFailure = false;
       if (room.isHost &&
@@ -248,7 +442,13 @@ class WatchPartyPlayerBinding {
         await controller.publish(
             mediaKey: media.key,
             positionMs: engine.position.inMilliseconds,
-            durationMs: engine.duration.inMilliseconds);
+            durationMs: engine.duration.inMilliseconds,
+            source: source,
+            audioTrack: room.audioTrack == null &&
+                    engine.audioTracks.any(
+                        (track) => !const ['auto', 'no'].contains(track.id))
+                ? describeWatchPartyAudio(engine, source)
+                : null);
       }
     } catch (error) {
       // Retired routes are expected to reject late work. An active route's
@@ -263,7 +463,13 @@ class WatchPartyPlayerBinding {
       _working = false;
       if (_tickPending) {
         _tickPending = false;
-        scheduleMicrotask(() => unawaited(_tick()));
+        // One immediate reconciliation is enough to catch an intent received
+        // during native work. Further self-notifications wait for the 250 ms
+        // cadence, yielding to UI/timers even when an RPC fails synchronously.
+        if (_immediateFollowUpAvailable) {
+          _immediateFollowUpAvailable = false;
+          scheduleMicrotask(() => unawaited(_tick()));
+        }
       }
     }
   }
@@ -274,6 +480,8 @@ class WatchPartyPlayerBinding {
       a.rate == b.rate &&
       a.positionMs == b.positionMs &&
       a.atMs == b.atMs &&
+      a.sourceLocked == b.sourceLocked &&
+      (!a.sourceLocked || a.source?.key == b.source?.key) &&
       a.waiting == b.waiting;
 
   void dispose() {
@@ -283,6 +491,9 @@ class WatchPartyPlayerBinding {
     controller.removeListener(_changed);
     if (identical(engine.watchPartyCommand, _handler)) {
       engine.watchPartyCommand = null;
+    }
+    if (identical(engine.watchPartyAudioCommand, _audioHandler)) {
+      engine.watchPartyAudioCommand = null;
     }
     controller.releasePlaybackStatus(this);
   }

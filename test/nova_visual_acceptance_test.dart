@@ -468,6 +468,10 @@ Future<void> _exercisePage(
     expect(tester.widget<MediaHero>(hero).immersive, isTrue);
     expect(art.height, closeTo(size.height * .78, 1));
     expect(heading.overlaps(art), isTrue);
+  } else if (tester.widget<MediaHero>(hero).detail) {
+    expect(art.width, size.width);
+    expect(art.height, closeTo(size.height * .5, 1));
+    expect(heading.top, greaterThanOrEqualTo(art.bottom));
   } else if (size.width < 700) {
     expect(art.width, size.width);
     expect(heading.top, greaterThanOrEqualTo(art.bottom));

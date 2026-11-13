@@ -48,6 +48,7 @@ void main() {
                     {required item,
                     required video,
                     resumePositionMs,
+                    lockedSource,
                     canLaunch,
                     onLoadingChanged}) async {
               // Capture the real source launch request at the route boundary.

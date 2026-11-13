@@ -445,6 +445,7 @@ class TorrentService {
       _activeHash = prepared.infoHash;
       return PreparedTorrent(
         infoHash: prepared.infoHash,
+        fileIndex: prepared.fileIndex,
         url: prepared.url,
         statusStream: prepared.statusStream,
         onStop: () => _serialized(() async {
@@ -530,6 +531,7 @@ class TorrentService {
 
     return PreparedTorrent(
       infoHash: torrentId,
+      fileIndex: target.index,
       url: url,
       statusStream:
           _broadcastStream.where((status) => status.infoHash == torrentId),

@@ -15,6 +15,7 @@ class _Engine extends PlaybackEngine {
   final calls = <String>[];
   Completer<void>? seekGate;
   bool failSeek = false;
+  Duration? seekLanding;
   @override
   bool ready = true;
   @override
@@ -38,17 +39,26 @@ class _Engine extends PlaybackEngine {
   @override
   String? errorMessage;
   @override
-  List<AudioTrack> get audioTracks => const [];
+  List<AudioTrack> audioTracks = [];
   @override
   List<SubtitleTrack> get subtitleTracks => const [];
   @override
-  AudioTrack get selectedAudio => AudioTrack.auto();
+  AudioTrack selectedAudio = AudioTrack.auto();
   @override
   SubtitleTrack get selectedSubtitle => SubtitleTrack.auto();
   @override
   Future<void> setSubtitleDelayMs(int delayMs) async {}
   @override
   Future<void> setAudioDelayMs(int delayMs) async {}
+  @override
+  Future<void> selectAudio(AudioTrack track) async {
+    if (interceptsWatchPartyAudio && await routeWatchPartyAudio(track)) return;
+    calls.add('audio');
+    selectedAudio = track;
+  }
+
+  @override
+  Future<void> setVolume(double value) async => volume = value;
   @override
   Future<void> play() async {
     if (interceptsWatchParty && await routeWatchPartyCommand('play')) return;
@@ -73,7 +83,7 @@ class _Engine extends PlaybackEngine {
     calls.add('seek');
     await seekGate?.future;
     if (failSeek) throw StateError('native seek failed');
-    position = target;
+    position = seekLanding ?? target;
   }
 
   @override
@@ -108,6 +118,341 @@ class _SessionBackend implements PlaybackBackend {
 }
 
 void main() {
+  testWidgets('immediate media failures retry at a bounded cadence and recover',
+      (tester) async {
+    var mono = 0;
+    final g = FakeWatchPartyGateway()..data = partyData(selfId: partyHostId);
+    final c = WatchPartyController(g,
+        deviceId: partyDeviceId,
+        clock: WatchPartyClock(monotonicMs: () => mono));
+    c.bindIdentity('account', partyProfileId);
+    await c.join('ABCDEFGH');
+    var fail = true;
+    const next = WatchPartyMedia(
+        id: 'next', type: 'movie', title: 'Next', videoId: 'next');
+    g.handle = (params) async {
+      if (params['p_action'] == 'media') {
+        if (fail) throw StateError('immediate transport failure');
+        final revision = (g.data['room'] as Map)['revision'] as int;
+        g.data = clonePartyData(
+            partyData(selfId: partyHostId, revision: revision + 1));
+        (g.data['room'] as Map)['media'] = next.toJson();
+      }
+      return clonePartyData(g.data);
+    };
+    final engine = _Engine();
+    final binding = WatchPartyPlayerBinding(
+        controller: c, engine: engine, media: next, isActive: () => true);
+    await tester.pump();
+    int attempts() =>
+        g.requests.where((params) => params['p_action'] == 'media').length;
+    expect(attempts(), 1);
+    for (var i = 0; i < 20; i++) {
+      final membershipOnly = clonePartyData(g.data);
+      (membershipOnly['room'] as Map)['revision'] = i + 2;
+      g.event!('snapshot', membershipOnly);
+    }
+    await tester.pump();
+    expect(attempts(), 1);
+    mono = 999;
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(attempts(), 1);
+    mono = 1000;
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(attempts(), 2);
+    fail = false;
+    mono = 2000;
+    (g.data['room'] as Map)['revision'] = 30;
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(attempts(), 3);
+    expect(c.snapshot!.media!.key, next.key);
+    binding.dispose();
+    c.dispose();
+    engine.dispose();
+  });
+  testWidgets(
+      'new host player publishes media and old guest waits for visible follow action',
+      (tester) async {
+    final server = WatchPartyTestServer(playing: true);
+    final host = WatchPartyController(server.client(partyHostId),
+        deviceId: partyHostId,
+        clock: WatchPartyClock(monotonicMs: () => server.now));
+    final guest = WatchPartyController(server.client(partyGuestId),
+        deviceId: partyGuestId,
+        clock: WatchPartyClock(monotonicMs: () => server.now));
+    for (final controller in [host, guest]) {
+      controller.bindIdentity(controller.deviceId, partyProfileId);
+      await controller.join('ABCDEFGH');
+    }
+    final guestEngine = _Engine();
+    var visible = false;
+    final notices = <String>[];
+    final guestBinding = WatchPartyPlayerBinding(
+        controller: guest,
+        engine: guestEngine,
+        media: partyMedia,
+        isActive: () => true,
+        onFollowRequired: (key) {
+          if (!visible) return false;
+          notices.add(key);
+          return true;
+        });
+    await tester.pump();
+    expect(guestEngine.playing, isTrue);
+    final hostEngine = _Engine()..playing = true;
+    const next = WatchPartyMedia(
+        id: 'next', type: 'movie', title: 'Next', videoId: 'next');
+    final hostBinding = WatchPartyPlayerBinding(
+        controller: host,
+        engine: hostEngine,
+        media: next,
+        isActive: () => true);
+    await tester.pump();
+    expect(host.snapshot!.media!.key, next.key);
+    expect(guest.snapshot!.media!.key, next.key);
+    expect(guestEngine.playing, isFalse);
+    expect(notices, isEmpty);
+    guestEngine.calls.clear();
+    await guestEngine.play();
+    await guestEngine.seekTo(const Duration(seconds: 30));
+    await tester.pump();
+    expect(guestEngine.calls, isEmpty);
+    expect(server.commands, isEmpty);
+    visible = true;
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(notices, ['partyTitleChanged']);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(notices, ['partyTitleChanged']);
+    hostBinding.dispose();
+    guestBinding.dispose();
+    host.dispose();
+    guest.dispose();
+    hostEngine.dispose();
+    guestEngine.dispose();
+  });
+
+  testWidgets(
+      'locked host source changes pause guests and offer follow playback',
+      (tester) async {
+    final first =
+        WatchPartySource.fromStream({'url': 'https://example.test/a'})!;
+    final second =
+        WatchPartySource.fromStream({'url': 'https://example.test/b'})!;
+    final g = FakeWatchPartyGateway()
+      ..data = partyData(playing: true, hostOnly: false);
+    (g.data['room'] as Map)['source'] = first.toJson();
+    (g.data['room'] as Map)['source_locked'] = true;
+    final c = WatchPartyController(g,
+        deviceId: partyDeviceId, clock: WatchPartyClock(monotonicMs: () => 0));
+    c.bindIdentity('account', partyProfileId);
+    await c.join('ABCDEFGH');
+    final engine = _Engine();
+    final notices = <String>[];
+    final binding = WatchPartyPlayerBinding(
+        controller: c,
+        engine: engine,
+        media: partyMedia,
+        source: first,
+        isActive: () => true,
+        onFollowRequired: (key) {
+          notices.add(key);
+          return true;
+        });
+    await tester.pump();
+    expect(engine.playing, isTrue);
+    (g.data['room'] as Map)['source'] = second.toJson();
+    (g.data['room'] as Map)['revision'] = 2;
+    g.event!('snapshot', clonePartyData(g.data));
+    await tester.pump();
+    expect(engine.playing, isFalse);
+    expect(notices, ['partySourceLockedMismatch']);
+    binding.dispose();
+    c.dispose();
+    engine.dispose();
+  });
+  testWidgets('paused scene correction resolves a 250 millisecond offset',
+      (tester) async {
+    final g = FakeWatchPartyGateway();
+    final c = WatchPartyController(g,
+        deviceId: partyDeviceId, clock: WatchPartyClock(monotonicMs: () => 0));
+    c.bindIdentity('account', partyProfileId);
+    await c.join('ABCDEFGH');
+    final engine = _Engine()..position = const Duration(milliseconds: 9750);
+    final binding = WatchPartyPlayerBinding(
+        controller: c, engine: engine, media: partyMedia, isActive: () => true);
+    await tester.pump();
+    expect(engine.position, const Duration(seconds: 10));
+    expect(engine.calls, ['seek']);
+    binding.dispose();
+    c.dispose();
+    engine.dispose();
+  });
+
+  testWidgets('coarse paused seeks are bounded without blocking room commands',
+      (tester) async {
+    var mono = 0;
+    final g = FakeWatchPartyGateway()..data = partyData(hostOnly: false);
+    final c = WatchPartyController(g,
+        deviceId: partyDeviceId,
+        clock: WatchPartyClock(monotonicMs: () => mono));
+    c.bindIdentity('account', partyProfileId);
+    await c.join('ABCDEFGH');
+    final engine = _Engine()
+      ..position = const Duration(seconds: 9)
+      ..seekLanding = const Duration(milliseconds: 9800);
+    final errors = <String>[];
+    final binding = WatchPartyPlayerBinding(
+        controller: c,
+        engine: engine,
+        media: partyMedia,
+        isActive: () => true,
+        onError: errors.add);
+    await tester.pump();
+    for (var i = 1; i <= 8; i++) {
+      mono = i * 500;
+      // Coarse native events may briefly report the requested target before
+      // publishing the actual keyframe. Neither may replenish this budget.
+      engine.position = Duration(milliseconds: i.isEven ? 10000 : 9800);
+      // Membership-only revisions must not replenish the seek budget.
+      g.data = partyData(hostOnly: false, revision: i + 1);
+      g.event!('snapshot', clonePartyData(g.data));
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(engine.calls.where((call) => call == 'seek').length,
+        WatchPartyPlayerBinding.maxPausedCorrectionAttempts);
+    expect(errors, ['partySyncFailed']);
+    await engine.play();
+    await tester.pump();
+    expect(engine.playing, isTrue);
+    await engine.pause();
+    await tester.pump();
+    expect(engine.playing, isFalse);
+    expect(
+        g.requests
+            .where((request) => request['p_action'] == 'command')
+            .map((request) => (request['p_payload'] as Map)['command']),
+        ['play', 'pause']);
+    binding.dispose();
+    c.dispose();
+    engine.dispose();
+  });
+  testWidgets('a completed shorter guest never pauses the room or replays EOF',
+      (tester) async {
+    final g = FakeWatchPartyGateway()
+      ..data = partyData(hostOnly: false, playing: true, position: 2600000);
+    final c = WatchPartyController(g,
+        deviceId: partyDeviceId, clock: WatchPartyClock(monotonicMs: () => 0));
+    c.bindIdentity('account', partyProfileId);
+    await c.join('ABCDEFGH');
+    final engine = _Engine()
+      ..duration = const Duration(minutes: 40)
+      ..completed = true;
+    final binding = WatchPartyPlayerBinding(
+        controller: c, engine: engine, media: partyMedia, isActive: () => true);
+    await tester.pump(const Duration(seconds: 1));
+    expect(engine.calls, isEmpty);
+    expect(engine.playing, isFalse);
+    expect(c.snapshot!.playing, isTrue);
+    expect(g.requests.where((request) => request['p_action'] == 'command'),
+        isEmpty);
+    binding.dispose();
+    c.dispose();
+    engine.dispose();
+  });
+  testWidgets('two sources sync semantic audio and enforce a later source lock',
+      (tester) async {
+    final firstSource =
+        WatchPartySource.fromStream({'url': 'https://example.test/a.mp4'})!;
+    final secondSource =
+        WatchPartySource.fromStream({'url': 'https://example.test/b.mp4'})!;
+    final server = WatchPartyTestServer();
+    server.room['source'] = firstSource.toJson();
+    final controllers = [partyHostId, partyGuestId]
+        .map((id) => WatchPartyController(server.client(id),
+            deviceId: id,
+            clock: WatchPartyClock(monotonicMs: () => server.now)))
+        .toList();
+    for (final controller in controllers) {
+      controller.bindIdentity(controller.deviceId, partyProfileId);
+      await controller.join('ABCDEFGH');
+    }
+    final engines = [_Engine(), _Engine()];
+    engines.last.duration = const Duration(minutes: 40);
+    engines.first.audioTracks = const [
+      AudioTrack('1', 'English', 'eng'),
+      AudioTrack('2', 'Japanese', 'jpn')
+    ];
+    engines.last.audioTracks = const [
+      AudioTrack('media3:9', 'Japanese', 'ja'),
+      AudioTrack('media3:3', 'English', 'en')
+    ];
+    final errors = <String>[];
+    final bindings = [
+      for (var i = 0; i < 2; i++)
+        WatchPartyPlayerBinding(
+            controller: controllers[i],
+            engine: engines[i],
+            media: partyMedia,
+            source: i == 0 ? firstSource : secondSource,
+            isActive: () => true,
+            onError: errors.add)
+    ];
+    await tester.pump();
+    await engines.first.selectAudio(engines.first.audioTracks.last);
+    await tester.pump();
+    expect(engines.first.selectedAudio.id, '2');
+    expect(engines.last.selectedAudio.id, 'media3:9');
+    expect(server.commands.map((command) => command['command']), ['audio']);
+    await engines.last.setVolume(.2);
+    expect(engines.first.volume, 1);
+    expect(engines.last.volume, .2);
+    await engines.first.play();
+    await tester.pump();
+    expect(engines.every((engine) => engine.playing), isTrue);
+    await engines.last.pause();
+    await tester.pump();
+    expect(engines.every((engine) => !engine.playing), isTrue);
+    await engines.last.play();
+    await tester.pump();
+    expect(engines.every((engine) => engine.playing), isTrue);
+    await engines.first.pause();
+    await tester.pump();
+    expect(engines.every((engine) => !engine.playing), isTrue);
+    await controllers.first.configure(true);
+    await engines.last.selectAudio(engines.last.audioTracks.last);
+    expect(engines.last.selectedAudio.id, 'media3:9');
+    expect(errors.last, 'partyHostRequired');
+    await engines.first.play();
+    await tester.pump();
+    expect(engines.every((engine) => engine.playing), isTrue);
+    await controllers.first.setSourceLocked(true);
+    await tester.pump();
+    expect(engines.first.playing, isTrue);
+    expect(engines.last.playing, isFalse);
+    await engines.last.play();
+    expect(engines.last.playing, isFalse);
+    expect(errors.last, 'partySourceLockedMismatch');
+    await expectLater(
+        controllers.last.command('play',
+            mediaKey: partyMedia.key, sourceKey: secondSource.key),
+        throwsA(isA<WatchPartyException>()));
+    // Host-only authorization runs before source validation on the server.
+    await controllers.first.configure(false);
+    await expectLater(
+        controllers.last.command('play',
+            mediaKey: partyMedia.key, sourceKey: secondSource.key),
+        throwsA(predicate((error) =>
+            error is WatchPartyException && error.code == 'source_mismatch')));
+    for (final binding in bindings) {
+      binding.dispose();
+    }
+    for (final controller in controllers) {
+      controller.dispose();
+    }
+    for (final engine in engines) {
+      engine.dispose();
+    }
+  });
   testWidgets('two nonseekable Core devices can start aligned but reject drift',
       (tester) async {
     for (final initialPosition in [0, 10000]) {
@@ -201,6 +546,14 @@ void main() {
       await c.join('ABCDEFGH');
     }
     final backends = [_SessionBackend(), _SessionBackend()];
+    backends.first.engine.audioTracks = const [
+      AudioTrack('1', 'English', 'eng'),
+      AudioTrack('2', 'Japanese', 'jpn')
+    ];
+    backends.last.engine.audioTracks = const [
+      AudioTrack('media3:9', 'Japanese', 'ja'),
+      AudioTrack('media3:3', 'English', 'en')
+    ];
     final sessions = [
       for (final backend in backends)
         PlaybackSession(
@@ -249,6 +602,10 @@ void main() {
     await tester.pump();
     expect(sessions.every((s) => s.rate == 1.25), isTrue);
     expect(errors, isEmpty);
+    await sessions.first.selectAudio(backends.first.engine.audioTracks.last);
+    await tester.pump();
+    expect(sessions.first.selectedAudio.id, '2');
+    expect(sessions.last.selectedAudio.id, 'media3:9');
     await sessions.first.play();
     await tester.pump();
     // The real session catches native exceptions and returns a failed result.
@@ -265,7 +622,7 @@ void main() {
     await tester.pump();
     expect(sessions.every((s) => !s.playing), isTrue);
     expect(server.commands.map((c) => c['command']),
-        ['play', 'pause', 'seek', 'rate', 'play', 'seek', 'pause']);
+        ['play', 'pause', 'seek', 'rate', 'audio', 'play', 'seek', 'pause']);
     for (final binding in bindings) {
       binding.dispose();
     }
@@ -641,9 +998,10 @@ void main() {
     c.dispose();
     e.dispose();
   });
-  testWidgets('a different video version cannot drive the room timeline',
+  testWidgets('different source runtimes retain shared pause and play controls',
       (tester) async {
-    final g = FakeWatchPartyGateway();
+    final g = FakeWatchPartyGateway()
+      ..data = partyData(hostOnly: false, playing: true);
     final c = await controller(g);
     final e = _Engine()..duration = const Duration(minutes: 40);
     final errors = <String>[];
@@ -654,8 +1012,21 @@ void main() {
         isActive: () => true,
         onError: errors.add);
     await tester.pump();
-    expect(e.calls, isEmpty);
+    expect(e.playing, isTrue);
     expect(errors, ['partyDifferentVersion']);
+    await e.pause();
+    await tester.pump();
+    expect(e.playing, isFalse);
+    expect(c.snapshot!.playing, isFalse);
+    await e.play();
+    await tester.pump();
+    expect(e.playing, isTrue);
+    expect(c.snapshot!.playing, isTrue);
+    expect(
+        g.requests
+            .where((p) => p['p_action'] == 'command')
+            .map((p) => (p['p_payload'] as Map)['command']),
+        ['pause', 'play']);
     binding.dispose();
     c.dispose();
     e.dispose();

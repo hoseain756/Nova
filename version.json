@@ -1,9 +1,9 @@
 {
-  "latest_version": "1.0.9",
-  "latest_build": 72,
+  "latest_version": "1.0.10",
+  "latest_build": 73,
   "min_build": 60,
   "message_ar": "يتوفر تحديث جديد لتطبيق NOVA.",
-  "android_url": "https://github.com/hoseain756/Nova/releases/download/v1.0.9/app-release.apk",
+  "android_url": "https://github.com/hoseain756/Nova/releases/download/v1.0.10/app-release.apk",
   "ios_latest_version": "",
   "ios_latest_build": 0,
   "ios_url": ""

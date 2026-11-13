@@ -36,6 +36,7 @@ class WatchPartyController extends ChangeNotifier {
   Timer? _heartbeat;
   Future<void> _commands = Future<void>.value();
   bool get eligible => _accountId != null && _profileId != null;
+  String? get identityScope => eligible ? '$_accountId|$_profileId' : null;
   bool get isHost => snapshot?.isHost ?? false;
   bool get canControl => snapshot?.canControl ?? false;
 
@@ -180,6 +181,9 @@ class WatchPartyController extends ChangeNotifier {
 
   Future<void> create(
           {WatchPartyMedia? media,
+          WatchPartySource? source,
+          WatchPartyAudioSelection? audioTrack,
+          bool sourceLocked = false,
           bool hostOnly = false,
           int positionMs = 0,
           bool playing = false,
@@ -192,7 +196,11 @@ class WatchPartyController extends ChangeNotifier {
           throw const WatchPartyException('invalid_media');
         }
         await _call('create', payload: {
+          'code_length': 6,
           if (media != null) 'media': media.toJson(),
+          if (source != null) 'source': source.toJson(),
+          if (audioTrack != null) 'audio_track': audioTrack.toJson(),
+          'source_locked': sourceLocked,
           'host_only': hostOnly,
           'position_ms': positionMs,
           'playing': playing,
@@ -293,10 +301,16 @@ class WatchPartyController extends ChangeNotifier {
   }
 
   Future<void> setMedia(WatchPartyMedia media,
-      {int positionMs = 0, bool playing = false, double rate = 1}) async {
+      {int positionMs = 0,
+      bool playing = false,
+      double rate = 1,
+      WatchPartySource? source,
+      WatchPartyAudioSelection? audioTrack}) async {
     if (!media.supported) throw const WatchPartyException('invalid_media');
     await _mutate('media', {
       'media': media.toJson(),
+      'source': source?.toJson(),
+      'audio_track': audioTrack?.toJson(),
       'position_ms': positionMs,
       'playing': playing,
       'rate': rate
@@ -304,7 +318,11 @@ class WatchPartyController extends ChangeNotifier {
   }
 
   Future<void> command(String command,
-      {int? positionMs, double? rate, required String mediaKey}) {
+      {int? positionMs,
+      double? rate,
+      WatchPartyAudioSelection? audioTrack,
+      String? sourceKey,
+      required String mediaKey}) {
     final generation = _generation, roomId = snapshot?.id;
     _commandCount++;
     final result = _commands.then((_) async {
@@ -317,8 +335,10 @@ class WatchPartyController extends ChangeNotifier {
       await _mutate('command', {
         'command': command,
         'media_key': mediaKey,
+        if (sourceKey != null) 'source_key': sourceKey,
         if (positionMs != null) 'position_ms': positionMs,
-        if (rate != null) 'rate': rate
+        if (rate != null) 'rate': rate,
+        if (audioTrack != null) 'audio_track': audioTrack.toJson()
       });
     });
     _commands = result
@@ -332,7 +352,9 @@ class WatchPartyController extends ChangeNotifier {
   Future<void> publish(
       {required String mediaKey,
       required int positionMs,
-      required int durationMs}) async {
+      required int durationMs,
+      WatchPartySource? source,
+      WatchPartyAudioSelection? audioTrack}) async {
     if (_publishing ||
         _commandCount > 0 ||
         !isHost ||
@@ -346,15 +368,26 @@ class WatchPartyController extends ChangeNotifier {
         'revision': snapshot!.revision,
         'media_key': mediaKey,
         'position_ms': positionMs,
-        'duration_ms': durationMs
+        'duration_ms': durationMs,
+        if (source != null) 'source': source.toJson(),
+        if (audioTrack != null) 'audio_track': audioTrack.toJson()
       });
     } catch (_) {/* A newer command wins over a stale heartbeat. */} finally {
       if (generation == _generation) _publishing = false;
     }
   }
 
-  Future<void> configure(bool hostOnly) =>
-      _mutate('configure', {'host_only': hostOnly});
+  Future<void> configure(bool hostOnly,
+          {bool? sourceLocked, WatchPartySource? source}) =>
+      _mutate('configure', {
+        'host_only': hostOnly,
+        if (sourceLocked != null) 'source_locked': sourceLocked,
+        if (source != null) 'source': source.toJson()
+      });
+  Future<void> setSourceLocked(bool value) =>
+      _mutate('configure', {'source_locked': value});
+  Future<void> setSource(WatchPartySource? value) =>
+      _mutate('configure', {'source': value?.toJson()});
   Future<void> transfer(String memberId) =>
       _mutate('transfer', {'member_id': memberId});
   Future<void> remove(String memberId) =>

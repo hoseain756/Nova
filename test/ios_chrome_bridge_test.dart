@@ -72,6 +72,65 @@ void main() {
     await bridge.dispose();
   });
 
+  test('native party join intent requires current visible active presentation',
+      () async {
+    Map<dynamic, dynamic>? snapshot;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'getCapabilities') {
+        return {
+          'osMajor': 26,
+          'systemGlassAvailable': true,
+          'nativeChromeAvailable': true,
+          'phoneIdiom': true
+        };
+      }
+      if (call.method == 'setPresentation') snapshot = call.arguments as Map;
+      return null;
+    });
+    final bridge = IosChromeBridge(channel: channel, isIOS: true);
+    await bridge.capabilities();
+    final received = <String>[];
+    bridge.onActionIntent = (id, _) => received.add(id);
+    bridge.listenForIntents();
+    Future<void> intent(int revision) =>
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(
+                channel.name,
+                const StandardMethodCodec().encodeMethodCall(MethodCall(
+                    'actionIntent',
+                    {'id': 'watchParty.join', 'revision': revision})),
+                (_) {});
+    IosChromePresentation state(int revision,
+            {bool visible = true, bool active = true, bool enabled = true}) =>
+        IosChromePresentation(
+            revision: revision,
+            selectedId: 'home',
+            tabs: const [],
+            visible: visible,
+            active: active,
+            locale: 'ar',
+            rtl: true,
+            dark: true,
+            partyJoinVisible: enabled,
+            partyJoinLabel: 'الانضمام للمشاهدة الجماعية');
+    await bridge.publish(state(1));
+    expect(snapshot?['partyJoinVisible'], isTrue);
+    expect(snapshot?['partyJoinLabel'], 'الانضمام للمشاهدة الجماعية');
+    await intent(0);
+    expect(received, isEmpty);
+    await intent(1);
+    expect(received, ['watchParty.join']);
+    await bridge.publish(state(2, visible: false));
+    await intent(2);
+    await bridge.publish(state(3, active: false));
+    await intent(3);
+    await bridge.publish(state(4, enabled: false));
+    await intent(4);
+    expect(received, ['watchParty.join']);
+    await bridge.dispose();
+  });
+
   test('iOS 15 capability does not enable presentation', () async {
     final methods = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -446,6 +505,8 @@ void main() {
       'active',
       'searchVisible',
       'searchLabel',
+      'partyJoinVisible',
+      'partyJoinLabel',
       'detail',
     });
     await intent('actionIntent', IosDetailActionId.back, 1);

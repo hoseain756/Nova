@@ -8,27 +8,34 @@ import '../../core/theme/nova_theme.dart';
 import '../../core/watch_party/watch_party_controller.dart';
 import '../../core/watch_party/watch_party_invite.dart';
 import '../../core/watch_party/watch_party_models.dart';
+import '../../core/watch_party/watch_party_relay_settings.dart';
 import '../../l10n/nova_strings.dart';
 import '../../shared/widgets/nova_network_image.dart';
 import '../../shared/widgets/nova_ios_controls.dart';
 import 'watch_party_playback.dart';
+import 'watch_party_join_dialog.dart';
 import 'widgets/watch_party_chat.dart';
+import 'widgets/watch_party_connection_settings.dart';
 
 typedef WatchPartyPlaybackLauncher = Future<void> Function(
     BuildContext context, WatchPartySnapshot room);
 
 Future<void> openWatchParty(BuildContext context,
         {WatchPartyMedia? media,
+        WatchPartySource? source,
         int positionMs = 0,
         bool playing = false,
         double rate = 1,
+        bool followPlayback = false,
         WatchPartyPlaybackLauncher? onJoinPlayback}) =>
     Navigator.of(context).push<void>(MaterialPageRoute(
         builder: (_) => WatchPartyPage(
             media: media,
+            source: source,
             positionMs: positionMs,
             playing: playing,
             rate: rate,
+            followPlayback: followPlayback,
             onJoinPlayback: onJoinPlayback)));
 
 /// The room stays available while its underlying player keeps running.
@@ -37,15 +44,19 @@ class WatchPartyPage extends StatefulWidget {
       {super.key,
       this.initialCode,
       this.media,
+      this.source,
       this.positionMs = 0,
       this.playing = false,
       this.rate = 1,
+      this.followPlayback = false,
       this.onJoinPlayback});
   final String? initialCode;
   final WatchPartyMedia? media;
+  final WatchPartySource? source;
   final int positionMs;
   final bool playing;
   final double rate;
+  final bool followPlayback;
   final WatchPartyPlaybackLauncher? onJoinPlayback;
   @override
   State<WatchPartyPage> createState() => _WatchPartyPageState();
@@ -58,20 +69,46 @@ class _WatchPartyPageState extends State<WatchPartyPage>
   final _message = TextEditingController();
   bool _working = false;
   bool _detailsOpen = false;
+  bool _newHostOnly = false;
+  bool _newSourceLocked = false;
   String? _error;
   String _t(String key) => NovaStrings.of(context).text(key);
+  @override
+  void initState() {
+    super.initState();
+    if (widget.followPlayback) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+        final controller = context.read<WatchPartyController?>();
+        final room = controller?.snapshot;
+        if (controller?.eligible == true && room?.media != null) {
+          unawaited(_run(() => _joinPlayback(room!)));
+        }
+      });
+    }
+  }
+
+  bool _canReturnToPlayer(WatchPartySnapshot room) =>
+      widget.media?.key == room.media?.key &&
+      (!room.sourceLocked ||
+          (widget.source != null && widget.source!.key == room.source?.key));
 
   Future<void> _pasteInvite() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (!mounted || data?.text == null) return;
-    final code = parseWatchPartyInvite(data!.text!) ??
-        normalizeWatchPartyCode(data.text!);
-    if (validWatchPartyCode(code)) {
-      _code.text = code;
+    final code = watchPartyCodeFromInput(data!.text!);
+    if (code != null) {
+      _code.text = parseWatchPartyInvitation(data.text!) != null
+          ? data.text!.trim()
+          : code;
       setState(() => _error = null);
     } else {
       setState(() => _error = 'partyNotFound');
     }
+  }
+
+  Future<void> _joinCode(WatchPartyController controller) async {
+    await joinWatchPartyInput(context, controller, _code.text);
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -92,10 +129,24 @@ class _WatchPartyPageState extends State<WatchPartyPage>
   }
 
   Future<void> _copyInvite(WatchPartySnapshot room) async {
-    await Clipboard.setData(ClipboardData(text: watchPartyInvite(room.code)));
+    await Clipboard.setData(
+        ClipboardData(text: watchPartyInvite(room.code, relay: _activeRelay)));
     if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(_t('partyCopied'))));
+    }
+  }
+
+  Uri? get _activeRelay {
+    final settings = context.read<WatchPartyRelaySettings?>();
+    return settings?.enabled == true ? Uri.tryParse(settings!.endpoint!) : null;
+  }
+
+  Future<void> _copyRelay(Uri relay) async {
+    await Clipboard.setData(ClipboardData(text: relay.toString()));
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(_t('partyRelayCopied'))));
     }
   }
 
@@ -119,7 +170,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
       await widget.onJoinPlayback!(context, room);
     } else {
       await launchWatchPartyPlayback(context,
-          room: room, returnToPlayer: widget.media?.key == room.media?.key);
+          room: room, returnToPlayer: _canReturnToPlayer(room));
     }
   }
 
@@ -266,11 +317,45 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                       padding: const EdgeInsets.only(top: 24),
                       child: _mediaIdentity(widget.media!, compact: true)),
                 const SizedBox(height: 24),
+                ExpansionTile(
+                    key: const PageStorageKey('party-create-settings'),
+                    tilePadding: EdgeInsets.zero,
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    title: Text(_t('partyCreateSettings')),
+                    children: [
+                      NovaSwitchListTile(
+                          key: const ValueKey('party-create-host-only'),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_t('partyHostOnly')),
+                          subtitle: Text(_t('partyHostOnlyBody')),
+                          value: _newHostOnly,
+                          onChanged: _working
+                              ? null
+                              : (value) =>
+                                  setState(() => _newHostOnly = value)),
+                      NovaSwitchListTile(
+                          key: const ValueKey('party-create-source-locked'),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(_t('partySourceLocked')),
+                          subtitle: Text(_t(widget.source == null
+                              ? 'partySourceUnavailable'
+                              : 'partySourceLockedBody')),
+                          value: _newSourceLocked,
+                          onChanged: _working || widget.source == null
+                              ? null
+                              : (value) =>
+                                  setState(() => _newSourceLocked = value))
+                    ]),
+                const SizedBox(height: 16),
                 FilledButton.icon(
                     onPressed: _working
                         ? null
                         : () => _run(() => controller.create(
                             media: widget.media,
+                            source: widget.source,
+                            hostOnly: _newHostOnly,
+                            sourceLocked: _newSourceLocked,
                             positionMs: widget.positionMs,
                             playing: widget.playing,
                             rate: widget.rate)),
@@ -287,31 +372,41 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                     controller: _code,
                     textCapitalization: TextCapitalization.characters,
                     textDirection: TextDirection.ltr,
-                    maxLength: 11,
+                    maxLength: 2048,
                     autocorrect: false,
                     enableSuggestions: false,
                     autofillHints: const [],
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                          RegExp(r'[a-zA-Z2-9\s-]'))
-                    ],
                     decoration: InputDecoration(
-                        labelText: _t('partyCode'),
-                        hintText: 'ABCD EFGH',
+                        labelText: _t('partyInviteOrCode'),
+                        hintText: 'ABC DEF',
                         counterText: '',
                         suffixIcon: IconButton(
                             tooltip: _t('partyPasteInvite'),
                             onPressed: _working ? null : _pasteInvite,
                             icon: const Icon(LucideIcons.clipboard))),
-                    onSubmitted: (_) => _working
-                        ? null
-                        : _run(() => controller.join(_code.text))),
+                    onSubmitted: (_) =>
+                        _working ? null : _run(() => _joinCode(controller))),
                 const SizedBox(height: 12),
                 OutlinedButton(
                     onPressed: _working
                         ? null
-                        : () => _run(() => controller.join(_code.text)),
+                        : () => _run(() => _joinCode(controller)),
                     child: Text(_t('partyJoin'))),
+                const SizedBox(height: 24),
+                if (context.watch<WatchPartyRelaySettings?>()
+                    case final settings?)
+                  ExpansionTile(
+                      key: const PageStorageKey('party-connection-settings'),
+                      tilePadding: EdgeInsets.zero,
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      title: Text(_t('partyRelayTitle')),
+                      subtitle: Text(_t(settings.enabled
+                          ? 'partyRelayCustom'
+                          : 'partyRelayDefault')),
+                      children: [
+                        WatchPartyConnectionSettings(settings: settings)
+                      ]),
                 const SizedBox(height: 24)
               ])));
 
@@ -357,7 +452,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                               ? null
                               : () => _run(() => _joinPlayback(room)),
                           icon: const Icon(LucideIcons.play, size: 20),
-                          label: Text(_t(widget.media?.key == media.key
+                          label: Text(_t(_canReturnToPlayer(room)
                               ? 'partyReturnPlayback'
                               : 'partyJoinPlayback'))),
                       const SizedBox(height: 12),
@@ -386,6 +481,8 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                     ],
                     const SizedBox(height: 24),
                     _controlExplanation(room),
+                    const SizedBox(height: 12),
+                    _sourceExplanation(room),
                     const SizedBox(height: 24),
                     const Divider(),
                     _details(controller, room),
@@ -427,8 +524,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
               Text(_t('partyCode'),
                   style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 4),
-              SelectableText(
-                  '${room.code.substring(0, 4)} ${room.code.substring(4)}',
+              SelectableText(formatWatchPartyCode(room.code),
                   textDirection: TextDirection.ltr,
                   style: Theme.of(context)
                       .textTheme
@@ -444,12 +540,34 @@ class _WatchPartyPageState extends State<WatchPartyPage>
               IconButton.outlined(
                   tooltip: _t('partyInvite'),
                   onPressed: () => SharePlus.instance.share(ShareParams(
-                      text: watchPartyInvite(room.code),
+                      text: watchPartyInvite(room.code, relay: _activeRelay),
                       sharePositionOrigin: Rect.fromLTWH(
                           0, 0, MediaQuery.sizeOf(context).width, 100))),
                   icon: const Icon(LucideIcons.userPlus, size: 20))
             ])
-          ])
+          ]),
+      if (_activeRelay case final relay?) ...[
+        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(_t('partyRelayCustom'),
+                    style: Theme.of(context).textTheme.labelMedium),
+                SelectableText(relay.toString(),
+                    textDirection: TextDirection.ltr,
+                    style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 4),
+                Text(_t('partyRelaySameServer'),
+                    style: Theme.of(context).textTheme.bodySmall)
+              ])),
+          IconButton(
+              tooltip: _t('partyCopyRelay'),
+              onPressed: () => _copyRelay(relay),
+              icon: const Icon(LucideIcons.copy, size: 18))
+        ])
+      ]
     ]);
   }
 
@@ -515,6 +633,25 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                 style: Theme.of(context).textTheme.bodyMedium))
       ]);
 
+  Widget _sourceExplanation(WatchPartySnapshot room) =>
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(room.sourceLocked ? LucideIcons.link : LucideIcons.layers,
+            size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 12),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+              _t(room.sourceLocked
+                  ? 'partySourceLocked'
+                  : 'partySourceIndependent'),
+              style: Theme.of(context).textTheme.bodyMedium),
+          if (room.sourceLocked && room.source != null)
+            Text(room.source!.name,
+                style: Theme.of(context).textTheme.bodySmall)
+        ]))
+      ]);
+
   Widget _details(WatchPartyController controller, WatchPartySnapshot room) =>
       ExpansionTile(
           key: const PageStorageKey('party-room-details'),
@@ -535,6 +672,7 @@ class _WatchPartyPageState extends State<WatchPartyPage>
           children: [
             if (room.isHost)
               NovaSwitchListTile(
+                  key: const ValueKey('party-host-control-switch'),
                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   title: Text(_t('partyHostOnly')),
                   subtitle: Text(_t('partyHostOnlyBody')),
@@ -542,8 +680,31 @@ class _WatchPartyPageState extends State<WatchPartyPage>
                   onChanged: _working
                       ? null
                       : (value) => _run(() => controller.configure(value))),
+            if (room.isHost)
+              NovaSwitchListTile(
+                  key: const ValueKey('party-source-mode-switch'),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  title: Text(_t('partySourceLocked')),
+                  subtitle: Text(_t(room.source == null && widget.source == null
+                      ? 'partySourceUnavailable'
+                      : 'partySourceLockedBody')),
+                  value: room.sourceLocked,
+                  onChanged:
+                      _working || (room.source == null && widget.source == null)
+                          ? null
+                          : (value) => _run(() => controller.configure(
+                              room.hostOnly,
+                              sourceLocked: value,
+                              source: room.source ?? widget.source))),
             for (final member in room.members)
               _member(controller, room, member),
+            if (context.watch<WatchPartyRelaySettings?>() != null)
+              Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                      onPressed: () => showWatchPartyConnectionDialog(context),
+                      icon: const Icon(LucideIcons.radio, size: 18),
+                      label: Text(_t('partyRelayTitle')))),
             const SizedBox(height: 16)
           ]);
 

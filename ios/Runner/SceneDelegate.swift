@@ -132,6 +132,7 @@ class SceneDelegate: FlutterSceneDelegate {
 private final class NovaChromeOverlay: UIView, UITabBarDelegate {
     private let bar = UITabBar()
     private let searchButton = UIButton(type: .system)
+    private let partyJoinButton = UIButton(type: .system)
     private let detailBackButton = UIButton(type: .system)
     private let detailShareButton = UIButton(type: .system)
     private let detailMoreButton = UIButton(type: .system)
@@ -140,8 +141,6 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
     private var ids: [String] = []
     private var onIntent: ((String, Int) -> Void)?
     private var onAction: ((String, Int) -> Void)?
-    private var searchLeading: NSLayoutConstraint?
-    private var searchTrailing: NSLayoutConstraint?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -160,15 +159,24 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
         NSLayoutConstraint.activate([
             searchButton.widthAnchor.constraint(equalToConstant: 48),
             searchButton.heightAnchor.constraint(equalToConstant: 48),
-            searchButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12)
+            searchButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
+            searchButton.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -20)
         ])
-        searchLeading = searchButton.leadingAnchor.constraint(
-            equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 20
-        )
-        searchTrailing = searchButton.trailingAnchor.constraint(
-            equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -20
-        )
-        searchTrailing?.isActive = true
+        if #available(iOS 26.0, *) {
+            var configuration = UIButton.Configuration.glass()
+            configuration.image = UIImage(systemName: "person.2")
+            partyJoinButton.configuration = configuration
+        }
+        partyJoinButton.accessibilityIdentifier = "watchParty.join"
+        partyJoinButton.translatesAutoresizingMaskIntoConstraints = false
+        partyJoinButton.addTarget(self, action: #selector(partyJoinTapped), for: .touchUpInside)
+        addSubview(partyJoinButton)
+        NSLayoutConstraint.activate([
+            partyJoinButton.widthAnchor.constraint(equalToConstant: 48),
+            partyJoinButton.heightAnchor.constraint(equalToConstant: 48),
+            partyJoinButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 12),
+            partyJoinButton.trailingAnchor.constraint(equalTo: searchButton.leadingAnchor, constant: -8)
+        ])
         for (button, symbol, identifier) in [
             (detailBackButton, "chevron.backward", "detail.back"),
             (detailShareButton, "square.and.arrow.up", "detail.share"),
@@ -214,8 +222,10 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
                 return button.hitTest(local, with: event)
             }
         }
-        if !searchButton.isHidden, searchButton.frame.contains(point) {
-            return searchButton.hitTest(convert(point, to: searchButton), with: event)
+        for button in [searchButton, partyJoinButton] {
+            if !button.isHidden, button.frame.contains(point) {
+                return button.hitTest(convert(point, to: button), with: event)
+            }
         }
         guard !bar.isHidden, bar.frame.contains(point) else { return nil }
         return bar.hitTest(convert(point, to: bar), with: event)
@@ -242,13 +252,7 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
         semanticContentAttribute = rtl ? .forceRightToLeft : .forceLeftToRight
         bar.semanticContentAttribute = semanticContentAttribute
         searchButton.semanticContentAttribute = semanticContentAttribute
-        if rtl {
-            searchTrailing?.isActive = false
-            searchLeading?.isActive = true
-        } else {
-            searchLeading?.isActive = false
-            searchTrailing?.isActive = true
-        }
+        partyJoinButton.semanticContentAttribute = semanticContentAttribute
         bar.overrideUserInterfaceStyle = dark ? .dark : .light
         let entries = tabs.compactMap { tab -> (String, UITabBarItem)? in
             guard let id = tab["id"] as? String,
@@ -273,6 +277,9 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
         searchButton.isHidden = !visible || !active || !searchVisible
         searchButton.accessibilityLabel = searchLabel
         searchButton.overrideUserInterfaceStyle = dark ? .dark : .light
+        partyJoinButton.isHidden = !visible || !active || !(state["partyJoinVisible"] as? Bool ?? false)
+        partyJoinButton.accessibilityLabel = state["partyJoinLabel"] as? String ?? ""
+        partyJoinButton.overrideUserInterfaceStyle = dark ? .dark : .light
         let detail = state["detail"] as? [String: Any]
         let detailVisible = active
             && detail?["backLabel"] is String
@@ -323,6 +330,10 @@ private final class NovaChromeOverlay: UIView, UITabBarDelegate {
 
     @objc private func searchTapped() {
         onAction?("search", revision)
+    }
+
+    @objc private func partyJoinTapped() {
+        onAction?("watchParty.join", revision)
     }
 
     @objc private func detailBackTapped() {

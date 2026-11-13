@@ -23,11 +23,17 @@ abstract class PlaybackEngine extends ChangeNotifier {
   /// Installed only by the active route's Party binding. Native ownership,
   /// opening, lifecycle and resource retirement remain with the engine.
   Future<bool> Function(String action, double? value)? watchPartyCommand;
+  Future<bool> Function(AudioTrack track)? watchPartyAudioCommand;
   static const watchPartyRemoteZone = #novaWatchPartyRemote;
   bool get interceptsWatchParty =>
       watchPartyCommand != null && Zone.current[watchPartyRemoteZone] != true;
   Future<bool> routeWatchPartyCommand(String action, [double? value]) async =>
       interceptsWatchParty ? await watchPartyCommand!(action, value) : false;
+  bool get interceptsWatchPartyAudio =>
+      watchPartyAudioCommand != null &&
+      Zone.current[watchPartyRemoteZone] != true;
+  Future<bool> routeWatchPartyAudio(AudioTrack track) async =>
+      interceptsWatchPartyAudio ? await watchPartyAudioCommand!(track) : false;
 
   Future<String?> readChapterList() async => null;
 
@@ -101,6 +107,7 @@ abstract class PlaybackEngine extends ChangeNotifier {
   @override
   void dispose() {
     watchPartyCommand = null;
+    watchPartyAudioCommand = null;
     fileSubtitleRendering.dispose();
     super.dispose();
   }
@@ -495,6 +502,7 @@ class MediaKitEngine extends PlaybackEngine {
 
   @override
   Future<void> selectAudio(AudioTrack track) async {
+    if (interceptsWatchPartyAudio && await routeWatchPartyAudio(track)) return;
     if (_disposed) return;
     await _player.setAudioTrack(track);
   }

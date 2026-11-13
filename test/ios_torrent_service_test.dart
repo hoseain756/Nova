@@ -60,6 +60,7 @@ void main() {
         fileIndex: 1,
       );
       final url = Uri.parse(prepared.url);
+      expect(prepared.fileIndex, 1);
       expect(url.host, '127.0.0.1');
       expect(url.path, '/stream/Episode2.mkv');
       expect(url.queryParameters['link'], hash);

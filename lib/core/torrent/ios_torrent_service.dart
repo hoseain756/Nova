@@ -108,6 +108,7 @@ class IosTorrentService {
     _activeHash = hash;
     return PreparedTorrent(
       infoHash: hash,
+      fileIndex: target.index,
       url: stream.toString(),
       statusStream: _statuses(base, hash, target.size),
       onStop: () => remove(hash, deleteFiles: false),

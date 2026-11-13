@@ -189,6 +189,7 @@ class TorrentStatus {
 class PreparedTorrent {
   PreparedTorrent({
     required this.infoHash,
+    this.fileIndex,
     required this.url,
     required this.statusStream,
     required Future<void> Function() onStop,
@@ -196,6 +197,9 @@ class PreparedTorrent {
 
   /// Lowercase hex info-hash of the streaming torrent.
   final String infoHash;
+
+  /// The selected file in the actual torrent metadata on this device.
+  final int? fileIndex;
 
   /// Local HTTP URL for the player, e.g. `http://127.0.0.1:4321/stream`.
   final String url;
