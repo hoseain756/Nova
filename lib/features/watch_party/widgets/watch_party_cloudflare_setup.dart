@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +11,7 @@ import '../../../l10n/nova_strings.dart';
 
 Future<void> showWatchPartyCloudflareSetup(
         BuildContext context, WatchPartyRelaySettings settings) =>
-    showDialog<void>(
+    showNovaDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => WatchPartyCloudflareSetup(settings: settings));
@@ -160,10 +161,10 @@ class _WatchPartyCloudflareSetupState extends State<WatchPartyCloudflareSetup> {
 
   Future<void> _remove() async {
     var accepted = false;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showNovaDialog<bool>(
         context: context,
         builder: (dialog) => StatefulBuilder(
-            builder: (dialog, change) => AlertDialog(
+            builder: (dialog, change) => NovaGlassDialog(
                     scrollable: true,
                     title: Text(_t('partyRelayDeployRemove')),
                     content: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -219,7 +220,7 @@ class _WatchPartyCloudflareSetupState extends State<WatchPartyCloudflareSetup> {
   @override
   Widget build(BuildContext context) => PopScope(
       canPop: !_working,
-      child: AlertDialog(
+      child: NovaGlassDialog(
           scrollable: true,
           constraints: const BoxConstraints(maxWidth: 560),
           title: Text(_t('partyRelaySetup')),

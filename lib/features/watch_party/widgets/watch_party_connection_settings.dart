@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../../core/watch_party/watch_party_controller.dart';
@@ -10,9 +11,9 @@ Future<void> showWatchPartyConnectionDialog(BuildContext context) async {
   final settings = context.read<WatchPartyRelaySettings?>();
   if (settings == null) return;
   final locked = context.read<WatchPartyController?>()?.snapshot != null;
-  await showDialog<void>(
+  await showNovaDialog<void>(
       context: context,
-      builder: (dialog) => AlertDialog(
+      builder: (dialog) => NovaGlassDialog(
               scrollable: true,
               constraints: const BoxConstraints(maxWidth: 520),
               title: Text(NovaStrings.of(dialog).text('partyRelayTitle')),

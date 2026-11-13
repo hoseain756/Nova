@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 
 /// System UIKit controls render with Liquid Glass on iOS 26 and retain the
@@ -19,6 +20,44 @@ abstract final class NovaIosControls {
       .invokeMethod<bool>('isAvailable')
       .then((value) => value == true)
       .catchError((Object _) => false);
+
+  static Future<void> alert(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String buttonLabel,
+  }) async {
+    if (available) {
+      try {
+        await _channel.invokeMethod<int>('presentAlert', {
+          'title': title,
+          'message': message,
+          'dark': Theme.of(context).brightness == Brightness.dark,
+          'rtl': Directionality.of(context) == TextDirection.rtl,
+          'actions': [
+            {'label': buttonLabel, 'style': 'default'},
+          ],
+        });
+        return;
+      } on PlatformException {
+        // Keep acknowledgement available if a native scene is unavailable.
+      } on MissingPluginException {
+        // Older native hosts can use the Flutter route.
+      }
+    }
+    if (!context.mounted) return;
+    await showNovaDialog<void>(
+      context: context,
+      builder: (dialog) => NovaGlassDialog(
+        title: Text(title),
+        content: message.isEmpty ? null : Text(message),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialog), child: Text(buttonLabel)),
+        ],
+      ),
+    );
+  }
 
   static Future<bool?> confirm(
     BuildContext context, {
@@ -52,10 +91,10 @@ abstract final class NovaIosControls {
       }
     }
     if (!context.mounted) return null;
-    return showDialog<bool>(
+    return showNovaDialog<bool>(
       context: context,
       barrierDismissible: barrierDismissible,
-      builder: (dialog) => AlertDialog(
+      builder: (dialog) => NovaGlassDialog(
         title: Text(title),
         content: message.isEmpty ? null : Text(message),
         actions: [

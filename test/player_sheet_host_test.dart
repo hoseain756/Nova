@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nova_mobile/features/player/widgets/player_side_panel.dart';
 import 'package:nova_mobile/features/player/widgets/player_sheets.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +99,28 @@ void main() {
     await tester.tapAt(const Offset(10, 206));
     await tester.pumpAndSettle();
     expect(find.byKey(content), findsNothing);
+  });
+
+  testWidgets('iOS player tools use a glass surface within safe bounds',
+      (tester) async {
+    const content = ValueKey('ios-tool-content');
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(platform: TargetPlatform.iOS),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showPlayerSheet<void>(context,
+                builder: (_) => const SizedBox.expand(key: content)),
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NovaIosGlassSurface), findsOneWidget);
+    expect(tester.getSize(find.byKey(content)).width, 520);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('compact geometry on a short landscape screen', (tester) async {

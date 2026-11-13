@@ -357,9 +357,10 @@ void main() {
     await tester.pump();
     await tester.tap(rowRemove);
     await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
+    final dialog = find.byWidgetPredicate((widget) => widget is AlertDialog);
+    expect(dialog, findsOneWidget);
     await tester.tap(find.descendant(
-      of: find.byType(AlertDialog),
+      of: dialog,
       matching: find.widgetWithText(TextButton, 'Cancel'),
     ));
     await tester.pumpAndSettle();

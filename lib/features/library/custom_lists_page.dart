@@ -2,6 +2,7 @@ import '../../shared/widgets/poster_layout.dart';
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -305,7 +306,7 @@ Future<(String, String?)?> _listForm(
   String initialName = '',
   String initialDescription = '',
 }) {
-  return showDialog<(String, String?)>(
+  return showNovaDialog<(String, String?)>(
     context: context,
     builder: (_) => _CollectionFormDialog(
       english: english,
@@ -351,7 +352,7 @@ class _CollectionFormDialogState extends State<_CollectionFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return NovaGlassDialog(
       icon: const Icon(LucideIcons.library, size: 32),
       title: Text(NovaStrings.lookup(widget.english, 'message619')),
       content: SingleChildScrollView(
@@ -405,7 +406,7 @@ class _CollectionFormDialogState extends State<_CollectionFormDialog> {
 Future<void> _importList(BuildContext context) async {
   final app = context.read<AppState>();
   final english = app.english;
-  final input = await showDialog<String>(
+  final input = await showNovaDialog<String>(
     context: context,
     builder: (_) => _ImportListDialog(english: english),
   );
@@ -449,7 +450,7 @@ class _ImportListDialogState extends State<_ImportListDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => NovaGlassDialog(
         icon: const Icon(LucideIcons.import, size: 32),
         title: Text(NovaStrings.lookup(widget.english, 'message624')),
         content: TextField(

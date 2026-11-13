@@ -55,6 +55,17 @@ need a new IPA/device review before runtime acceptance.
 
 ## Source-level feature inventory
 
+### Dialog presentation (2026-11-13 source update)
+
+Plain confirmations, acknowledgements and choices use UIKit `UIAlertController`.
+Flutter-owned forms and player tools use iOS dialog routes with a presentation-only
+`nova/ios_glass_dialog` platform surface: `UIGlassEffect` on iOS 26 and system
+material on older iOS. Flutter retains input, validation, actions, and route
+state. Android keeps Material dialogs. Widget tests cover routes, results,
+large Arabic text, phone/iPad constraints and player bounds; Xcode compilation
+and physical iPhone/iPad appearance, focus, VoiceOver and Reduce Transparency
+still need Codemagic and device acceptance.
+
 | Feature | iOS implementation / difference | Acceptance evidence still needed |
 | --- | --- | --- |
 | Home, catalogs, anime, Discover, search, details and episodes | Shared Flutter features and repository data layer. The player episode button is intentionally shown for series, not movies | Arabic/English, series episode/season switching, navigation, network errors and real add-ons on device |

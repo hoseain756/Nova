@@ -11,6 +11,7 @@ final class NovaNativeControls: NSObject, UIPopoverPresentationControllerDelegat
     func register(with registrar: FlutterPluginRegistrar) {
         let messenger = registrar.messenger()
         registrar.register(NovaSwitchFactory(messenger: messenger), withId: "nova/ios_switch")
+        registrar.register(NovaGlassDialogFactory(), withId: "nova/ios_glass_dialog")
         let channel = FlutterMethodChannel(name: "nova/ios_controls", binaryMessenger: messenger)
         self.channel = channel
         channel.setMethodCallHandler { [weak self] call, result in
@@ -97,6 +98,56 @@ final class NovaNativeControls: NSObject, UIPopoverPresentationControllerDelegat
         }
         return controller
     }
+}
+
+/// Only the surface crosses the platform boundary. Flutter retains dialog
+/// content, validation, actions, and route ownership.
+private final class NovaGlassDialogFactory: NSObject, FlutterPlatformViewFactory {
+    func createArgsCodec() -> FlutterMessageCodec & NSObjectProtocol {
+        FlutterStandardMessageCodec.sharedInstance()
+    }
+
+    func create(withFrame frame: CGRect, viewIdentifier viewId: Int64, arguments args: Any?) -> FlutterPlatformView {
+        NovaGlassDialogView(frame: frame, args: args as? [String: Any])
+    }
+}
+
+private final class NovaGlassDialogView: NSObject, FlutterPlatformView {
+    private let container: UIView
+
+    init(frame: CGRect, args: [String: Any]?) {
+        container = UIView(frame: frame)
+        super.init()
+        container.backgroundColor = .clear
+        container.isAccessibilityElement = false
+        container.overrideUserInterfaceStyle = args?["dark"] as? Bool == true ? .dark : .light
+        container.semanticContentAttribute = args?["rtl"] as? Bool == true
+            ? .forceRightToLeft : .forceLeftToRight
+        if UIAccessibility.isReduceTransparencyEnabled {
+            container.backgroundColor = .systemBackground
+            return
+        }
+        let effect: UIVisualEffect
+        if #available(iOS 26.0, *) {
+            effect = UIGlassEffect(style: .regular)
+        } else {
+            effect = UIBlurEffect(style: .systemMaterial)
+        }
+        let surface = UIVisualEffectView(effect: effect)
+        surface.translatesAutoresizingMaskIntoConstraints = false
+        surface.layer.cornerRadius = 26
+        surface.clipsToBounds = true
+        surface.isUserInteractionEnabled = false
+        container.addSubview(surface)
+        NSLayoutConstraint.activate([
+            surface.topAnchor.constraint(equalTo: container.topAnchor),
+            surface.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            surface.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            surface.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+        ])
+    }
+
+    func view() -> UIView { container }
 }
 
 private final class NovaSwitchFactory: NSObject, FlutterPlatformViewFactory {

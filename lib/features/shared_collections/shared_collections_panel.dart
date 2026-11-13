@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -97,9 +98,9 @@ class _SharedCollectionsPanelState extends State<SharedCollectionsPanel>
   Future<void> _join() async {
     final strings = NovaStrings.of(context);
     var input = '';
-    final value = await showDialog<String>(
+    final value = await showNovaDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => NovaGlassDialog(
         title: Text(strings.text('sharedJoinTitle')),
         content: TextField(
           onChanged: (value) => input = value,
@@ -269,9 +270,9 @@ Future<(String, String?)?> showSharedCollectionForm(
   var name = initialName ?? '';
   var description = initialDescription ?? '';
   final formKey = GlobalKey<FormState>();
-  return showDialog<(String, String?)>(
+  return showNovaDialog<(String, String?)>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => NovaGlassDialog(
       scrollable: true,
       title: Text(strings
           .text(initialName == null ? 'sharedCreate' : 'sharedEditCollection')),

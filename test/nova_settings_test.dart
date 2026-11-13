@@ -18,6 +18,7 @@ import 'package:nova_mobile/features/settings/settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_display_page.dart';
 import 'package:nova_mobile/features/settings/settings_data_page.dart';
 import 'package:nova_mobile/shared/widgets/nova_brand.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:nova_mobile/features/settings/catalog_settings_page.dart';
 import 'package:nova_mobile/features/settings/settings_personalization_page.dart';
 import 'package:nova_mobile/features/settings/settings_preferences_page.dart';
@@ -464,7 +465,7 @@ void main() {
         scale: 2));
     await tester.pumpAndSettle();
     expect(find.byType(NovaBrand), findsWidgets);
-    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(NovaGlassDialog), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

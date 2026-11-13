@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -309,7 +310,7 @@ class _SupabaseSyncCardState extends State<_SupabaseSyncCard> {
 
 Future<void> _restoreBackup(BuildContext context, AppState app) async {
   final english = app.english;
-  final backup = await showDialog<String>(
+  final backup = await showNovaDialog<String>(
     context: context,
     builder: (_) => _RestoreBackupDialog(english: english),
   );
@@ -613,7 +614,7 @@ class _RestoreBackupDialogState extends State<_RestoreBackupDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => NovaGlassDialog(
         title: Text(NovaStrings.lookup(widget.english, 'message395')),
         content: SizedBox(
           width: 520,
@@ -941,12 +942,12 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     if (_requiredDialogOpen || !mounted) return;
     _requiredDialogOpen = true;
     final app = context.read<AppState>();
-    await showDialog<void>(
+    await showNovaDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => PopScope(
         canPop: false,
-        child: AlertDialog(
+        child: NovaGlassDialog(
           scrollable: true,
           title: const Align(
             alignment: AlignmentDirectional.centerStart,
@@ -990,12 +991,12 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
     var progressDialogOpen = Platform.isAndroid;
     var operation = AppUpdateOperation.download;
     if (Platform.isAndroid) {
-      unawaited(showDialog<void>(
+      unawaited(showNovaDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => PopScope(
           canPop: false,
-          child: AlertDialog(
+          child: NovaGlassDialog(
             scrollable: true,
             title: const Align(
               alignment: AlignmentDirectional.centerStart,
@@ -1096,18 +1097,11 @@ class _SettingsAboutPageState extends State<SettingsAboutPage> {
       _showMessage(message);
       return;
     }
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(app.tr(isError ? 'updateErrorTitle' : 'updateSection')),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(app.tr('updateDismiss')),
-          ),
-        ],
-      ),
+    await NovaIosControls.alert(
+      context,
+      title: app.tr(isError ? 'updateErrorTitle' : 'updateSection'),
+      message: message,
+      buttonLabel: app.tr('updateDismiss'),
     );
   }
 

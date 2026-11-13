@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -214,19 +216,23 @@ Future<({String url, PreparedTorrent? torrent})?> _resolveTorrentStream(
   var cancelled = false;
   bool current() => !cancelled && isCurrent();
   final status = ValueNotifier<TorrentStatus?>(null);
-  late final DialogRoute<void> dialog;
-  dialog = DialogRoute<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => StreamPrepareDialog(
-      english: english,
-      status: status,
-      onCancel: () {
-        cancelled = true;
-        if (dialog.isActive) navigator.removeRoute(dialog);
-      },
-    ),
-  );
+  late final Route<void> dialog;
+  Widget buildDialog(BuildContext _) => Material(
+        type: MaterialType.transparency,
+        child: StreamPrepareDialog(
+          english: english,
+          status: status,
+          onCancel: () {
+            cancelled = true;
+            if (dialog.isActive) navigator.removeRoute(dialog);
+          },
+        ),
+      );
+  dialog = !kIsWeb && Theme.of(context).platform == TargetPlatform.iOS
+      ? CupertinoDialogRoute<void>(
+          context: context, barrierDismissible: false, builder: buildDialog)
+      : DialogRoute<void>(
+          context: context, barrierDismissible: false, builder: buildDialog);
   unawaited(navigator.push(dialog));
   try {
     if (debridConfigured) {

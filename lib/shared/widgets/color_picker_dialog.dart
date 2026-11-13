@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/theme/nova_theme.dart';
@@ -10,7 +11,7 @@ Future<String?> showNoorColorPicker(BuildContext context,
         String? title,
         bool english = false,
         bool previewAsOutline = false}) =>
-    showDialog<String>(
+    showNovaDialog<String>(
         context: context,
         builder: (_) => _NovaColorPicker(
             initialHex: initialHex,
@@ -68,7 +69,7 @@ class _NovaColorPickerState extends State<_NovaColorPicker> {
     final english = widget.english;
     final s = NovaStrings.of(context);
     final scheme = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return NovaGlassDialog(
       title: Text(widget.title ?? (NovaStrings.lookup(english, 'message724'))),
       content: SizedBox(
           width: 400,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -458,10 +459,10 @@ Future<(String, String)?> showSharedCollectionItemForm(
   var enteredTitle = title ?? '';
   final formKey = GlobalKey<FormState>();
   var selected = mediaType;
-  return showDialog<(String, String)>(
+  return showNovaDialog<(String, String)>(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
-      builder: (dialogContext, setDialogState) => AlertDialog(
+      builder: (dialogContext, setDialogState) => NovaGlassDialog(
         scrollable: true,
         title: Text(
             strings.text(title == null ? 'sharedAddItem' : 'sharedEditItem')),

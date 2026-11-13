@@ -4,6 +4,7 @@ import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/media_item.dart';
@@ -238,10 +239,10 @@ Future<void> _openTorrentHistoryEntry(
 
   final navigator = Navigator.of(context, rootNavigator: true);
   var cancelled = false;
-  unawaited(showDialog<void>(
+  unawaited(showNovaDialog<void>(
     context: context,
     barrierDismissible: false,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => NovaGlassDialog(
       backgroundColor: NovaTheme.of(context).surface,
       content: Row(
         children: [

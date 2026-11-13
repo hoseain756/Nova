@@ -65,6 +65,36 @@ void main() {
     );
   });
 
+  testWidgets('native acknowledgement uses one UIKit action', (tester) async {
+    NovaIosControls.debugAvailableOverride = true;
+    addTearDown(() => NovaIosControls.debugAvailableOverride = null);
+    MethodCall? captured;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (call) async {
+        captured = call;
+        return 0;
+      },
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, null));
+    late BuildContext anchor;
+    await tester.pumpWidget(MaterialApp(home: Builder(builder: (context) {
+      anchor = context;
+      return const Scaffold(body: SizedBox());
+    })));
+    await NovaIosControls.alert(
+      anchor,
+      title: 'Update',
+      message: 'Ready',
+      buttonLabel: 'OK',
+    );
+    expect(captured?.method, 'presentAlert');
+    expect((captured?.arguments as Map)['actions'], [
+      {'label': 'OK', 'style': 'default'}
+    ]);
+  });
+
   testWidgets('native choice returns only a valid selected option',
       (tester) async {
     NovaIosControls.debugAvailableOverride = true;

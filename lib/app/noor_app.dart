@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_ios_controls.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -189,28 +190,16 @@ class _LaunchGateState extends State<_LaunchGate> {
 
   Future<void> _showIosUpdate(AppUpdateStatus status) async {
     final strings = NovaStrings.of(context);
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(strings.text('updateSection')),
-        content: Text(strings.text('updateAvailable', {
-          'version': status.availableVersion,
-        })),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(strings.text('updateDismiss')),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              unawaited(_openIosUpdate(status));
-            },
-            child: Text(strings.text('updateOpenIosAction')),
-          ),
-        ],
-      ),
+    final open = await NovaIosControls.confirm(
+      context,
+      title: strings.text('updateSection'),
+      message: strings.text('updateAvailable', {
+        'version': status.availableVersion,
+      }),
+      confirmLabel: strings.text('updateOpenIosAction'),
+      cancelLabel: strings.text('updateDismiss'),
     );
+    if (open == true && mounted) unawaited(_openIosUpdate(status));
   }
 
   Future<void> _openIosUpdate(AppUpdateStatus status) async {

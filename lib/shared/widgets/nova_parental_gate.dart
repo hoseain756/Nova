@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -52,7 +53,7 @@ abstract final class NovaParentalGate {
 
   static Future<bool> _show(BuildContext context,
           {required bool create}) async =>
-      await showDialog<bool>(
+      await showNovaDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (_) => _PinDialog(create: create)) ??
@@ -157,7 +158,7 @@ class _PinDialogState extends State<_PinDialog> {
   @override
   Widget build(BuildContext context) {
     final s = NovaStrings.of(context);
-    return AlertDialog(
+    return NovaGlassDialog(
       scrollable: true,
       icon: Icon(LucideIcons.shieldCheck,
           color: Theme.of(context).colorScheme.secondary, size: 32),

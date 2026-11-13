@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/theme/nova_theme.dart';
@@ -893,7 +894,7 @@ class _ProfileManagementPageState extends State<ProfileManagementPage> {
 }
 
 Future<String?> _askForPin(BuildContext context, String profileName) async {
-  return showDialog<String>(
+  return showNovaDialog<String>(
     context: context,
     builder: (context) => _ProfilePinDialog(profileName: profileName),
   );
@@ -926,7 +927,7 @@ class _ProfilePinDialogState extends State<_ProfilePinDialog> {
   @override
   Widget build(BuildContext context) {
     final s = NovaStrings.of(context);
-    return AlertDialog(
+    return NovaGlassDialog(
       title: Text(widget.profileName),
       content: TextField(
         controller: _controller,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +12,7 @@ import 'widgets/watch_party_connection_settings.dart';
 
 Future<bool> showWatchPartyJoinDialog(BuildContext context,
         {String? initialInvite}) async =>
-    await showDialog<bool>(
+    await showNovaDialog<bool>(
         context: context,
         barrierDismissible: false,
         builder: (_) => WatchPartyJoinDialog(initialInvite: initialInvite)) ??
@@ -53,9 +54,9 @@ Future<bool> joinWatchPartyInput(
   if (switching) {
     if (settings == null) throw const WatchPartyException('relay_check_failed');
     final strings = NovaStrings.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showNovaDialog<bool>(
         context: context,
-        builder: (dialog) => AlertDialog(
+        builder: (dialog) => NovaGlassDialog(
                 scrollable: true,
                 title: Text(strings.text('partyRelayConfirmTitle')),
                 content: Column(
@@ -152,7 +153,7 @@ class _WatchPartyJoinDialogState extends State<WatchPartyJoinDialog> {
     final relay = context.watch<WatchPartyRelaySettings?>();
     return PopScope(
         canPop: !_working,
-        child: AlertDialog(
+        child: NovaGlassDialog(
             scrollable: true,
             constraints: const BoxConstraints(maxWidth: 520),
             title: Text(_t('partyJoin')),

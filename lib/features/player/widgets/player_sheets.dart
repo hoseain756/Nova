@@ -1,7 +1,9 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
@@ -95,7 +97,8 @@ Future<T?> showPlayerSheet<T>(
   required WidgetBuilder builder,
 }) {
   final scheme = Theme.of(context).colorScheme;
-  return showDialog<T>(
+  final ios = !kIsWeb && Theme.of(context).platform == TargetPlatform.iOS;
+  return showNovaDialog<T>(
     context: context,
     useSafeArea: false,
     barrierColor: scheme.scrim.withValues(alpha: .72),
@@ -106,15 +109,21 @@ Future<T?> showPlayerSheet<T>(
       padding: EdgeInsets.only(
           bottom: MediaQuery.viewInsetsOf(dialogContext).bottom),
       child: PlayerDialogFrame(
-        child: Material(
-          color: scheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: scheme.outlineVariant),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: builder(dialogContext),
-        ),
+        child: ios
+            ? NovaIosGlassSurface(
+                child: Material(
+                    type: MaterialType.transparency,
+                    child: builder(dialogContext)),
+              )
+            : Material(
+                color: scheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: BorderSide(color: scheme.outlineVariant),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: builder(dialogContext),
+              ),
       ),
     ),
   );

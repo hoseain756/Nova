@@ -3,6 +3,7 @@ import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -107,7 +108,7 @@ class _LiveTvPageState extends State<LiveTvPage> {
 
   Future<void> _addPlaylist() async {
     final english = context.read<AppState>().english;
-    final entry = await showDialog<Map<String, String>>(
+    final entry = await showNovaDialog<Map<String, String>>(
       context: context,
       builder: (_) => _AddPlaylistDialog(english: english),
     );
@@ -460,7 +461,7 @@ class _AddPlaylistDialogState extends State<_AddPlaylistDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => NovaGlassDialog(
         icon: const Icon(LucideIcons.radio, size: 32),
         title: Text(NovaStrings.lookup(widget.english, 'message672')),
         content: SingleChildScrollView(

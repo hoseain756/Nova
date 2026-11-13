@@ -8,6 +8,7 @@ library;
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../../core/state/app_state.dart';
@@ -1002,7 +1003,7 @@ class StreamPrepareDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AlertDialog(
+    return NovaGlassDialog(
       icon: Icon(LucideIcons.clapperboard, size: 32, color: scheme.primary),
       title: Text(NovaStrings.lookup(english, 'message216')),
       content: SizedBox(

@@ -1,5 +1,6 @@
 import 'package:nova_mobile/l10n/nova_strings.dart';
 import 'package:flutter/material.dart';
+import 'package:nova_mobile/shared/widgets/nova_dialog.dart';
 import '../../shared/widgets/nova_ios_controls.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:provider/provider.dart';
@@ -769,10 +770,10 @@ class _PreferenceTile extends StatelessWidget {
     if (item.control == _Control.multiple) {
       final currentValues =
           (current as List? ?? const []).map((e) => e.toString()).toSet();
-      final selected = await showDialog<Set<String>>(
+      final selected = await showNovaDialog<Set<String>>(
         context: context,
         builder: (context) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, setState) => NovaGlassDialog(
             title: Text(english ? item.english : item.arabic),
             content: SingleChildScrollView(
               child: Column(
@@ -820,10 +821,10 @@ class _PreferenceTile extends StatelessWidget {
       if (item.key == 'subFontSize' && sliderValue.round().isOdd) {
         sliderValue -= 1;
       }
-      final next = await showDialog<double>(
+      final next = await showNovaDialog<double>(
         context: context,
         builder: (context) => StatefulBuilder(
-          builder: (context, setState) => AlertDialog(
+          builder: (context, setState) => NovaGlassDialog(
             title: Text(english ? item.english : item.arabic),
             content: Column(
               mainAxisSize: MainAxisSize.min,
