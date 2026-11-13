@@ -26,8 +26,12 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: beta
+          flutter-version: '3.49.0-0.2.pre'
           cache: true
+
+      - name: Verify NOVA Flutter revision
+        run: test "$(git -C "$FLUTTER_ROOT" rev-parse HEAD)" = "38ec981bad973156ad05bdef0aa8e82d1a58905b"
 
       - name: Resolve dependencies
         run: flutter pub get
