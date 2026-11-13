@@ -174,6 +174,8 @@ class MediaHero extends StatelessWidget {
                           : NovaNetworkImage(
                               artworkQuality.sourceUrl(url,
                                   hero: detail, portrait: false),
+                              width: double.infinity,
+                              height: double.infinity,
                               fit: BoxFit.cover,
                               cacheWidth: detail
                                   ? artworkQuality.decodedExtent(

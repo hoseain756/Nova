@@ -1,4 +1,5 @@
 import 'package:nova_mobile/shared/widgets/media_hero.dart';
+import 'package:nova_mobile/shared/widgets/nova_network_image.dart';
 // Widget smoke test — pumps the rebuilt detail presentation widgets
 // (hero + the Task 118 sliver episodes composition) on phone + tablet sizes
 // to catch layout exceptions.
@@ -199,4 +200,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('iPad detail artwork fills the image frame in RTL',
+      (tester) async {
+    const size = Size(1366, 1024);
+    setViewport(tester, size);
+    const artwork = MediaItem(
+      id: 'artwork-ipad',
+      type: 'movie',
+      name: 'عنوان طويل لاختبار عرض الصورة على الآيباد',
+      background: 'https://example.com/backdrop.jpg',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          body: CustomScrollView(slivers: [
+            const SliverToBoxAdapter(
+              child: MediaHero(
+                item: artwork,
+                detail: true,
+                actions: SizedBox.shrink(),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ));
+    final frame =
+        tester.getRect(find.byKey(const ValueKey('media-hero-frame')));
+    final image = tester.getRect(find.descendant(
+      of: find.byKey(const ValueKey('media-hero-frame')),
+      matching: find.byType(Image),
+    ));
+    expect(frame, Rect.fromLTWH(0, 0, size.width, size.height * .5));
+    expect(image, frame);
+    final networkImage =
+        tester.widget<NovaNetworkImage>(find.byType(NovaNetworkImage));
+    expect(networkImage.fit, BoxFit.cover);
+    expect(tester.takeException(), isNull);
+  });
 }
